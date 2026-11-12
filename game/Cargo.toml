@@ -1,0 +1,13 @@
+[package]
+name = "melody-quack"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mq-shared = { path = "../shared" }
+macroquad = { version = "0.4", default-features = false }
+cpal = "0.15"
+tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+audiopus = "0.3.0-rc.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
