@@ -47,6 +47,7 @@ mod visuals;
 mod sampler;
 mod ddr;
 mod state;
+mod frame_state;
 
 use util::*;
 use ui::*;
@@ -78,6 +79,7 @@ use visuals::*;
 use sampler::*;
 use ddr::*;
 use state::*;
+use frame_state::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "native/mic.rs"]
@@ -130,19 +132,6 @@ fn window_conf() -> Conf {
     }
 }
 
-struct Extras {
-    fishing: bool,
-    ring: f32,
-    in_window: bool,
-    dip: f32,
-    jump: Option<(usize, f32)>,
-    cat: Vec2,
-    pot: bool,
-    hearts: Vec<(Vec3, f32)>,
-    ghost: Option<(i32, i32, Tool)>,
-    friend_rod: Option<Vec2>,
-    sticks: Vec<Vec2>,
-}
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -531,22 +520,23 @@ async fn main() {
         fresh_confirm,
     };
     loop {
-        let dt = get_frame_time().min(0.05);
-        let time = get_time() as f32;
+        let mut fr = Frame::default();
+        fr.dt = get_frame_time().min(0.05);
+        fr.time = get_time() as f32;
 
-        let mut click = is_mouse_button_pressed(MouseButton::Left);
-        if click && !g.first_click_done {
+        fr.click = is_mouse_button_pressed(MouseButton::Left);
+        if fr.click && !g.first_click_done {
             g.first_click_done = true;
             if cfg!(target_arch = "wasm32") {
-                click = false;
+                fr.click = false;
             }
         }
-        let (ux, uy) = {
+        (fr.ux, fr.uy) = {
             let (kx, ky) = ui_scale();
             let (mx, my) = mouse_position();
             (mx / kx, my / ky)
         };
-        let mut emoji_send: [Option<usize>; 2] = [None, None];
+        fr.emoji_send = [None, None];
         for who in 0..2 {
             if who == 1 && !g.two_player {
                 g.emoji_choose[1] = None;
@@ -560,29 +550,29 @@ async fn main() {
                 });
             }
             if let Some((id, t)) = g.emoji_choose[who].as_mut() {
-                *t += dt;
+                *t += fr.dt;
                 let (sx, sy, cell) = emoji_strip(who, g.two_player);
-                if click && uy > sy - 3.0 && uy < sy + cell + 3.0 && ux > sx && ux < sx + cell * emoji::COUNT as f32 {
-                    *id = (((ux - sx) / cell) as usize).min(emoji::COUNT - 1);
+                if fr.click && fr.uy > sy - 3.0 && fr.uy < sy + cell + 3.0 && fr.ux > sx && fr.ux < sx + cell * emoji::COUNT as f32 {
+                    *id = (((fr.ux - sx) / cell) as usize).min(emoji::COUNT - 1);
                     *t = 99.0;
-                    click = false;
+                    fr.click = false;
                 }
                 if *t > 1.1 {
-                    emoji_send[who] = Some(*id);
+                    fr.emoji_send[who] = Some(*id);
                 }
             }
-            if let Some(id) = emoji_send[who] {
+            if let Some(id) = fr.emoji_send[who] {
                 g.emoji_choose[who] = None;
                 g.emoji_last[who] = id;
                 g.players[who].emote = Some((id, 3.0));
                 quest_event(&mut g.quests, QuestKind::Emoji, 1, &mut g.inv, &mut g.toasts);
                 if who == 0 && !g.two_player {
-                    g.emoji_reply = Some((emoji::reply(id, hash((time * 17.0) as i32, 8, 3)), 0.8));
+                    g.emoji_reply = Some((emoji::reply(id, hash((fr.time * 17.0) as i32, 8, 3)), 0.8));
                 }
             }
         }
         if let Some((id, t)) = g.emoji_reply.as_mut() {
-            *t -= dt;
+            *t -= fr.dt;
             if *t <= 0.0 {
                 g.players[1].emote = Some((*id, 3.0));
                 g.players[1].voice_timer = 0.3;
@@ -591,7 +581,7 @@ async fn main() {
         }
         for p in g.players.iter_mut() {
             if let Some((_, left)) = p.emote.as_mut() {
-                *left -= dt;
+                *left -= fr.dt;
             }
             if p.emote.map(|e| e.1 <= 0.0).unwrap_or(false) {
                 p.emote = None;
@@ -604,9 +594,9 @@ async fn main() {
             let right_k = is_key_pressed(KeyCode::D) || is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::L);
             let pick_k = is_key_pressed(KeyCode::E) || is_key_pressed(KeyCode::O) || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Space);
             let back_k = is_key_pressed(KeyCode::X) || is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::Backspace);
-            let close_hit = click && ux > low_w() - 30.0 && uy < 26.0;
-            let tap = click && !close_hit;
-            let (tap_left, tap_right) = (tap && ux < low_w() * 0.33, tap && ux > low_w() * 0.67);
+            let close_hit = fr.click && fr.ux > low_w() - 30.0 && fr.uy < 26.0;
+            let tap = fr.click && !close_hit;
+            let (tap_left, tap_right) = (tap && fr.ux < low_w() * 0.33, tap && fr.ux > low_w() * 0.67);
             let tap_mid = tap && !tap_left && !tap_right;
             if g.open_book.is_none() || !g.spines_painted {
                 for (i, book) in books::BOOKS.iter().enumerate() {
@@ -659,9 +649,9 @@ async fn main() {
                 paint_page(&g.page_rt[0], &books::BOOKS[b], g.book_spread * 2, true);
                 paint_page(&g.page_rt[1], &books::BOOKS[b], g.book_spread * 2 + 1, false);
                 g.painted = Some((b, g.book_spread));
-                draw_book_scene(&books::BOOKS[b], &g.page_rt, g.page_turn, g.turn_dir, time);
+                draw_book_scene(&books::BOOKS[b], &g.page_rt, g.page_turn, g.turn_dir, fr.time);
             } else {
-                draw_shelf_scene(g.shelf_sel, time, &g.spine_rt);
+                draw_shelf_scene(g.shelf_sel, fr.time, &g.spine_rt);
             }
             set_default_camera();
             let touch = radio::touch_ui();
@@ -753,21 +743,21 @@ async fn main() {
             let row_h = 14.0;
             let shown = (((y + h - 16.0) - list_y) / row_h).floor().max(1.0) as usize;
             let first = g.dex_sel.saturating_sub(shown / 2).min(n.saturating_sub(shown));
-            let on_search = ux > x + 8.0 && ux < x + 8.0 + list_w && uy > search_y && uy < search_y + 15.0;
-            let on_list = ux > x + 8.0 && ux < x + 8.0 + list_w && uy > list_y && uy < list_y + shown as f32 * row_h;
-            let inside = ux > x && ux < x + w && uy > y && uy < y + h;
-            if click && on_search && radio::touch_ui() {
+            let on_search = fr.ux > x + 8.0 && fr.ux < x + 8.0 + list_w && fr.uy > search_y && fr.uy < search_y + 15.0;
+            let on_list = fr.ux > x + 8.0 && fr.ux < x + 8.0 + list_w && fr.uy > list_y && fr.uy < list_y + shown as f32 * row_h;
+            let inside = fr.ux > x && fr.ux < x + w && fr.uy > y && fr.uy < y + h;
+            if fr.click && on_search && radio::touch_ui() {
                 if let Some(text) = radio::ask_text(if shrooms_mode { "search the mushrooms: a name or a number" } else { "search the fishdex: a name or a number" }, &g.dex_query) {
                     g.dex_query = text.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == ' ' || *c == '#').take(20).collect();
                     g.dex_sel = 0;
                 }
-            } else if click && on_list {
-                let r = first + ((uy - list_y) / row_h) as usize;
+            } else if fr.click && on_list {
+                let r = first + ((fr.uy - list_y) / row_h) as usize;
                 if r < n {
                     g.dex_sel = r;
                 }
-                g.dex_drag = Some((uy, g.dex_sel));
-            } else if click && !inside {
+                g.dex_drag = Some((fr.uy, g.dex_sel));
+            } else if fr.click && !inside {
                 g.dex_open = false;
             }
             {
@@ -775,7 +765,7 @@ async fn main() {
                 for (k, name) in tab_names.iter().enumerate() {
                     let tw = ui_measure(name, 11.0);
                     let usable = k >= 2 || g.dex_from_shop;
-                    if click && usable && ux > tx - 2.0 && ux < tx + tw + 2.0 && uy > y + 4.0 && uy < y + 20.0 {
+                    if fr.click && usable && fr.ux > tx - 2.0 && fr.ux < tx + tw + 2.0 && fr.uy > y + 4.0 && fr.uy < y + 20.0 {
                         tab_go = Some(k);
                     }
                     tx += tw + 10.0;
@@ -796,7 +786,7 @@ async fn main() {
             }
             if is_mouse_button_down(MouseButton::Left) {
                 if let Some((start, from)) = g.dex_drag {
-                    let moved = ((start - uy) / row_h) as i32;
+                    let moved = ((start - fr.uy) / row_h) as i32;
                     g.dex_sel = (from as i32 + moved).clamp(0, n.saturating_sub(1) as i32) as usize;
                 }
             } else {
@@ -838,7 +828,7 @@ async fn main() {
             ui_text(&count, x + w - 8.0 - ui_measure(&count, 11.0), y + 16.0, 11.0, WHITE);
             ui_rect(x + 8.0, search_y, list_w, 15.0, Color::new(1.0, 1.0, 1.0, if on_search { 0.16 } else { 0.1 }));
             let placeholder = if radio::touch_ui() { "tap to search a name or #number" } else { "type a name or #number" };
-            let cursor = if (time * 2.0).fract() < 0.5 && !radio::touch_ui() { "_" } else { "" };
+            let cursor = if (fr.time * 2.0).fract() < 0.5 && !radio::touch_ui() { "_" } else { "" };
             if g.dex_query.is_empty() {
                 ui_text(placeholder, x + 13.0, search_y + 11.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.45));
             } else {
@@ -890,20 +880,20 @@ async fn main() {
             next_frame().await;
             continue;
         }
-        let mut just_paused = false;
-        let mut help_closed = false;
+        fr.just_paused = false;
+        fr.help_closed = false;
         if g.show_help && !g.paused {
             let (hx, hy, hw, hh) = help_box();
-            let tab_hit = (0..3).find(|k| click && uy > hy + 20.0 && uy < hy + 36.0 && ux > hx + 10.0 + *k as f32 * (hw - 20.0) / 3.0 && ux < hx + 10.0 + (*k + 1) as f32 * (hw - 20.0) / 3.0);
+            let tab_hit = (0..3).find(|k| fr.click && fr.uy > hy + 20.0 && fr.uy < hy + 36.0 && fr.ux > hx + 10.0 + *k as f32 * (hw - 20.0) / 3.0 && fr.ux < hx + 10.0 + (*k + 1) as f32 * (hw - 20.0) / 3.0);
             if let Some(k) = tab_hit {
                 g.help_page = k;
-                click = false;
-            } else if is_key_pressed(KeyCode::Escape) || (click && !(ux > hx && ux < hx + hw && uy > hy && uy < hy + hh)) {
+                fr.click = false;
+            } else if is_key_pressed(KeyCode::Escape) || (fr.click && !(fr.ux > hx && fr.ux < hx + hw && fr.uy > hy && fr.uy < hy + hh)) {
                 g.show_help = false;
-                help_closed = true;
-                click = false;
-            } else if click {
-                click = false;
+                fr.help_closed = true;
+                fr.click = false;
+            } else if fr.click {
+                fr.click = false;
             }
             if is_key_pressed(KeyCode::Right) {
                 g.help_page = (g.help_page + 1) % 3;
@@ -914,21 +904,21 @@ async fn main() {
         }
         if g.sampler.open && !g.paused && is_key_pressed(KeyCode::Escape) {
             g.sampler.open = false;
-            help_closed = true;
+            fr.help_closed = true;
         }
         if (g.ddr.on[0] || g.ddr.on[1]) && !g.paused && is_key_pressed(KeyCode::Escape) {
             g.ddr.on = [false; 2];
-            help_closed = true;
+            fr.help_closed = true;
         }
-        if !g.paused && !g.picking && !help_closed {
+        if !g.paused && !g.picking && !fr.help_closed {
             let tap_ok = if radio::touch_ui() && !g.two_player {
-                if low_h() > low_w() { uy < low_h() * 0.55 && uy > 20.0 } else { ux > low_w() * 0.235 && ux < low_w() * 0.765 && uy > 20.0 }
+                if low_h() > low_w() { fr.uy < low_h() * 0.55 && fr.uy > 20.0 } else { fr.ux > low_w() * 0.235 && fr.ux < low_w() * 0.765 && fr.uy > 20.0 }
             } else {
                 true
             };
-            if (click && tap_ok) || is_key_pressed(KeyCode::Escape) {
+            if (fr.click && tap_ok) || is_key_pressed(KeyCode::Escape) {
                 g.paused = true;
-                just_paused = true;
+                fr.just_paused = true;
                 g.mix_drag = None;
             }
         }
@@ -962,44 +952,44 @@ async fn main() {
             if is_mouse_button_down(MouseButton::Left) {
                 if g.mix_drag.is_none() && is_mouse_button_pressed(MouseButton::Left) {
                     for r in 0..5 {
-                        if (uy - row_y(r)).abs() < row_h / 2.0 && ux > bar_x - 10.0 && ux < bar_x + bar_w + 10.0 {
+                        if (fr.uy - row_y(r)).abs() < row_h / 2.0 && fr.ux > bar_x - 10.0 && fr.ux < bar_x + bar_w + 10.0 {
                             g.mix_drag = Some(r);
                         }
                     }
                 }
                 if let Some(r) = g.mix_drag {
-                    g.mix[r] = ((ux - bar_x) / bar_w).clamp(0.0, 1.0);
+                    g.mix[r] = ((fr.ux - bar_x) / bar_w).clamp(0.0, 1.0);
                     g.audio.set_mix(g.mix);
                 }
             } else {
                 g.mix_drag = None;
             }
-            let inside = ux > x && ux < x + w && uy > y && uy < y + h;
+            let inside = fr.ux > x && fr.ux < x + w && fr.uy > y && fr.uy < y + h;
             let (dex_x, btn_y, dex_w, btn_h) = (x + 10.0, y + 40.0 + row_h * 5.0 + 4.0, ((w - 26.0) * 0.42).round(), 20.0);
             let (btn_x, btn_w) = (dex_x + dex_w + 6.0, w - 26.0 - dex_w);
-            let on_button = ux > btn_x && ux < btn_x + btn_w && uy > btn_y && uy < btn_y + btn_h;
-            let on_dex = ux > dex_x && ux < dex_x + dex_w && uy > btn_y && uy < btn_y + btn_h;
-            if !just_paused && ((click && on_dex) || is_key_pressed(KeyCode::F)) {
+            let on_button = fr.ux > btn_x && fr.ux < btn_x + btn_w && fr.uy > btn_y && fr.uy < btn_y + btn_h;
+            let on_dex = fr.ux > dex_x && fr.ux < dex_x + dex_w && fr.uy > btn_y && fr.uy < btn_y + btn_h;
+            if !fr.just_paused && ((fr.click && on_dex) || is_key_pressed(KeyCode::F)) {
                 g.paused = false;
                 g.dex_open = true;
                 g.dex_from_shop = false;
                 g.dex_query.clear();
                 g.dex_sel = 0;
                 while get_char_pressed().is_some() {}
-                click = false;
+                fr.click = false;
             }
             let live_y = btn_y + btn_h + 4.0;
             let live_w = ((w - 26.0) / 2.0).round();
             let live_x = [dex_x, dex_x + live_w + 6.0];
-            let on_live = |i: usize| ux > live_x[i] && ux < live_x[i] + live_w && uy > live_y && uy < live_y + btn_h;
+            let on_live = |i: usize| fr.ux > live_x[i] && fr.ux < live_x[i] + live_w && fr.uy > live_y && fr.uy < live_y + btn_h;
             for (i, key) in [KeyCode::J, KeyCode::K].into_iter().enumerate() {
-                if !just_paused && ((click && on_live(i) && g.mix_drag.is_none()) || is_key_pressed(key)) {
+                if !fr.just_paused && ((fr.click && on_live(i) && g.mix_drag.is_none()) || is_key_pressed(key)) {
                     radio::set_flag(i as i32, !radio::flag(i as i32));
-                    click = false;
+                    fr.click = false;
                 }
             }
             g.restart_confirm = (g.restart_confirm - get_frame_time()).max(0.0);
-            if !just_paused && ((click && on_button && g.mix_drag.is_none()) || is_key_pressed(KeyCode::R)) {
+            if !fr.just_paused && ((fr.click && on_button && g.mix_drag.is_none()) || is_key_pressed(KeyCode::R)) {
                 if g.restart_confirm > 0.0 {
                     g.restart_now = true;
                     g.paused = false;
@@ -1007,7 +997,7 @@ async fn main() {
                     g.restart_confirm = 3.0;
                 }
             }
-            if !just_paused && ((click && !inside && g.mix_drag.is_none()) || is_key_pressed(KeyCode::Escape)) {
+            if !fr.just_paused && ((fr.click && !inside && g.mix_drag.is_none()) || is_key_pressed(KeyCode::Escape)) {
                 g.paused = false;
                 g.restart_confirm = 0.0;
                 g.save_clock = 99.0;
@@ -1115,8 +1105,8 @@ async fn main() {
         if is_key_pressed(KeyCode::R) {
             g.looper.recording = !g.looper.recording;
         }
-        let shift_held = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
-        if is_key_pressed(KeyCode::C) && shift_held {
+        fr.shift_held = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+        if is_key_pressed(KeyCode::C) && fr.shift_held {
             g.songbook.clear();
             g.partner_xp = 0;
             g.partner_phrase.clear();
@@ -1143,9 +1133,9 @@ async fn main() {
         if is_key_pressed(KeyCode::H) {
             g.show_help = !g.show_help;
         }
-        let bag_keys = [is_key_pressed(KeyCode::M) || is_key_pressed(KeyCode::Enter), g.two_player && is_key_pressed(KeyCode::Backspace)];
+        fr.bag_keys = [is_key_pressed(KeyCode::M) || is_key_pressed(KeyCode::Enter), g.two_player && is_key_pressed(KeyCode::Backspace)];
         for who in 0..2 {
-            if !bag_keys[who] || g.picking {
+            if !fr.bag_keys[who] || g.picking {
                 continue;
             }
             if g.inside && g.holding.is_some() && g.holding_by == who {
@@ -1164,9 +1154,9 @@ async fn main() {
                 g.bag_clear_armed = 0.0;
             }
         }
-        g.bag_clear_armed = (g.bag_clear_armed - dt).max(0.0);
-        let bag_busy = g.show_inventory && g.inside && !g.shop_open;
-        if bag_busy && g.holding.is_none() {
+        g.bag_clear_armed = (g.bag_clear_armed - fr.dt).max(0.0);
+        fr.bag_busy = g.show_inventory && g.inside && !g.shop_open;
+        if fr.bag_busy && g.holding.is_none() {
             let owner = g.bag_owner;
             let (up, down, act, clear) = if owner == 0 {
                 (is_key_pressed(KeyCode::W) || is_key_pressed(KeyCode::Up), is_key_pressed(KeyCode::S) || is_key_pressed(KeyCode::Down), is_key_pressed(KeyCode::E), is_key_pressed(KeyCode::X))
@@ -1227,16 +1217,16 @@ async fn main() {
             }
         }
         g.fresh_confirm = (g.fresh_confirm - get_frame_time()).max(0.0);
-        let mut start_fresh = false;
+        fr.start_fresh = false;
         if is_key_pressed(KeyCode::N) && !g.picking {
             if g.fresh_confirm > 0.0 {
-                start_fresh = true;
+                fr.start_fresh = true;
             } else {
                 g.fresh_confirm = 3.0;
                 g.toasts.push(("press N again to start a fresh world".to_string(), 3.0));
             }
         }
-        if start_fresh {
+        if fr.start_fresh {
             store::clear();
             g.world = World::new();
             g.inv = Inventory { wood: 2, stone: 0, fish: [0; 3], mush: [0; 3], acorns: 0 };
@@ -1347,8 +1337,8 @@ async fn main() {
             g.radio_bpm = bpm;
         }
         g.save_clock += get_frame_time();
-        let quitting = is_quit_requested();
-        if (g.save_clock > 5.0 || quitting || g.restart_now) && !g.first_pick {
+        fr.quitting = is_quit_requested();
+        if (g.save_clock > 5.0 || fr.quitting || g.restart_now) && !g.first_pick {
             g.save_clock = 0.0;
             let progress = Progress {
                 tiles: g.world.tiles.iter().map(|t| (kind_index(t.kind), t.stack)).collect(),
@@ -1387,7 +1377,7 @@ async fn main() {
             };
             store::write(&encode_progress(&progress));
         }
-        if quitting || g.restart_now {
+        if fr.quitting || g.restart_now {
             if let Some(mix) = g.audio.stop_tape() {
                 store::save_jam(&wav_bytes(&mix));
             }
@@ -1409,10 +1399,10 @@ async fn main() {
         if is_key_pressed(KeyCode::Q) {
             g.looper.quantise = g.looper.quantise.next();
         }
-        let mut picker_closed = false;
+        fr.picker_closed = false;
         if is_key_pressed(KeyCode::V) {
             g.picking = !g.picking;
-            picker_closed = !g.picking;
+            fr.picker_closed = !g.picking;
         }
         if g.picking {
             if is_key_pressed(KeyCode::W) || is_key_pressed(KeyCode::Up) {
@@ -1437,10 +1427,10 @@ async fn main() {
             }
             if is_key_pressed(KeyCode::E) || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Space) {
                 g.picking = false;
-                picker_closed = true;
+                fr.picker_closed = true;
             }
         }
-        if picker_closed && g.first_pick {
+        if fr.picker_closed && g.first_pick {
             g.first_pick = false;
             g.first_steps = 1;
             g.toasts.push((format!("the {} trots off to find sticks", g.cast_list[g.players[1].character].noun), 4.0));
@@ -1482,7 +1472,7 @@ async fn main() {
             }
         }
         if g.listening {
-            g.listen_clock += dt;
+            g.listen_clock += fr.dt;
             if g.listen_clock >= 0.5 {
                 g.listen_clock = 0.0;
                 if let Some(m) = &g.microphone {
@@ -1508,7 +1498,7 @@ async fn main() {
             }
         }
 
-        let p1_dir = if g.two_player {
+        fr.p1_dir = if g.two_player {
             direction(&[KeyCode::W], &[KeyCode::S], &[KeyCode::A], &[KeyCode::D])
         } else {
             direction(
@@ -1518,50 +1508,48 @@ async fn main() {
                 &[KeyCode::D, KeyCode::Right],
             )
         };
-        let p2_dir = direction(
+        fr.p2_dir = direction(
             &[KeyCode::I, KeyCode::Up],
             &[KeyCode::K, KeyCode::Down],
             &[KeyCode::J, KeyCode::Left],
             &[KeyCode::L, KeyCode::Right],
         );
-        let (p1_dir, p2_dir) = if g.picking { (Vec2::ZERO, Vec2::ZERO) } else { (p1_dir, p2_dir) };
-        if g.fishing.active && [p1_dir, p2_dir][g.fishing.caster] != Vec2::ZERO {
+        (fr.p1_dir, fr.p2_dir) = if g.picking { (Vec2::ZERO, Vec2::ZERO) } else { (fr.p1_dir, fr.p2_dir) };
+        if g.fishing.active && [fr.p1_dir, fr.p2_dir][g.fishing.caster] != Vec2::ZERO {
             g.fishing.active = false;
             g.toasts.push(("reeled in".to_string(), 1.5));
         }
-        let mut go_in = false;
-        let mut go_out = false;
+        fr.go_in = false;
+        fr.go_out = false;
         if g.inside {
             let h = &g.house;
             for who in 0..(if g.two_player { 2 } else { 1 }) {
-                let dir = [p1_dir, p2_dir][who];
-                let walk_dir = if (g.shop_open && g.shop_owner == who) || g.dj[who] || g.ddr.on[who] || (bag_busy && g.bag_owner == who) || (g.sampler.open && g.sampler.owner == who) { Vec2::ZERO } else { dir };
-                g.players[who].step_with(walk_dir, dt, |p| h.walkable(home::local(p), CAT_RADIUS), |p| home::world(h.free_spot_near(home::local(p))));
+                let dir = [fr.p1_dir, fr.p2_dir][who];
+                let walk_dir = if (g.shop_open && g.shop_owner == who) || g.dj[who] || g.ddr.on[who] || (fr.bag_busy && g.bag_owner == who) || (g.sampler.open && g.sampler.owner == who) { Vec2::ZERO } else { dir };
+                g.players[who].step_with(walk_dir, fr.dt, |p| h.walkable(home::local(p), CAT_RADIUS), |p| home::world(h.free_spot_near(home::local(p))));
                 if home::local(g.players[who].pos).y > g.house.d() as f32 + 0.15 {
-                    go_out = true;
+                    fr.go_out = true;
                 }
             }
         } else {
-            g.players[0].step(p1_dir, &g.world, dt);
+            g.players[0].step(fr.p1_dir, &g.world, fr.dt);
             if g.two_player {
-                g.players[1].step(p2_dir, &g.world, dt);
+                g.players[1].step(fr.p2_dir, &g.world, fr.dt);
             }
             for who in 0..(if g.two_player { 2 } else { 1 }) {
-                let dir = [p1_dir, p2_dir][who];
+                let dir = [fr.p1_dir, fr.p2_dir][who];
                 if dir.y < -0.5 && g.players[who].pos.distance(DOOR_OUT) < 0.55 && !g.picking {
-                    go_in = true;
+                    fr.go_in = true;
                 }
             }
         }
         if !g.players[0].seated && !(g.two_player && g.players[1].seated) {
             g.cooking = false;
         }
-        let near_fire = |p: &Player| p.pos.distance(FIRE_SPOT) < 2.2;
-        let at_dock_end = |p: &Player| p.pos.distance(DOCK_END) < 0.7;
-        let mut fish_press = [false; 2];
-        let mut build_request: Option<(usize, i32, i32)> = None;
+        fr.fish_press = [false; 2];
+        fr.build_request = None;
 
-        if !g.inside && !g.picking && !picker_closed {
+        if !g.inside && !g.picking && !fr.picker_closed {
             for who in 0..(if g.two_player { 2 } else { 1 }) {
                 let pressed = if who == 0 { is_key_pressed(KeyCode::E) } else { is_key_pressed(KeyCode::O) };
                 if !pressed {
@@ -1586,7 +1574,7 @@ async fn main() {
                         g.fish_card = 0.0;
                         g.fishing.cue_at = next_beat(g.looper.position) + FISH_CUE_GAP;
                     } else {
-                        fish_press[who] = true;
+                        fr.fish_press[who] = true;
                     }
                 } else if player.seated {
                     if g.camp.lit && near_fire(player) {
@@ -1607,7 +1595,7 @@ async fn main() {
                     g.music_mode = true;
                     g.toasts.push((format!("player {} sits by the fire", who + 1), 2.5));
                 } else if player.pos.distance(DOOR_OUT) < 0.8 {
-                    go_in = true;
+                    fr.go_in = true;
                 } else if at_dock_end(player) && !g.fishing.active {
                     player.place_at(DOCK_END);
                     player.facing = vec2(1.0, 0.0);
@@ -1628,7 +1616,7 @@ async fn main() {
                         perfects: 0,
                         dip: 0.0,
                         jump: None,
-                        tight: if lesson { 1.0 } else { 0.72 + 0.2 * hash((time * 41.0) as i32, 6, 2) },
+                        tight: if lesson { 1.0 } else { 0.72 + 0.2 * hash((fr.time * 41.0) as i32, 6, 2) },
                     };
                     g.audio.play_ch(3, &g.splash, 0.35);
                     if !lesson {
@@ -1686,7 +1674,7 @@ async fn main() {
                     quest_event(&mut g.quests, QuestKind::Sticks, 1, &mut g.inv, &mut g.toasts);
                 } else {
                     let (x, z) = player.ahead();
-                    match gather_at(&g.world, &mut g.stick_trees, &mut g.tree_rest, (x, z), time, player.carrying.is_none()) {
+                    match gather_at(&g.world, &mut g.stick_trees, &mut g.tree_rest, (x, z), fr.time, player.carrying.is_none()) {
                         Gathered::Stick => {
                             quest_event(&mut g.quests, QuestKind::Sticks, 1, &mut g.inv, &mut g.toasts);
                             if !g.gather_lesson {
@@ -1729,7 +1717,7 @@ async fn main() {
                             g.toasts.push((format!("player {} shook the tree: +{} acorn{}", who + 1, found, if found == 1 { "" } else { "s" }), 2.5));
                         }
                         Gathered::Resting => g.toasts.push(("this tree needs a rest - try another".to_string(), 2.0)),
-                        Gathered::Nothing => if !g.fishing.active { build_request = Some((who, x, z)); },
+                        Gathered::Nothing => if !g.fishing.active { fr.build_request = Some((who, x, z)); },
                     }
                 }
             }
@@ -1812,7 +1800,7 @@ async fn main() {
                         g.diary_row = (g.diary_row + 1) % n;
                     }
                     g.diary_row = g.diary_row.min(n - 1);
-                    if shop_act && !picker_closed {
+                    if shop_act && !fr.picker_closed {
                         let idx = n - 1 - g.diary_row;
                         if !g.house.has(home::Item::RecordPlayer) {
                             g.toasts.push(("buy a record player to listen to your jams".to_string(), 2.5));
@@ -1829,7 +1817,7 @@ async fn main() {
                 if shop_turn || is_key_pressed(KeyCode::Escape) {
                     g.shop_open = false;
                 }
-                if shop_act && !picker_closed && g.shop_tab == 0 {
+                if shop_act && !fr.picker_closed && g.shop_tab == 0 {
                     match home::row(g.shop_row) {
                         home::Row::Upgrade => match g.house.next_upgrade() {
                             None => g.toasts.push(("your home is fully built".to_string(), 2.0)),
@@ -1912,13 +1900,13 @@ async fn main() {
                     }
                     continue;
                 }
-                if g.ddr.on[who] || (bag_busy && g.bag_owner == who) || (g.sampler.open && g.sampler.owner == who) {
+                if g.ddr.on[who] || (fr.bag_busy && g.bag_owner == who) || (g.sampler.open && g.sampler.owner == who) {
                     continue;
                 }
                 let ahead = ahead_local(&g.players[who]);
                 let here = home::local(g.players[who].pos);
                 let near_catalogue = here.distance(vec2(0.5, 0.5)) < 1.4;
-                if act && !picker_closed {
+                if act && !fr.picker_closed {
                     if let Some(piece) = g.holding {
                         if g.holding_by == who {
                             if ahead == home::CATALOGUE {
@@ -1969,7 +1957,7 @@ async fn main() {
                             }
                             home::Item::WindChime => {
                                 for k in 0..3 {
-                                    g.audio.play_ch(3, &g.bells[(k * 2 + (time as usize)) % 6], 0.3);
+                                    g.audio.play_ch(3, &g.bells[(k * 2 + (fr.time as usize)) % 6], 0.3);
                                 }
                             }
                             home::Item::Bed => {
@@ -2114,7 +2102,7 @@ async fn main() {
                             }
                         }
                     } else if here.y > g.house.d() as f32 - 1.1 && (here.x - g.house.door().x).abs() < 0.9 {
-                        go_out = true;
+                        fr.go_out = true;
                     }
                 }
                 if turn && !g.shop_open {
@@ -2135,24 +2123,24 @@ async fn main() {
                 }
             }
             if g.house.has(home::Item::WindChime) {
-                g.chime_clock -= dt;
+                g.chime_clock -= fr.dt;
                 if g.chime_clock <= 0.0 {
-                    g.chime_clock = 2.5 + hash((time * 13.0) as i32, 4, 4) * 4.0;
-                    g.audio.play_ch(3, &g.bells[(hash((time * 7.0) as i32, 2, 9) * 6.0) as usize % 6], 0.16);
+                    g.chime_clock = 2.5 + hash((fr.time * 13.0) as i32, 4, 4) * 4.0;
+                    g.audio.play_ch(3, &g.bells[(hash((fr.time * 7.0) as i32, 2, 9) * 6.0) as usize % 6], 0.16);
                 }
             }
         }
 
-        let mut delivered: Option<Carry> = None;
-        let mut delivered_by = 1usize;
+        fr.delivered = None;
+        fr.delivered_by = 1usize;
         if !g.inside && g.players[0].carrying.is_some() && g.players[0].pos.distance(STICK_DROP) < 0.9 {
-            delivered = g.players[0].carrying.take();
-            delivered_by = 0;
+            fr.delivered = g.players[0].carrying.take();
+            fr.delivered_by = 0;
         }
         if g.two_player && !g.inside {
             if g.players[1].carrying.is_some() && g.players[1].pos.distance(STICK_DROP) < 0.9 {
-                delivered = g.players[1].carrying.take();
-                delivered_by = 1;
+                fr.delivered = g.players[1].carrying.take();
+                fr.delivered_by = 1;
             }
         } else if !g.inside {
             let cat_pos = g.players[0].pos;
@@ -2160,7 +2148,7 @@ async fn main() {
             let want_fire = g.camp.fuel < FUEL_WANT;
             let mut dir = Vec2::ZERO;
             let mut next: Option<Task> = None;
-            g.brain.rest = (g.brain.rest - dt).max(0.0);
+            g.brain.rest = (g.brain.rest - fr.dt).max(0.0);
             if g.first_pick {
                 g.brain.rest = g.brain.rest.max(0.5);
             }
@@ -2216,7 +2204,7 @@ async fn main() {
                     }
                 }
                 Task::Sniff { tile, timer, carry } => {
-                    *timer -= dt;
+                    *timer -= fr.dt;
                     dog.sniff = 0.2;
                     if *timer <= 0.0 {
                         if *carry == Carry::Stick {
@@ -2237,8 +2225,8 @@ async fn main() {
                 Task::Return => {
                     dir = steer(&g.world, dog.pos, STICK_DROP);
                     if dog.pos.distance(STICK_DROP) < 0.45 {
-                        delivered = dog.carrying.take();
-                        g.brain.rest = if want_fire { 0.0 } else if delivered == Some(Carry::Acorn) { 14.0 } else { 5.0 };
+                        fr.delivered = dog.carrying.take();
+                        g.brain.rest = if want_fire { 0.0 } else if fr.delivered == Some(Carry::Acorn) { 14.0 } else { 5.0 };
                         next = Some(Task::Idle);
                     }
                 }
@@ -2262,13 +2250,13 @@ async fn main() {
                 Task::Return => Some(STICK_DROP),
                 _ => None,
             };
-            let moved = dog.step(dir, &g.world, dt);
-            if dir != Vec2::ZERO && moved < 0.3 * dt {
-                g.brain.stuck += dt;
+            let moved = dog.step(dir, &g.world, fr.dt);
+            if dir != Vec2::ZERO && moved < 0.3 * fr.dt {
+                g.brain.stuck += fr.dt;
             } else {
                 g.brain.stuck = 0.0;
             }
-            g.brain.trip += dt;
+            g.brain.trip += fr.dt;
             if let Some(goal) = target {
                 if g.brain.stuck > 1.2 {
                     let hop = dog.pos + (goal - dog.pos).normalize_or_zero() * 1.5;
@@ -2301,14 +2289,14 @@ async fn main() {
         }
         if g.inside && !g.two_player && !g.players[1].sleeping {
             let h = &g.house;
-            g.wander_clock -= dt;
+            g.wander_clock -= fr.dt;
                 let goal = if g.seat[0].is_some() || g.dj[0] { g.players[0].pos + vec2(0.9, 0.4) } else { g.wander_to };
                 let to_goal = goal - g.players[1].pos;
                 let dir = if to_goal.length() > 0.35 { to_goal.normalize() } else { Vec2::ZERO };
-                let moved = g.players[1].step_with(dir, dt, |p| h.walkable(home::local(p), CAT_RADIUS), |p| home::world(h.free_spot_near(home::local(p))));
-                if g.wander_clock <= 0.0 || (dir != Vec2::ZERO && moved < 0.2 * dt) {
-                    g.wander_clock = 3.0 + hash((time * 11.0) as i32, 6, 1) * 4.0;
-                    g.wander_to = home::world(h.free_spot(time * 0.731 + 0.17));
+                let moved = g.players[1].step_with(dir, fr.dt, |p| h.walkable(home::local(p), CAT_RADIUS), |p| home::world(h.free_spot_near(home::local(p))));
+                if g.wander_clock <= 0.0 || (dir != Vec2::ZERO && moved < 0.2 * fr.dt) {
+                    g.wander_clock = 3.0 + hash((fr.time * 11.0) as i32, 6, 1) * 4.0;
+                    g.wander_to = home::world(h.free_spot(fr.time * 0.731 + 0.17));
                 }
                 if dir == Vec2::ZERO && (g.seat[0].is_some() || g.dj[0]) {
                     g.players[1].facing = (g.players[0].pos - g.players[1].pos).normalize_or_zero();
@@ -2317,7 +2305,7 @@ async fn main() {
         for p in g.players.iter_mut() {
             p.lift = if g.inside { g.house.height_at(home::local(p.pos)) } else { 0.0 };
         }
-        if go_in && !g.inside {
+        if fr.go_in && !g.inside {
             g.inside = true;
             g.fishing.active = false;
             g.cooking = false;
@@ -2337,7 +2325,7 @@ async fn main() {
             g.audio.play_ch(3, &g.chop, 0.3);
             g.toasts.push(("home sweet home".to_string(), 2.5));
         }
-        if go_out && g.inside {
+        if fr.go_out && g.inside {
             if g.holding.is_some() {
                 g.players[g.holding_by].place_at(home::world(vec2(3.5, 4.0)));
                 g.toasts.push(("put your furniture down first".to_string(), 2.0));
@@ -2359,49 +2347,49 @@ async fn main() {
             }
         }
 
-        let friend = g.cast_list[g.players[1].character].noun;
-        let bringer = if delivered_by == 0 { "you".to_string() } else if g.two_player { "player 2".to_string() } else { format!("the {}", friend) };
-        let bringer_voice = g.players[delivered_by].character;
-        let bringer_ch = delivered_by;
-        match delivered {
+        fr.friend = g.cast_list[g.players[1].character].noun;
+        fr.bringer = if fr.delivered_by == 0 { "you".to_string() } else if g.two_player { "player 2".to_string() } else { format!("the {}", fr.friend) };
+        fr.bringer_voice = g.players[fr.delivered_by].character;
+        fr.bringer_ch = fr.delivered_by;
+        match fr.delivered {
             Some(Carry::Stick) if g.camp.fuel < FUEL_WANT => {
                 g.camp.fuel = (g.camp.fuel + STICK_FUEL).min(240.0);
                 g.camp.pile = (g.camp.fuel / STICK_FUEL).ceil() as u32;
-                g.audio.play_ch(bringer_ch, &g.voices[bringer_voice][2], 0.7);
-                g.players[delivered_by].voice_timer = 0.4;
+                g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][2], 0.7);
+                g.players[fr.delivered_by].voice_timer = 0.4;
                 if !g.camp.lit {
                     g.camp.lit = true;
-                    g.toasts.push((format!("{} brought a stick - the fire is lit!", bringer), 3.5));
+                    g.toasts.push((format!("{} brought a stick - the fire is lit!", fr.bringer), 3.5));
                     for k in 0..30 {
                         let a = k as f32 / 30.0 * 2.0 * PI;
                         spawn(&mut g.particles, fire_center() + vec3(0.0, 0.3, 0.0), vec3(a.cos() * 1.5, 2.0 + hash(k, 1, 3) * 1.5, a.sin() * 1.5), 0.9, Color::from_rgba(255, 190, 80, 255), 0.04, 0.6);
                     }
                 } else {
-                    g.toasts.push((format!("{} brought a stick for the fire", bringer), 2.5));
+                    g.toasts.push((format!("{} brought a stick for the fire", fr.bringer), 2.5));
                 }
             }
             Some(Carry::Stick) => {
                 g.inv.wood += 1;
-                g.audio.play_ch(bringer_ch, &g.voices[bringer_voice][3], 0.6);
-                g.players[delivered_by].voice_timer = 0.4;
-                g.toasts.push((format!("{} brought wood for building", bringer), 2.5));
+                g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][3], 0.6);
+                g.players[fr.delivered_by].voice_timer = 0.4;
+                g.toasts.push((format!("{} brought wood for building", fr.bringer), 2.5));
             }
             Some(Carry::Acorn) => {
                 g.inv.acorns += 2;
                 g.audio.play_ch(1, &g.voices[g.players[1].character][1], 0.6);
                 g.players[1].voice_timer = 0.4;
-                g.toasts.push((format!("the {} brought you 2 acorns", friend), 2.5));
+                g.toasts.push((format!("the {} brought you 2 acorns", fr.friend), 2.5));
             }
             Some(Carry::Stone) => {
                 g.inv.stone += 1;
-                g.audio.play_ch(bringer_ch, &g.voices[bringer_voice][4], 0.6);
-                g.players[delivered_by].voice_timer = 0.4;
-                g.toasts.push((format!("{} brought a stone for building", bringer), 2.5));
+                g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][4], 0.6);
+                g.players[fr.delivered_by].voice_timer = 0.4;
+                g.toasts.push((format!("{} brought a stone for building", fr.bringer), 2.5));
             }
             None => {}
         }
 
-        if let Some((who, x, z)) = build_request {
+        if let Some((who, x, z)) = fr.build_request {
             let blocked = g.players.iter().any(|p| touches_cat(x, z, p.pos));
             match build(&mut g.world, &mut g.inv, g.tools[who], x, z, blocked) {
                 Ok(Some((kind, stack))) => {
@@ -2478,7 +2466,7 @@ async fn main() {
             }
         }
         if let Some((row, waited)) = g.sampler.recording {
-            let waited = waited + dt;
+            let waited = waited + fr.dt;
             let mut finished: Option<Option<Vec<f32>>> = None;
             if let Some(m) = &g.microphone {
                 if let Ok(mut det) = m.detector.lock() {
@@ -2541,17 +2529,17 @@ async fn main() {
                 g.ddr.on = [false; 2];
             }
             let step_s = g.looper.step_seconds();
-            if !g.looper.beat && time - g.ddr.last_mic > 4.0 && g.looper.notes.is_empty() {
+            if !g.looper.beat && fr.time - g.ddr.last_mic > 4.0 && g.looper.notes.is_empty() {
                 g.looper.beat = true;
             }
             if g.listening {
                 if let Some(m) = &g.microphone {
                     let hits: Vec<(usize, f32)> = m.detector.lock().map(|mut d| d.hits.drain(..).collect()).unwrap_or_default();
                     for (band, _) in hits {
-                        g.ddr.last_mic = time;
+                        g.ddr.last_mic = fr.time;
                         let p = g.looper.position;
                         let snapped = (p / 2.0).round() * 2.0;
-                        let target = time + (snapped - p) * step_s + 16.0 * step_s;
+                        let target = fr.time + (snapped - p) * step_s + 16.0 * step_s;
                         g.ddr.add(DDR_LANE_OF_BAND[band], target, step_s * 2.0);
                     }
                 }
@@ -2581,7 +2569,7 @@ async fn main() {
                         continue;
                     }
                     g.ddr.flash[who][lane] = 1.0;
-                    let best = g.ddr.arrows.iter().enumerate().filter(|(_, a)| a.lane == lane && !a.hit[who] && !a.missed[who] && (a.at - time).abs() < 0.18).min_by(|a, b| (a.1.at - time).abs().partial_cmp(&(b.1.at - time).abs()).unwrap()).map(|(n, a)| (n, (a.at - time).abs()));
+                    let best = g.ddr.arrows.iter().enumerate().filter(|(_, a)| a.lane == lane && !a.hit[who] && !a.missed[who] && (a.at - fr.time).abs() < 0.18).min_by(|a, b| (a.1.at - fr.time).abs().partial_cmp(&(b.1.at - fr.time).abs()).unwrap()).map(|(n, a)| (n, (a.at - fr.time).abs()));
                     if let Some((n, off)) = best {
                         g.ddr.arrows[n].hit[who] = true;
                         g.ddr.combo[who] += 1;
@@ -2600,23 +2588,23 @@ async fn main() {
                     }
                 }
                 for a in g.ddr.arrows.iter_mut() {
-                    if !a.hit[who] && !a.missed[who] && time - a.at > 0.18 {
+                    if !a.hit[who] && !a.missed[who] && fr.time - a.at > 0.18 {
                         a.missed[who] = true;
                         g.ddr.combo[who] = 0;
                         g.ddr.judge[who] = Some(("miss", Color::from_rgba(255, 140, 140, 255), 0.6));
                     }
                 }
             }
-            g.ddr.arrows.retain(|a| time - a.at < 0.5);
+            g.ddr.arrows.retain(|a| fr.time - a.at < 0.5);
         } else {
             g.ddr.arrows.clear();
         }
         for who in 0..2 {
             for lane in 0..4 {
-                g.ddr.flash[who][lane] = (g.ddr.flash[who][lane] - dt * 5.0).max(0.0);
+                g.ddr.flash[who][lane] = (g.ddr.flash[who][lane] - fr.dt * 5.0).max(0.0);
             }
             if let Some(j) = g.ddr.judge[who].as_mut() {
-                j.2 -= dt;
+                j.2 -= fr.dt;
             }
             if g.ddr.judge[who].map(|j| j.2 <= 0.0).unwrap_or(false) {
                 g.ddr.judge[who] = None;
@@ -2638,7 +2626,7 @@ async fn main() {
             let fish_window = 0.22 * g.fishing.tight / g.looper.step_seconds();
             let perfect_window = 0.09 * g.fishing.tight / g.looper.step_seconds();
             for who in 0..(if g.two_player { 2 } else { 1 }) {
-                if !fish_press[who] {
+                if !fr.fish_press[who] {
                     continue;
                 }
                 let d = g.looper.position - g.fishing.cue_at;
@@ -2669,7 +2657,7 @@ async fn main() {
                 let hit = g.fishing.hit_by[0] || g.fishing.hit_by[1];
                 let both = g.fishing.hit_by[0] && g.fishing.hit_by[1];
                 let friend_on_dock = !g.two_player && g.players[1].pos.distance(DOCK_END - vec2(1.0, 0.0)) < 0.8;
-                let helped = !hit && !g.fishing.lesson && friend_on_dock && hash((time * 29.0) as i32, 4, 8) < 0.5;
+                let helped = !hit && !g.fishing.lesson && friend_on_dock && hash((fr.time * 29.0) as i32, 4, 8) < 0.5;
                 if !hit && g.fishing.lesson {
                     let key = if g.fishing.caster == 0 { "E" } else { "O" };
                     g.fish_say = Some((format!("almost! press {key} as the ring touches the bobber"), Color::from_rgba(255, 210, 160, 255), 1.6));
@@ -2695,8 +2683,8 @@ async fn main() {
                     }
                 }
                 if g.fishing.hits >= 3 {
-                    let roll = hash((time * 100.0) as i32, 7, 7);
-                    let roll2 = hash((time * 61.0) as i32, 3, 13);
+                    let roll = hash((fr.time * 100.0) as i32, 7, 7);
+                    let roll2 = hash((fr.time * 61.0) as i32, 3, 13);
                     let luck = (g.fishing.perfects as f32 / 3.0).min(1.0) + if g.fishing.hit_by[0] && g.fishing.hit_by[1] { 0.3 } else { 0.0 };
                     let species = if g.fishing.lesson { fish::pick(roll * 0.5, roll2, 0.0) } else { fish::pick(roll, roll2, luck) };
                     let kind = fish::kind(species);
@@ -2719,8 +2707,8 @@ async fn main() {
                         g.save_clock = 99.0;
                         g.fish_say = Some(("your first fish!".to_string(), Color::from_rgba(255, 226, 120, 255), 2.0));
                     }
-                    if friend_on_dock && hash((time * 37.0) as i32, 3, 11) < 0.55 {
-                        let bonus = fish::pick(hash((time * 53.0) as i32, 5, 2) * 0.8, hash((time * 71.0) as i32, 2, 9), 0.0);
+                    if friend_on_dock && hash((fr.time * 37.0) as i32, 3, 11) < 0.55 {
+                        let bonus = fish::pick(hash((fr.time * 53.0) as i32, 5, 2) * 0.8, hash((fr.time * 71.0) as i32, 2, 9), 0.0);
                         g.dex_counts[bonus] += 1;
                         g.inv.fish[fish::kind(bonus)] += 1;
                         g.inv.acorns += 2;
@@ -2733,34 +2721,34 @@ async fn main() {
                     g.audio.play_ch(3, &g.splash, 0.5);
                     g.toasts.push(("the fish got away - cast again!".to_string(), 2.5));
                 } else {
-                    let roll = hash((time * 47.0) as i32, 9, 3);
+                    let roll = hash((fr.time * 47.0) as i32, 9, 3);
                     let gap = if g.fishing.lesson { FISH_CUE_GAP } else if roll < 0.25 { FISH_CUE_GAP - 2.0 } else if roll > 0.8 { FISH_CUE_GAP + 2.0 } else { FISH_CUE_GAP };
                     g.fishing.cue_at += gap;
                     g.fishing.hit_by = [false; 2];
                     g.fishing.early = [false; 2];
                     if !g.fishing.lesson {
-                        g.fishing.tight = 0.72 + 0.2 * hash((time * 43.0) as i32, 1, 8);
+                        g.fishing.tight = 0.72 + 0.2 * hash((fr.time * 43.0) as i32, 1, 8);
                     }
                 }
             }
         }
-        g.fish_card = (g.fish_card - dt).max(0.0);
-        g.cook_card = (g.cook_card - dt).max(0.0);
-        g.gather_card = (g.gather_card - dt).max(0.0);
+        g.fish_card = (g.fish_card - fr.dt).max(0.0);
+        g.cook_card = (g.cook_card - fr.dt).max(0.0);
+        g.gather_card = (g.gather_card - fr.dt).max(0.0);
         if let Some(say) = g.fish_say.as_mut() {
-            say.2 -= dt;
+            say.2 -= fr.dt;
         }
         if g.fish_say.as_ref().map(|s| s.2 <= 0.0).unwrap_or(false) {
             g.fish_say = None;
         }
-        g.fishing.dip = (g.fishing.dip - dt * 4.0).max(0.0);
+        g.fishing.dip = (g.fishing.dip - fr.dt * 4.0).max(0.0);
         if let Some((kind, t)) = g.fishing.jump {
-            g.fishing.jump = if t + dt > 1.0 { None } else { Some((kind, t + dt)) };
+            g.fishing.jump = if t + fr.dt > 1.0 { None } else { Some((kind, t + fr.dt)) };
         }
 
-        let was_jam = g.jam;
+        fr.was_jam = g.jam;
         g.jam = !g.inside && (g.players[0].seated || (g.two_player && g.players[1].seated));
-        if g.jam && !was_jam {
+        if g.jam && !fr.was_jam {
             g.music_mode = true;
             if g.first_steps == 2 {
                 g.first_steps = 3;
@@ -2769,7 +2757,7 @@ async fn main() {
         }
 
         if g.camp.lit {
-            g.camp.fuel -= dt;
+            g.camp.fuel -= fr.dt;
             g.camp.pile = (g.camp.fuel / STICK_FUEL).ceil().max(0.0) as u32;
             if g.camp.fuel <= 0.0 {
                 g.camp.fuel = 0.0;
@@ -2780,29 +2768,29 @@ async fn main() {
                     p.seated = false;
                 }
             }
-            g.crackle_clock -= dt;
+            g.crackle_clock -= fr.dt;
             if g.crackle_clock <= 0.0 {
-                g.crackle_clock = 0.6 + hash((time * 10.0) as i32, 3, 9) * 1.2;
+                g.crackle_clock = 0.6 + hash((fr.time * 10.0) as i32, 3, 9) * 1.2;
                 let dist = g.players[0].pos.distance(FIRE_SPOT);
                 let vol = (1.0 - dist / 7.0).max(0.0) * 0.35;
                 if vol > 0.01 {
                     g.audio.play_ch(3, &g.crackle, vol);
                 }
             }
-            if hash((time * 60.0) as i32, 5, 1) > 0.7 {
+            if hash((fr.time * 60.0) as i32, 5, 1) > 0.7 {
                 let c = fire_center();
-                spawn(&mut g.particles, c + vec3(hash((time * 97.0) as i32, 1, 2) * 0.4 - 0.2, 0.4, 0.1), vec3(hash((time * 31.0) as i32, 2, 2) * 0.6 - 0.3, 1.6, 0.0), 0.9, Color::from_rgba(255, 180, 70, 255), 0.022, 0.05);
+                spawn(&mut g.particles, c + vec3(hash((fr.time * 97.0) as i32, 1, 2) * 0.4 - 0.2, 0.4, 0.1), vec3(hash((fr.time * 31.0) as i32, 2, 2) * 0.6 - 0.3, 1.6, 0.0), 0.9, Color::from_rgba(255, 180, 70, 255), 0.022, 0.05);
             }
         }
-        if g.cooking && hash((time * 40.0) as i32, 9, 2) > 0.8 {
+        if g.cooking && hash((fr.time * 40.0) as i32, 9, 2) > 0.8 {
             let c = fire_center();
-            spawn(&mut g.particles, c + vec3(hash((time * 53.0) as i32, 1, 3) * 0.3 - 0.15, 0.62, 0.06), vec3(0.0, 0.5, 0.0), 1.6, Color::from_rgba(240, 240, 245, 255), 0.05, -0.03);
+            spawn(&mut g.particles, c + vec3(hash((fr.time * 53.0) as i32, 1, 3) * 0.3 - 0.15, 0.62, 0.06), vec3(0.0, 0.5, 0.0), 1.6, Color::from_rgba(240, 240, 245, 255), 0.05, -0.03);
         }
-        if hash((time * 30.0) as i32, 8, 1) > 0.85 {
+        if hash((fr.time * 30.0) as i32, 8, 1) > 0.85 {
             let (_, z0, x1, _) = COTTAGE;
             spawn(&mut g.particles, vec3(x1 as f32 - 0.6, 2.7, z0 as f32 + 0.6), vec3(0.15, 0.5, 0.0), 2.6, Color::from_rgba(220, 220, 228, 255), 0.06, -0.02);
         }
-        let real_night = update_sky().night * 0.95;
+        fr.real_night = update_sky().night * 0.95;
         {
             let sk = sky();
             if g.quests.day != sk.day {
@@ -2839,12 +2827,12 @@ async fn main() {
                 g.shroom_clock = 0.0;
                 batch = 6;
             }
-            g.shroom_clock -= dt;
+            g.shroom_clock -= fr.dt;
             if g.shroom_clock <= 0.0 {
                 g.shroom_clock = if sk.weather == 2 { 7.0 } else { 14.0 };
                 for round in 0..batch {
                 if g.shrooms.len() < 10 && !g.shroom_today.is_empty() {
-                    let seed = (time * 97.0) as i32 + round * 131;
+                    let seed = (fr.time * 97.0) as i32 + round * 131;
                     for attempt in 0..30 {
                         let tx = (hash(seed, attempt, 31) * MAP as f32) as i32;
                         let tz = (hash(seed, attempt, 32) * MAP as f32) as i32;
@@ -2867,22 +2855,22 @@ async fn main() {
             }
             SHROOMS.with(|c| *c.borrow_mut() = g.shrooms.clone());
         }
-        let dusk_target = real_night.max(if g.jam { 0.45 } else if g.camp.lit { 0.12 } else { 0.0 });
-        g.dusk += (dusk_target - g.dusk) * (dt * 0.4).min(1.0);
+        fr.dusk_target = fr.real_night.max(if g.jam { 0.45 } else if g.camp.lit { 0.12 } else { 0.0 });
+        g.dusk += (fr.dusk_target - g.dusk) * (fr.dt * 0.4).min(1.0);
         if g.jam && !g.two_player {
             let c = g.players[0].cam;
-            g.players[0].cam = c + (vec2(8.5, 17.0) - c) * (dt * 2.0).min(1.0);
+            g.players[0].cam = c + (vec2(8.5, 17.0) - c) * (fr.dt * 2.0).min(1.0);
         }
 
-        let active = if g.two_player { 2 } else { 1 };
-        let dog_jamming = g.jam && !g.two_player && g.players[1].seated;
-        for who in 0..active {
+        fr.active = if g.two_player { 2 } else { 1 };
+        fr.dog_jamming = g.jam && !g.two_player && g.players[1].seated;
+        for who in 0..fr.active {
             let keys = if who == 0 { NOTE_KEYS } else { P2_NOTE_KEYS };
             for (i, key) in keys.iter().enumerate() {
                 if !is_key_pressed(*key) {
                     continue;
                 }
-                g.last_note_at = time;
+                g.last_note_at = fr.time;
                 if who == 0 && g.first_steps == 1 && g.music_mode && !g.cooking && !(g.inside && g.dj[0]) {
                     g.first_steps = 2;
                     g.toasts.push(("your first note! find the campfire next".to_string(), 3.0));
@@ -2922,7 +2910,7 @@ async fn main() {
                     let c = fire_center() + vec3(0.0, 0.6, 0.08);
                     let col = [Color::from_rgba(255, 170, 80, 255), Color::from_rgba(220, 220, 230, 255), Color::from_rgba(120, 200, 90, 255), Color::from_rgba(255, 220, 120, 255)][i];
                     for k in 0..6 {
-                        let a = (k as f32 / 6.0 + time) * 2.0 * PI;
+                        let a = (k as f32 / 6.0 + fr.time) * 2.0 * PI;
                         spawn(&mut g.particles, c, vec3(a.cos() * 0.7, 1.2, a.sin() * 0.3), 0.5, col, 0.025, 0.5);
                     }
                     if g.cook_progress >= COOK_GOAL {
@@ -3004,7 +2992,7 @@ async fn main() {
                     g.audio.play_ch(who, sound, 0.8);
                     g.players[who].key_glow[i] = 1.0;
                     g.players[who].voice_timer = 0.4;
-                    if who == 0 && dog_jamming {
+                    if who == 0 && fr.dog_jamming {
                         g.cat_phrase_notes += 1;
                         g.recent_cat.push(i);
                         if g.recent_cat.len() > 8 {
@@ -3037,37 +3025,37 @@ async fn main() {
             g.players[who].key_glow[i] = 1.0;
             g.players[who].voice_timer = 0.3;
         }
-        let position = g.looper.position;
-        let friend_voice = g.players[1].character;
+        fr.position = g.looper.position;
+        fr.friend_voice = g.players[1].character;
         g.echoes.retain(|&(at, i)| {
-            if position >= at {
-                g.audio.play_ch(1, &g.voices[friend_voice][i], 0.45);
+            if fr.position >= at {
+                g.audio.play_ch(1, &g.voices[fr.friend_voice][i], 0.45);
                 g.players[1].voice_timer = 0.3;
                 false
             } else {
-                position > at - 64.0
+                fr.position > at - 64.0
             }
         });
-        let step = g.looper.current_step();
-        if g.looper.last_step != Some(step) {
+        fr.step = g.looper.current_step();
+        if g.looper.last_step != Some(fr.step) {
             let crossed: Vec<usize> = match g.looper.last_step {
                 Some(prev) => {
                     let mut v = Vec::new();
                     let mut k = (prev + 1) % LOOP_STEPS;
-                    while k != step && v.len() < LOOP_STEPS {
+                    while k != fr.step && v.len() < LOOP_STEPS {
                         v.push(k);
                         k = (k + 1) % LOOP_STEPS;
                     }
-                    v.push(step);
+                    v.push(fr.step);
                     v
                 }
-                None => vec![step],
+                None => vec![fr.step],
             };
-            g.looper.last_step = Some(step);
-            g.sampler.step = step % 16;
+            g.looper.last_step = Some(fr.step);
+            g.sampler.step = fr.step % 16;
             if g.inside && g.house.has(home::Item::Sampler) {
                 for row in 0..4 {
-                    if g.sampler.grid[row][step % 16] {
+                    if g.sampler.grid[row][fr.step % 16] {
                         if let Some(pad) = &g.sampler.pads[row] {
                             g.audio.play_private(pad, 0.8);
                         } else {
@@ -3075,32 +3063,32 @@ async fn main() {
                                 0 => g.audio.play_ch(2, &g.kick, 0.8),
                                 1 => g.audio.play_ch(2, &g.clap, 0.55),
                                 2 => g.audio.play_ch(2, &g.hat, 0.45),
-                                _ => g.audio.play_ch(2, &g.voices[g.players[g.sampler.owner].character][(step / 4) % 6], 0.45),
+                                _ => g.audio.play_ch(2, &g.voices[g.players[g.sampler.owner].character][(fr.step / 4) % 6], 0.45),
                             }
                         }
                     }
                 }
             }
-            if (g.ddr.on[0] || g.ddr.on[1]) && time - g.ddr.last_mic > 3.0 && step % 2 == 0 {
+            if (g.ddr.on[0] || g.ddr.on[1]) && fr.time - g.ddr.last_mic > 3.0 && fr.step % 2 == 0 {
                 let step_s = g.looper.step_seconds();
-                let frac = (g.looper.position - step as f32).rem_euclid(LOOP_STEPS as f32);
-                let target = time + (16.0 - frac) * step_s;
+                let frac = (g.looper.position - fr.step as f32).rem_euclid(LOOP_STEPS as f32);
+                let target = fr.time + (16.0 - frac) * step_s;
                 let slot_len = step_s * 2.0;
                 if g.looper.beat {
                     let style = &BEAT_STYLES[g.beat_style.min(BEAT_STYLES.len() - 1)];
-                    if velocity(style.kick, step).is_some() {
+                    if velocity(style.kick, fr.step).is_some() {
                         g.ddr.add(0, target, slot_len);
                     }
-                    if velocity(style.clap, step).is_some() {
+                    if velocity(style.clap, fr.step).is_some() {
                         g.ddr.add(1, target, slot_len);
                     }
-                    if velocity(style.open, step).is_some() {
+                    if velocity(style.open, fr.step).is_some() {
                         g.ddr.add(3, target, slot_len);
-                    } else if velocity(style.hat, step).is_some() && step % 4 == 2 {
+                    } else if velocity(style.hat, fr.step).is_some() && fr.step % 4 == 2 {
                         g.ddr.add(2, target, slot_len);
                     }
                 }
-                let notes: Vec<usize> = g.looper.notes.iter().filter(|(at, _)| (at.round() as usize) % LOOP_STEPS == (step + 16) % LOOP_STEPS).map(|(_, id)| *id).collect();
+                let notes: Vec<usize> = g.looper.notes.iter().filter(|(at, _)| (at.round() as usize) % LOOP_STEPS == (fr.step + 16) % LOOP_STEPS).map(|(_, id)| *id).collect();
                 for id in notes {
                     g.ddr.add(note_slot(id) % 4, target, slot_len);
                 }
@@ -3119,28 +3107,28 @@ async fn main() {
             }
             if g.looper.beat {
                 let style = &BEAT_STYLES[g.beat_style.min(BEAT_STYLES.len() - 1)];
-                if let Some(v) = velocity(style.kick, step) {
+                if let Some(v) = velocity(style.kick, fr.step) {
                     let sub = if g.house.switched_on(home::Item::Subwoofer) { 1.4 } else { 1.0 };
                     g.audio.play_ch(2, &g.kick, (0.75 * v * sub).min(1.0));
                 }
-                if let Some(v) = velocity(style.clap, step) {
+                if let Some(v) = velocity(style.clap, fr.step) {
                     g.audio.play_ch(2, &g.clap, 0.5 * v);
                 }
-                if let Some(v) = velocity(style.hat, step) {
+                if let Some(v) = velocity(style.hat, fr.step) {
                     g.audio.play_ch(2, &g.hat, 0.45 * v);
                 }
-                if let Some(v) = velocity(style.open, step) {
+                if let Some(v) = velocity(style.open, fr.step) {
                     g.audio.play_ch(2, &g.open_hat, 0.4 * v);
                 }
-            } else if (g.looper.recording || g.fishing.active) && step % 4 == 0 {
-                let accent = if step % 16 == 0 { 0.5 } else { 0.25 };
+            } else if (g.looper.recording || g.fishing.active) && fr.step % 4 == 0 {
+                let accent = if fr.step % 16 == 0 { 0.5 } else { 0.25 };
                 g.audio.play_ch(2, &g.hat, accent);
             }
-            if dog_jamming && crossed.contains(&0) && g.cat_phrase_notes >= 3 {
+            if fr.dog_jamming && crossed.contains(&0) && g.cat_phrase_notes >= 3 {
                 g.inv.acorns += 1;
                 g.toasts.push(("nice jam: +1 acorn".to_string(), 1.6));
             }
-            if dog_jamming && crossed.contains(&0) {
+            if fr.dog_jamming && crossed.contains(&0) {
                 let chance = if g.partner_solo_count >= 2 {
                     0.15
                 } else if g.cat_phrase_notes >= 2 {
@@ -3219,11 +3207,11 @@ async fn main() {
                 }
                 g.cat_phrase_notes = 0;
             }
-            if !dog_jamming {
+            if !fr.dog_jamming {
                 g.partner_soloing = false;
                 g.partner_phrase.clear();
             }
-            if dog_jamming && g.partner_soloing {
+            if fr.dog_jamming && g.partner_soloing {
                 for &(at, note) in &g.partner_phrase {
                     if crossed.contains(&at) {
                         g.audio.play_ch(1, &g.voices[g.players[1].character][note], 0.62);
@@ -3231,36 +3219,36 @@ async fn main() {
                         g.players[1].key_glow[note] = 1.0;
                     }
                 }
-                if step % 4 == 2 && !g.looper.beat && !g.cooking {
+                if fr.step % 4 == 2 && !g.looper.beat && !g.cooking {
                     g.audio.play_ch(2, &g.hat, 0.16);
                 }
-            } else if dog_jamming {
-                let chord = [0, 4, 3, 1][(step / 8) % 4];
-                if step % 8 == 0 {
+            } else if fr.dog_jamming {
+                let chord = [0, 4, 3, 1][(fr.step / 8) % 4];
+                if fr.step % 8 == 0 {
                     g.audio.play_ch(1, &g.voices[g.players[1].character][chord], 0.42);
                     g.players[1].voice_timer = 0.25;
-                } else if step % 16 == 11 {
+                } else if fr.step % 16 == 11 {
                     g.audio.play_ch(1, &g.voices[g.players[1].character][chord], 0.26);
                 }
-                if step % 4 == 2 && !g.looper.beat && !g.cooking {
+                if fr.step % 4 == 2 && !g.looper.beat && !g.cooking {
                     g.audio.play_ch(2, &g.hat, 0.16);
                 }
             }
         }
 
-        let together = !g.inside && if g.two_player { g.players[0].seated && g.players[1].seated } else { dog_jamming };
-        let playing = together && time - g.last_note_at < 8.0;
+        fr.together = !g.inside && if g.two_player { g.players[0].seated && g.players[1].seated } else { fr.dog_jamming };
+        fr.playing = fr.together && fr.time - g.last_note_at < 8.0;
         match g.session {
             None => {
-                if playing {
+                if fr.playing {
                     g.session = Some(0.0);
                     g.session_stars = 0;
                     g.audio.start_jam();
                 }
             }
             Some(t) => {
-                if playing {
-                    let t = t + dt;
+                if fr.playing {
+                    let t = t + fr.dt;
                     g.session = Some(t);
                     let stars = stars_for(t);
                     if stars > g.session_stars {
@@ -3317,28 +3305,28 @@ async fn main() {
             }
         }
         g.stick_trees.retain(|&(x, z)| g.world.get(x, z).map(|t| t.kind == Kind::Tree && t.fire <= 0.0).unwrap_or(false));
-        g.stick_clock -= dt;
+        g.stick_clock -= fr.dt;
         if g.stick_clock <= 0.0 {
             g.stick_clock = if g.stick_trees.len() < 4 { 0.5 } else { 12.0 + g.world.rand() * 8.0 };
             if g.stick_trees.len() < 6 {
                 grow_stick(&mut g.world, &mut g.stick_trees);
             }
         }
-        g.tick_clock += dt;
+        g.tick_clock += fr.dt;
         while g.tick_clock >= TICK {
             g.tick_clock -= TICK;
             g.world.tick(&mut g.particles);
         }
-        g.world.wind_time = (g.world.wind_time - dt).max(0.0);
+        g.world.wind_time = (g.world.wind_time - fr.dt).max(0.0);
 
         for z in 0..MAP as i32 {
             for x in 0..MAP as i32 {
                 let t = g.world.get(x, z).unwrap();
-                if t.fire > 0.0 && hash(x, z, (time * 20.0) as u32) > 0.8 {
+                if t.fire > 0.0 && hash(x, z, (fr.time * 20.0) as u32) > 0.8 {
                     let drift = if g.world.wind_time > 0.0 { g.world.wind * 1.2 } else { Vec2::ZERO };
                     spawn(
                         &mut g.particles,
-                        vec3(x as f32 + 0.3 + hash(z, x, (time * 30.0) as u32) * 0.4, 0.9, z as f32 + 0.5),
+                        vec3(x as f32 + 0.3 + hash(z, x, (fr.time * 30.0) as u32) * 0.4, 0.9, z as f32 + 0.5),
                         vec3(drift.x, 1.4, drift.y),
                         0.8,
                         Color::from_rgba(255, 190, 80, 255),
@@ -3349,18 +3337,18 @@ async fn main() {
             }
         }
         for p in g.particles.iter_mut() {
-            p.vel.y -= p.gravity * dt * 9.8;
-            p.pos += p.vel * dt;
-            p.life -= dt;
+            p.vel.y -= p.gravity * fr.dt * 9.8;
+            p.pos += p.vel * fr.dt;
+            p.life -= fr.dt;
         }
         g.particles.retain(|p| p.life > 0.0);
         for h in g.hearts.iter_mut() {
-            h.0.y += dt * 0.5;
-            h.1 -= dt;
+            h.0.y += fr.dt * 0.5;
+            h.1 -= fr.dt;
         }
         g.hearts.retain(|h| h.1 > 0.0);
         for t in g.toasts.iter_mut() {
-            t.1 -= dt;
+            t.1 -= fr.dt;
         }
         g.toasts.retain(|t| t.1 > 0.0);
         if g.toasts.len() > 3 {
@@ -3368,30 +3356,30 @@ async fn main() {
         }
 
         let cat = &g.players[0];
-        let ahead = cat.ahead();
-        let can_build_here = !g.inside && !cat.seated && !g.fishing.active && !(g.camp.lit && near_fire(cat)) && !at_dock_end(cat) && buildable(&g.world, ahead.0, ahead.1);
-        let ring = if g.fish_card > 0.0 { 1.0 } else { ((g.fishing.cue_at - g.looper.position) / FISH_CUE_GAP).clamp(0.0, 1.0) };
-        let extras = Extras {
+        fr.ahead = cat.ahead();
+        fr.can_build_here = !g.inside && !cat.seated && !g.fishing.active && !(g.camp.lit && near_fire(cat)) && !at_dock_end(cat) && buildable(&g.world, fr.ahead.0, fr.ahead.1);
+        fr.ring = if g.fish_card > 0.0 { 1.0 } else { ((g.fishing.cue_at - g.looper.position) / FISH_CUE_GAP).clamp(0.0, 1.0) };
+        fr.extras = Extras {
             fishing: g.fishing.active,
-            ring,
+            ring: fr.ring,
             in_window: g.fish_card <= 0.0 && (g.looper.position - g.fishing.cue_at).abs() <= 0.22 * g.fishing.tight / g.looper.step_seconds(),
             dip: g.fishing.dip,
             jump: g.fishing.jump,
             cat: g.players[g.fishing.caster].pos,
             pot: g.cooking,
             hearts: g.hearts.clone(),
-            ghost: if can_build_here { Some((ahead.0, ahead.1, g.tools[0])) } else { None },
+            ghost: if fr.can_build_here { Some((fr.ahead.0, fr.ahead.1, g.tools[0])) } else { None },
             sticks: g.stick_trees.iter().filter_map(|t| stick_spot(&g.world, *t)).collect(),
             friend_rod: if g.fishing.active && !g.two_player && g.players[1].pos.distance(DOCK_END - vec2(1.0, 0.0)) < 0.8 { Some(g.players[1].pos) } else { None },
         };
 
-        let dance = if g.looper.beat || dog_jamming { g.looper.beat_pulse() } else { 0.0 };
+        fr.dance = if g.looper.beat || fr.dog_jamming { g.looper.beat_pulse() } else { 0.0 };
         if low_w() as u32 != g.view_w || low_h() as u32 != g.view_h {
             g.view_w = low_w() as u32;
             g.view_h = low_h() as u32;
             g.full_view = make_view(g.view_w, g.view_h);
         }
-        let half = (low_w() / 2.0).floor();
+        fr.half = (low_w() / 2.0).floor();
         set_camera(&Camera2D {
             render_target: Some(g.full_view.clone()),
             zoom: vec2(2.0 / g.view_w as f32, -2.0 / g.view_h as f32),
@@ -3404,26 +3392,26 @@ async fn main() {
             players: &g.players,
             particles: &g.particles,
             camp: &g.camp,
-            time,
-            dance,
+            time: fr.time,
+            dance: fr.dance,
             dusk: g.dusk,
-            extras: &extras,
+            extras: &fr.extras,
         };
-        let ghost = g.holding.map(|p| (p, ahead_local(&g.players[g.holding_by]) != home::CATALOGUE && g.house.can_place(&p, &[home::local(g.players[1 - g.holding_by].pos)])));
+        fr.ghost = g.holding.map(|p| (p, ahead_local(&g.players[g.holding_by]) != home::CATALOGUE && g.house.can_place(&p, &[home::local(g.players[1 - g.holding_by].pos)])));
         if g.inside {
             let pov_for = |who: usize| if g.dj[who] { booth_pov(&g.house, if who == 0 { -1.0 } else { 1.0 }) } else { None };
             let beat_on = g.looper.beat || !g.now_playing.is_empty();
             let pov = if g.dj[0] ^ g.dj[1] { if g.dj[0] { pov_for(0) } else { pov_for(1) } } else { None };
             let hide = if g.dj[0] ^ g.dj[1] { if g.dj[0] { Some(0) } else { Some(1) } } else { None };
-            render_home(&g.full_view, 0.0, low_w(), low_h(), &view, &g.house, ghost, pov, hide, beat_on);
+            render_home(&g.full_view, 0.0, low_w(), low_h(), &view, &g.house, fr.ghost, pov, hide, beat_on);
         } else if g.two_player {
-            render_view(&g.full_view, 0.0, half, low_h(), g.players[0].pos, g.players[0].cam, &view, true);
-            render_view(&g.full_view, half, half, low_h(), g.players[1].pos, g.players[1].cam, &view, true);
+            render_view(&g.full_view, 0.0, fr.half, low_h(), g.players[0].pos, g.players[0].cam, &view, true);
+            render_view(&g.full_view, fr.half, fr.half, low_h(), g.players[1].pos, g.players[1].cam, &view, true);
         } else {
             render_view(&g.full_view, 0.0, low_w(), low_h(), g.players[0].pos, g.players[0].cam, &view, false);
         }
         if g.picking {
-            render_pick_preview(&g.pick_view, &g.world, &g.cast_list, [g.players[0].character, g.players[1].character], g.pick_row, time);
+            render_pick_preview(&g.pick_view, &g.world, &g.cast_list, [g.players[0].character, g.players[1].character], g.pick_row, fr.time);
         }
         if g.shop_open && g.shop_tab == 0 {
             render_shop_preview(
@@ -3434,7 +3422,7 @@ async fn main() {
                 g.catalogue_view.texture.height(),
                 home::row(g.shop_row),
                 &g.house,
-                time,
+                fr.time,
                 g.looper.beat || !g.now_playing.is_empty(),
             );
         }
@@ -3453,24 +3441,24 @@ async fn main() {
             },
         );
         if g.two_player && !g.inside {
-            ui_rect(half - 0.5, 0.0, 1.0, low_h(), Color::new(0.1, 0.08, 0.2, 0.9));
+            ui_rect(fr.half - 0.5, 0.0, 1.0, low_h(), Color::new(0.1, 0.08, 0.2, 0.9));
         }
 
-        let ink = Color::from_rgba(40, 30, 60, 255);
-        let touch_ui = radio::touch_ui() && !g.two_player;
-        let portrait = low_h() > low_w();
-        let edge = if touch_ui && !portrait { (low_w() * 0.235).round() } else { 0.0 };
-        let right_edge = low_w() - edge;
-        let bar_y = if touch_ui && portrait { 58.0 } else if touch_ui { low_h() - 2.0 } else { low_h() - 32.0 };
-        let grid_x;
-        let grid_w;
-        if touch_ui {
-            grid_w = 296f32.min(low_w() - 24.0);
-            grid_x = (low_w() - grid_w) / 2.0;
+        fr.ink = Color::from_rgba(40, 30, 60, 255);
+        fr.touch_ui = radio::touch_ui() && !g.two_player;
+        fr.portrait = low_h() > low_w();
+        fr.edge = if fr.touch_ui && !fr.portrait { (low_w() * 0.235).round() } else { 0.0 };
+        fr.right_edge = low_w() - fr.edge;
+        fr.bar_y = if fr.touch_ui && fr.portrait { 58.0 } else if fr.touch_ui { low_h() - 2.0 } else { low_h() - 32.0 };
+        
+        
+        if fr.touch_ui {
+            fr.grid_w = 296f32.min(low_w() - 24.0);
+            fr.grid_x = (low_w() - fr.grid_w) / 2.0;
         } else if g.two_player {
             for who in 0..2 {
                 let box_w = 25.0;
-                let start_x = who as f32 * half + (half - box_w * 6.0) / 2.0;
+                let start_x = who as f32 * fr.half + (fr.half - box_w * 6.0) / 2.0;
                 let labels = if who == 0 { P1_KEY_LABELS } else { P2_KEY_LABELS };
                 for i in 0..6 {
                     let x = start_x + i as f32 * box_w;
@@ -3478,14 +3466,14 @@ async fn main() {
                     let mut bg = note_color(i);
                     bg.a = 0.55 + glow * 0.45;
                     let lift = glow * 3.0;
-                    ui_rect(x + 1.0, bar_y - lift, box_w - 2.0, 28.0, bg);
-                    ui_text(labels[i], x + 4.0, bar_y + 12.0 - lift, 12.0, ink);
+                    ui_rect(x + 1.0, fr.bar_y - lift, box_w - 2.0, 28.0, bg);
+                    ui_text(labels[i], x + 4.0, fr.bar_y + 12.0 - lift, 12.0, fr.ink);
                     let name = if g.inside && g.dj[who] { &DJ_PADS[who][i][..DJ_PADS[who][i].len().min(4)] } else if g.cooking && g.players[who].seated && i < 4 { &PERC_NAMES[i][..3] } else if g.inside && g.seat[who] == Some(home::Item::Piano) { "piano" } else if g.inside && g.seat[who] == Some(home::Item::Drums) { "drum" } else { NOTE_NAMES[i] };
-                    ui_text(name, x + 4.0, bar_y + 24.0 - lift, 12.0, ink);
+                    ui_text(name, x + 4.0, fr.bar_y + 24.0 - lift, 12.0, fr.ink);
                 }
             }
-            grid_x = 12.0;
-            grid_w = low_w() - 24.0;
+            fr.grid_x = 12.0;
+            fr.grid_w = low_w() - 24.0;
         } else {
             let box_w = 50.0;
             let start_x = low_w() / 2.0 - box_w * 3.0;
@@ -3495,8 +3483,8 @@ async fn main() {
                 let mut bg = note_color(i);
                 bg.a = 0.55 + glow * 0.45;
                 let lift = glow * 3.0;
-                ui_rect(x + 2.0, bar_y - lift, box_w - 4.0, 28.0, bg);
-                ui_text(&format!("{} {}", i + 1, NOTE_NAMES[i]), x + 6.0, bar_y + 12.0 - lift, 12.0, ink);
+                ui_rect(x + 2.0, fr.bar_y - lift, box_w - 4.0, 28.0, bg);
+                ui_text(&format!("{} {}", i + 1, NOTE_NAMES[i]), x + 6.0, fr.bar_y + 12.0 - lift, 12.0, fr.ink);
                 let label = if g.inside && g.dj[0] {
                     DJ_PADS[0][i]
                 } else if g.cooking && i < 4 {
@@ -3506,35 +3494,35 @@ async fn main() {
                 } else {
                     SPELL_NAMES[i]
                 };
-                ui_text(label, x + 6.0, bar_y + 24.0 - lift, 12.0, ink);
+                ui_text(label, x + 6.0, fr.bar_y + 24.0 - lift, 12.0, fr.ink);
             }
-            grid_x = start_x + 2.0;
-            grid_w = box_w * 6.0 - 4.0;
+            fr.grid_x = start_x + 2.0;
+            fr.grid_w = box_w * 6.0 - 4.0;
         }
 
-        let show_grid = g.music_mode || g.looper.recording || !g.looper.notes.is_empty();
-        let lanes: Vec<(Option<usize>, f32, f32)> = if g.two_player && !touch_ui {
-            (0..2).map(|who| (Some(who), who as f32 * half + (half - 150.0) / 2.0 + 1.0, 148.0)).collect()
+        fr.show_grid = g.music_mode || g.looper.recording || !g.looper.notes.is_empty();
+        fr.lanes = if g.two_player && !fr.touch_ui {
+            (0..2).map(|who| (Some(who), who as f32 * fr.half + (fr.half - 150.0) / 2.0 + 1.0, 148.0)).collect()
         } else {
-            vec![(None, grid_x, grid_w)]
+            vec![(None, fr.grid_x, fr.grid_w)]
         };
-        let grid_y = bar_y - 18.0;
-        if show_grid {
-            for &(lane, lx, lw) in &lanes {
+        fr.grid_y = fr.bar_y - 18.0;
+        if fr.show_grid {
+            for &(lane, lx, lw) in &fr.lanes {
                 let cell = lw / LOOP_STEPS as f32;
-                ui_rect(lx, grid_y, lw, 14.0, Color::new(0.1, 0.08, 0.2, 0.5));
+                ui_rect(lx, fr.grid_y, lw, 14.0, Color::new(0.1, 0.08, 0.2, 0.5));
                 for k in (0..LOOP_STEPS).step_by(4) {
                     let a = if k % 16 == 0 { 0.6 } else { 0.25 };
-                    ui_rect(lx + k as f32 * cell, grid_y, 0.34, 14.0, Color::new(1.0, 1.0, 1.0, a));
+                    ui_rect(lx + k as f32 * cell, fr.grid_y, 0.34, 14.0, Color::new(1.0, 1.0, 1.0, a));
                 }
-                ui_rect(lx + step as f32 * cell, grid_y, cell, 14.0, Color::new(1.0, 1.0, 1.0, 0.3));
+                ui_rect(lx + fr.step as f32 * cell, fr.grid_y, cell, 14.0, Color::new(1.0, 1.0, 1.0, 0.3));
                 for &(at, id) in &g.looper.notes {
                     if lane.map(|who| note_owner(id) != who).unwrap_or(false) {
                         continue;
                     }
                     let slot = note_slot(id).min(5);
                     let nx = lx + at * cell + 0.3;
-                    let ny = grid_y + 1.0 + (5 - slot) as f32 * 2.0;
+                    let ny = fr.grid_y + 1.0 + (5 - slot) as f32 * 2.0;
                     let mut color = note_color(slot);
                     if lane.is_none() && note_owner(id) == 1 {
                         color = Color::new(color.r * 0.75, color.g * 0.75, color.b * 0.75, 1.0);
@@ -3544,35 +3532,35 @@ async fn main() {
             }
         }
 
-        let status_y = if show_grid { grid_y - 4.0 } else { bar_y - 4.0 };
-        let mut status_x = grid_x;
+        fr.status_y = if fr.show_grid { fr.grid_y - 4.0 } else { fr.bar_y - 4.0 };
+        fr.status_x = fr.grid_x;
         if g.looper.recording {
-            if (time * 2.0).fract() < 0.6 {
-                ui_rect(status_x, status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
+            if (fr.time * 2.0).fract() < 0.6 {
+                ui_rect(fr.status_x, fr.status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
             }
-            ui_text("REC", status_x + 9.0, status_y, 12.0, WHITE);
-            status_x += 34.0;
+            ui_text("REC", fr.status_x + 9.0, fr.status_y, 12.0, WHITE);
+            fr.status_x += 34.0;
         }
         if g.listening {
             let dot = if g.locked {
                 Color::from_rgba(90, 230, 120, 255)
             } else {
-                let blink = 0.35 + 0.65 * (time * 4.0).sin().abs();
+                let blink = 0.35 + 0.65 * (fr.time * 4.0).sin().abs();
                 Color::new(1.0, 0.75, 0.25, blink)
             };
-            ui_rect(status_x + 1.0, status_y - 7.0, 6.0, 6.0, dot);
+            ui_rect(fr.status_x + 1.0, fr.status_y - 7.0, 6.0, 6.0, dot);
             let text = if g.locked { format!("synced {:.0} bpm", g.looper.bpm) } else { "syncing...".to_string() };
-            ui_text(&text, status_x + 12.0, status_y, 12.0, if g.locked { Color::from_rgba(150, 255, 170, 255) } else { WHITE });
+            ui_text(&text, fr.status_x + 12.0, fr.status_y, 12.0, if g.locked { Color::from_rgba(150, 255, 170, 255) } else { WHITE });
         } else if g.looper.beat {
-            ui_text(&format!("beat {:.0} bpm", g.looper.bpm), status_x, status_y, 12.0, WHITE);
+            ui_text(&format!("beat {:.0} bpm", g.looper.bpm), fr.status_x, fr.status_y, 12.0, WHITE);
         }
         if let Some(msg) = g.mic_message {
             g.mic_message_clock += get_frame_time();
             if g.mic_message_clock > 3.0 {
                 g.mic_message = None;
             } else {
-                ui_rect(grid_x - 1.0, status_y - 21.0, 7.0, 7.0, Color::from_rgba(255, 90, 90, 255));
-                ui_text(msg, grid_x + 9.0, status_y - 14.0, 12.0, Color::from_rgba(255, 210, 160, 255));
+                ui_rect(fr.grid_x - 1.0, fr.status_y - 21.0, 7.0, 7.0, Color::from_rgba(255, 90, 90, 255));
+                ui_text(msg, fr.grid_x + 9.0, fr.status_y - 14.0, 12.0, Color::from_rgba(255, 210, 160, 255));
             }
         } else {
             g.mic_message_clock = 0.0;
@@ -3580,52 +3568,52 @@ async fn main() {
         if let Some(t) = g.session {
             let label = format!("together {}:{:02}", t as u32 / 60, t as u32 % 60);
             let tw = ui_measure(&label, 11.0) + 36.0;
-            let sx = grid_x + (grid_w - tw) / 2.0;
-            ui_text(&label, sx, status_y, 11.0, Color::from_rgba(255, 236, 200, 255));
+            let sx = fr.grid_x + (fr.grid_w - tw) / 2.0;
+            ui_text(&label, sx, fr.status_y, 11.0, Color::from_rgba(255, 236, 200, 255));
             for k in 0..3u8 {
                 let col = if k < g.session_stars { Color::from_rgba(255, 214, 90, 255) } else { Color::new(1.0, 1.0, 1.0, 0.22) };
-                ui_star(sx + ui_measure(&label, 11.0) + 4.0 + k as f32 * 11.0, status_y - 8.0, 8.0, col);
+                ui_star(sx + ui_measure(&label, 11.0) + 4.0 + k as f32 * 11.0, fr.status_y - 8.0, 8.0, col);
             }
         }
-        let mut right_x = grid_x + grid_w;
+        fr.right_x = fr.grid_x + fr.grid_w;
         if g.ringing {
-            let glow = 0.75 + 0.25 * (time * 4.0).sin();
-            right_x -= ui_measure("~echo~", 12.0);
-            ui_text("~echo~", right_x, status_y, 12.0, Color::new(0.75, 0.95, 1.0, glow));
-            right_x -= 10.0;
+            let glow = 0.75 + 0.25 * (fr.time * 4.0).sin();
+            fr.right_x -= ui_measure("~echo~", 12.0);
+            ui_text("~echo~", fr.right_x, fr.status_y, 12.0, Color::new(0.75, 0.95, 1.0, glow));
+            fr.right_x -= 10.0;
         }
         if let Some(t) = g.audio.tape_seconds() {
             let label = format!("tape {}:{:02}", t as u32 / 60, t as u32 % 60);
-            right_x -= ui_measure(&label, 12.0);
-            ui_text(&label, right_x, status_y, 12.0, Color::from_rgba(255, 216, 216, 255));
-            if (time * 2.0).fract() < 0.6 {
-                ui_rect(right_x - 9.0, status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
+            fr.right_x -= ui_measure(&label, 12.0);
+            ui_text(&label, fr.right_x, fr.status_y, 12.0, Color::from_rgba(255, 216, 216, 255));
+            if (fr.time * 2.0).fract() < 0.6 {
+                ui_rect(fr.right_x - 9.0, fr.status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
             }
         }
 
         ui_rect(0.0, 0.0, low_w(), 17.0, Color::new(0.1, 0.08, 0.2, 0.4));
-        let mode = if g.cooking { "cooking".to_string() } else if g.music_mode { format!("music  q:{}", g.looper.quantise.label()) } else { "spells".to_string() };
+        fr.mode = if g.cooking { "cooking".to_string() } else if g.music_mode { format!("music  q:{}", g.looper.quantise.label()) } else { "spells".to_string() };
         if g.two_player {
             ui_text(g.cast_list[g.players[0].character].name, 6.0, 12.0, 12.0, Color::from_rgba(255, 226, 190, 255));
-            ui_text(g.cast_list[g.players[1].character].name, half + 6.0, 12.0, 12.0, Color::from_rgba(240, 206, 140, 255));
-            ui_text(&mode, 76.0, 12.0, 12.0, WHITE);
+            ui_text(g.cast_list[g.players[1].character].name, fr.half + 6.0, 12.0, 12.0, Color::from_rgba(240, 206, 140, 255));
+            ui_text(&fr.mode, 76.0, 12.0, 12.0, WHITE);
         } else {
-            ui_text(&mode, edge + 6.0, 12.0, 12.0, WHITE);
-            if !g.now_playing.is_empty() && right_edge - 144.0 - edge - ui_measure(&mode, 12.0) > 40.0 {
-                let left = edge + 6.0 + ui_measure(&mode, 12.0) + 12.0;
-                let room = right_edge - 118.0 - 8.0 - left;
-                let line = ui_ticker(&format!("~ {now_playing}", now_playing = g.now_playing), 12.0, room, time);
+            ui_text(&fr.mode, fr.edge + 6.0, 12.0, 12.0, WHITE);
+            if !g.now_playing.is_empty() && fr.right_edge - 144.0 - fr.edge - ui_measure(&fr.mode, 12.0) > 40.0 {
+                let left = fr.edge + 6.0 + ui_measure(&fr.mode, 12.0) + 12.0;
+                let room = fr.right_edge - 118.0 - 8.0 - left;
+                let line = ui_ticker(&format!("~ {now_playing}", now_playing = g.now_playing), 12.0, room, fr.time);
                 ui_text(&line, left, 12.0, 12.0, Color::from_rgba(255, 214, 110, 255));
             }
         }
-        let (meter_x, meter_y) = if g.two_player { (6.0, 27.0) } else { (right_edge - 118.0, 12.0) };
-        ui_text("fire", meter_x, meter_y, 12.0, Color::from_rgba(255, 200, 140, 255));
-        ui_rect(meter_x + 24.0, meter_y - 7.0, 40.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.35));
-        let fill = (g.camp.fuel / 180.0).min(1.0);
-        let fire_col = if g.camp.lit { Color::from_rgba(255, 150, 60, 255) } else { Color::from_rgba(120, 110, 110, 255) };
-        ui_rect(meter_x + 24.0, meter_y - 7.0, 40.0 * fill, 6.0, fire_col);
+        (fr.meter_x, fr.meter_y) = if g.two_player { (6.0, 27.0) } else { (fr.right_edge - 118.0, 12.0) };
+        ui_text("fire", fr.meter_x, fr.meter_y, 12.0, Color::from_rgba(255, 200, 140, 255));
+        ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.35));
+        fr.fill = (g.camp.fuel / 180.0).min(1.0);
+        fr.fire_col = if g.camp.lit { Color::from_rgba(255, 150, 60, 255) } else { Color::from_rgba(120, 110, 110, 255) };
+        ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0 * fr.fill, 6.0, fr.fire_col);
         {
-            let hx = right_edge - 46.0;
+            let hx = fr.right_edge - 46.0;
             ui_rect(hx - 2.0, 2.0, 12.0, 13.0, Color::from_rgba(255, 214, 110, 255));
             ui_text("H", hx + 1.0, 12.0, 12.0, Color::from_rgba(36, 26, 71, 255));
             ui_text("help", hx + 14.0, 12.0, 12.0, WHITE);
@@ -3634,7 +3622,7 @@ async fn main() {
             let sk = sky();
             let temp = sk.temp.map(|t| format!(" {:.0}C", t)).unwrap_or_default();
             let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
-            let wx = if g.two_player { half - ui_measure(&line, 9.0) - 6.0 } else { right_edge - ui_measure(&line, 9.0) - 4.0 };
+            let wx = if g.two_player { fr.half - ui_measure(&line, 9.0) - 6.0 } else { fr.right_edge - ui_measure(&line, 9.0) - 4.0 };
             ui_text(&line, wx, 38.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.7));
         }
         if g.ring_flash > 0.0 {
@@ -3645,22 +3633,22 @@ async fn main() {
             ui_text(msg, (low_w() - w) / 2.0 + 6.0, 38.0, 12.0, Color::new(0.8, 0.95, 1.0, a));
         }
 
-        let fish_total: u32 = g.inv.fish.iter().sum();
-        let items = [
+        fr.fish_total = g.inv.fish.iter().sum();
+        fr.items = [
             (Color::from_rgba(176, 124, 76, 255), format!("{}", g.inv.wood)),
             (Color::from_rgba(168, 170, 184, 255), format!("{}", g.inv.stone)),
-            (Color::from_rgba(140, 190, 210, 255), format!("{}", fish_total)),
+            (Color::from_rgba(140, 190, 210, 255), format!("{}", fr.fish_total)),
             (Color::from_rgba(255, 140, 160, 255), format!("{}/{}", g.dishes.len(), DISHES.len())),
             (ACORN_COLOR, format!("{}", g.inv.acorns)),
         ];
-        let mut ix = right_edge - 6.0 - items.len() as f32 * 24.0;
-        for (col, text) in items.iter() {
-            ui_rect(ix, 21.0, 6.0, 6.0, *col);
-            ui_text(text, ix + 8.0, 27.0, 11.0, WHITE);
-            ix += 24.0;
+        fr.ix = fr.right_edge - 6.0 - fr.items.len() as f32 * 24.0;
+        for (col, text) in fr.items.iter() {
+            ui_rect(fr.ix, 21.0, 6.0, 6.0, *col);
+            ui_text(text, fr.ix + 8.0, 27.0, 11.0, WHITE);
+            fr.ix += 24.0;
         }
 
-        let inside_hint = if g.inside {
+        fr.inside_hint = if g.inside {
             let ahead = ahead_local(&g.players[0]);
             let here = home::local(g.players[0].pos);
             Some(if g.shop_open || g.dj[0] {
@@ -3717,13 +3705,7 @@ async fn main() {
         } else {
             None
         };
-        let carried_name = |c: Option<Carry>| match c {
-            Some(Carry::Stick) => "stick",
-            Some(Carry::Stone) => "stone",
-            Some(Carry::Acorn) => "acorn",
-            None => "",
-        };
-        let hint: String = if let Some(h) = inside_hint {
+        fr.hint = if let Some(h) = fr.inside_hint {
             h
         } else if g.players[0].carrying.is_some() && !g.players[0].seated {
             format!("bring the {} to the logs by the fire", carried_name(g.players[0].carrying))
@@ -3742,9 +3724,9 @@ async fn main() {
         } else if g.cooking {
             format!("cook on the beat {}/{} - {}: done", g.cook_progress, COOK_GOAL, if g.two_player { "E / O" } else { "E" })
         } else if g.jam {
-            if dog_jamming && g.partner_soloing {
+            if fr.dog_jamming && g.partner_soloing {
                 format!("the {} knows {} tune{} - answer back!", g.cast_list[g.players[1].character].noun, g.songbook.len(), if g.songbook.len() == 1 { "" } else { "s" })
-            } else if dog_jamming || (g.two_player && g.players[1].seated) {
+            } else if fr.dog_jamming || (g.two_player && g.players[1].seated) {
                 "playing together by the fire - E / O: cook, move to stand up".to_string()
             } else {
                 format!("playing by the fire - E: cook, the {} is on the way", g.cast_list[g.players[1].character].noun)
@@ -3755,7 +3737,7 @@ async fn main() {
             "E: sit by the fire".to_string()
         } else if at_dock_end(&g.players[0]) {
             if g.two_player { "E / O: cast your fishing line".to_string() } else { "E: cast your fishing line".to_string() }
-        } else if can_build_here {
+        } else if fr.can_build_here {
             format!("E: build {}  X: change", g.tools[0].name())
         } else if !g.camp.lit && g.camp.fuel <= 0.0 {
             if g.two_player { "find a tree with a stick at its foot - E or O picks it up".to_string() } else { format!("the {} is looking for sticks - or grab one yourself with E", g.cast_list[g.players[1].character].noun) }
@@ -3782,27 +3764,27 @@ async fn main() {
             } else {
                 String::new()
             };
-            while ui_measure(&p2_hint, 11.0) > half - 12.0 && p2_hint.len() > 7 {
+            while ui_measure(&p2_hint, 11.0) > fr.half - 12.0 && p2_hint.len() > 7 {
                 p2_hint.pop();
             }
             if !p2_hint.is_empty() {
                 let w = ui_measure(&p2_hint, 11.0);
-                let x = half + (half - w) * 0.5;
-                let y = if show_grid { grid_y - 31.0 } else { bar_y - 26.0 };
+                let x = fr.half + (fr.half - w) * 0.5;
+                let y = if fr.show_grid { fr.grid_y - 31.0 } else { fr.bar_y - 26.0 };
                 ui_rect(x - 4.0, y - 9.0, w + 8.0, 13.0, Color::new(0.1, 0.08, 0.2, 0.68));
                 ui_text(&p2_hint, x, y, 11.0, Color::from_rgba(255, 236, 200, 255));
             }
         }
-        if !hint.is_empty() && !g.picking {
-            let w = ui_measure(&hint, 12.0);
-            let hy = if touch_ui && portrait { (low_h() * 0.56).round() } else if show_grid { grid_y - 16.0 } else { bar_y - 10.0 };
+        if !fr.hint.is_empty() && !g.picking {
+            let w = ui_measure(&fr.hint, 12.0);
+            let hy = if fr.touch_ui && fr.portrait { (low_h() * 0.56).round() } else if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
             ui_rect((low_w() - w) / 2.0 - 4.0, hy - 9.0, w + 8.0, 12.0, Color::new(0.1, 0.08, 0.2, 0.5));
-            ui_text(&hint, (low_w() - w) / 2.0, hy, 12.0, Color::from_rgba(255, 236, 200, 255));
+            ui_text(&fr.hint, (low_w() - w) / 2.0, hy, 12.0, Color::from_rgba(255, 236, 200, 255));
         }
         for (k, (text, life)) in g.toasts.iter().enumerate() {
             let a = life.min(1.0);
-            let toast_y = if touch_ui && portrait { 70.0 } else { 40.0 };
-            ui_text(text, edge + 8.0, toast_y + k as f32 * 11.0, 12.0, Color::new(1.0, 0.95, 0.85, a));
+            let toast_y = if fr.touch_ui && fr.portrait { 70.0 } else { 40.0 };
+            ui_text(text, fr.edge + 8.0, toast_y + k as f32 * 11.0, 12.0, Color::new(1.0, 0.95, 0.85, a));
         }
         if g.show_inventory && !g.picking && !g.shop_open && !g.show_help {
             let lines = [
@@ -3817,7 +3799,7 @@ async fn main() {
             let furn_rows = if g.stored.is_empty() { 1 } else { g.stored.len().min(shown_items) };
             let h = 30.0 + lines.len() as f32 * 11.0 + 16.0 + g.quests.list.len() as f32 * 11.0 + 16.0 + furn_rows as f32 * 11.0 + 18.0;
             let x = 8.0;
-            let y = if touch_ui && portrait { 86.0 } else { 22.0 };
+            let y = if fr.touch_ui && fr.portrait { 86.0 } else { 22.0 };
             let h = h.min(low_h() - y - 4.0);
             ui_rect(x, y, w, h, Color::new(0.08, 0.06, 0.16, 0.92));
             ui_text(if g.two_player { if g.bag_owner == 0 { "bag - player 1" } else { "bag - player 2" } } else { "bag" }, x + 8.0, y + 13.0, 12.0, Color::from_rgba(255, 226, 150, 255));
@@ -3860,7 +3842,7 @@ async fn main() {
                 }
             }
             let bag_hint = if !g.inside {
-                if touch_ui { "bag to close" } else { "M to close" }
+                if fr.touch_ui { "bag to close" } else { "M to close" }
             } else if g.bag_clear_armed > 0.0 {
                 "X again: pack ALL furniture away"
             } else if g.bag_owner == 0 {
@@ -3877,8 +3859,8 @@ async fn main() {
             }
             let style = BEAT_STYLES[g.beat_style.min(BEAT_STYLES.len() - 1)].name;
             let title = format!("{}  {:.0} bpm  {}{}", if g.dj[0] && g.dj[1] { "b2b" } else { "on the decks" }, g.looper.bpm, if g.looper.beat { style } else { "beat off" }, if g.looper.recording { "  rec" } else { "" });
-            let area = if g.two_player { half } else { low_w() };
-            let left = if g.two_player && who == 1 { half } else { 0.0 };
+            let area = if g.two_player { fr.half } else { low_w() };
+            let left = if g.two_player && who == 1 { fr.half } else { 0.0 };
             let hint = if who == 0 { "W/S tempo  A/D style  R rec  X out" } else { "7 8 9 0 - = pads  O out" };
             let track = if g.now_playing.is_empty() { String::new() } else { format!("now playing: {now_playing}", now_playing = g.now_playing) };
             let two_decks = g.live_decks.len() >= 2;
@@ -3945,10 +3927,10 @@ async fn main() {
             }
         }
         if g.fishing.active && g.fish_card <= 0.0 && g.fishing.lesson && (g.looper.position - g.fishing.cue_at).abs() <= 0.22 / g.looper.step_seconds() {
-            let pop = 1.0 + 0.15 * (time * 16.0).sin();
+            let pop = 1.0 + 0.15 * (fr.time * 16.0).sin();
             let size = 22.0 * pop;
             let word = if g.fishing.caster == 1 { "O!" } else { "E!" };
-            let cx = if g.two_player { half * (g.fishing.caster as f32 + 0.5) } else { low_w() / 2.0 };
+            let cx = if g.two_player { fr.half * (g.fishing.caster as f32 + 0.5) } else { low_w() / 2.0 };
             ui_text(word, cx - ui_measure(word, size) / 2.0, low_h() * 0.38, size, Color::from_rgba(255, 226, 120, 255));
         }
         if let Some((i, left)) = g.fish_pop.map(|(i, l, _, _)| (i, l)) {
@@ -3956,7 +3938,7 @@ async fn main() {
             let shroom = g.fish_pop.map(|f| f.3).unwrap_or(false);
             let a = (left.min(0.4) / 0.4).min(1.0) * ((3.0 - left) * 6.0).min(1.0);
             let w = 150.0;
-            let cx = if g.two_player { half / 2.0 } else { low_w() / 2.0 };
+            let cx = if g.two_player { fr.half / 2.0 } else { low_w() / 2.0 };
             let x = (cx - w / 2.0).round();
             let y = if low_h() > low_w() { 120.0 } else { 46.0 };
             ui_rect(x, y, w, 48.0, Color::new(0.08, 0.12, 0.22, 0.9 * a));
@@ -4006,8 +3988,8 @@ async fn main() {
                 ui_rect(sx, sy + cell + 1.5, cell * emoji::COUNT as f32 * fill, 1.5, Color::from_rgba(255, 214, 110, 255));
             }
         }
-        let small_pop = g.fish_say.as_ref().map(|(w, _, _)| matches!(w.as_str(), "perfect!" | "nice!" | "together!")).unwrap_or(false);
-        if let (true, Some((word, col, left))) = (small_pop, g.fish_say.as_ref()) {
+        fr.small_pop = g.fish_say.as_ref().map(|(w, _, _)| matches!(w.as_str(), "perfect!" | "nice!" | "together!")).unwrap_or(false);
+        if let (true, Some((word, col, left))) = (fr.small_pop, g.fish_say.as_ref()) {
             let view = if g.two_player { g.fishing.caster.min(1) } else { 0 };
             let (bx, by) = BOBBER_AT.with(|cell| cell.get()[view]);
             let age = 1.0 - left.clamp(0.0, 1.0);
@@ -4026,7 +4008,7 @@ async fn main() {
         } else if let Some((word, col, left)) = g.fish_say.as_ref() {
             let a = left.min(0.4) / 0.4;
             let rise = (1.0 - left.min(1.0)) * 6.0;
-            let cx = if g.two_player { half * (g.fishing.caster as f32 + 0.5) } else { low_w() / 2.0 };
+            let cx = if g.two_player { fr.half * (g.fishing.caster as f32 + 0.5) } else { low_w() / 2.0 };
             let size = if word.len() < 12 { 16.0 } else { 11.0 };
             let w = ui_measure(word, size);
             ui_rect(cx - w / 2.0 - 6.0, low_h() * 0.3 - rise - size, w + 12.0, size + 6.0, Color::new(0.08, 0.06, 0.16, 0.7 * a));
@@ -4044,7 +4026,7 @@ async fn main() {
             ui_text("fishing on the beat", x + 10.0, y + 18.0, 14.0, Color::new(1.0, 0.89, 0.6, a));
             let cx = x + 34.0;
             let cy = y + 62.0;
-            let t = (time * 0.5).fract();
+            let t = (fr.time * 0.5).fract();
             let r = 6.0 + (1.0 - t) * 18.0;
             let ring_col = if t > 0.85 { Color::new(1.0, 0.86, 0.3, a) } else { Color::new(0.95, 0.97, 1.0, a) };
             for k in 0..20 {
@@ -4228,7 +4210,7 @@ async fn main() {
             };
             let w = (low_w() - 16.0).min(250.0);
             let x = (low_w() - w) / 2.0;
-            let y = if touch_ui && portrait { 27.0 } else { 21.0 };
+            let y = if fr.touch_ui && fr.portrait { 27.0 } else { 21.0 };
             ui_rect(x, y, w, 30.0, Color::new(0.1, 0.08, 0.2, 0.83));
             ui_text(heading, x + 8.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
             let line = ui_wrap(message, 10.0, w - 16.0);
@@ -4277,7 +4259,7 @@ async fn main() {
             g.sleep_fade -= get_frame_time();
             let a = (1.0 - (g.sleep_fade - 1.5).abs() / 1.5).clamp(0.0, 1.0);
             ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.04, 0.03, 0.1, a * 0.92));
-            let z = if (time * 2.0) as i32 % 2 == 0 { "z z z" } else { "z Z z" };
+            let z = if (fr.time * 2.0) as i32 % 2 == 0 { "z z z" } else { "z Z z" };
             ui_text(z, low_w() / 2.0 - ui_measure(z, 16.0) / 2.0, low_h() / 2.0, 16.0, Color::new(1.0, 1.0, 1.0, a));
             if a > 0.6 {
                 let line = "sweet dreams - game saved";
@@ -4304,7 +4286,7 @@ async fn main() {
                     ui_rect(x + 34.0, gy + row as f32 * cell + 2.0, 14.0, cell - 4.0, Color::from_rgba(255, 120, 150, 255));
                     ui_text("mic", x + 35.0, gy + row as f32 * cell + cell * 0.68, 6.0, WHITE);
                 }
-                if matches!(g.sampler.recording, Some((r, _)) if r == row) && (time * 4.0).fract() < 0.6 {
+                if matches!(g.sampler.recording, Some((r, _)) if r == row) && (fr.time * 4.0).fract() < 0.6 {
                     ui_rect(x + 34.0, gy + row as f32 * cell + 2.0, 14.0, cell - 4.0, Color::from_rgba(255, 60, 70, 255));
                 }
                 for k in 0..16 {
@@ -4356,7 +4338,7 @@ async fn main() {
                     draw_pixel_grid(&ring, lx, top, 2.0, |c| c);
                 }
                 for a in g.ddr.arrows.iter().filter(|a| !a.hit[who]) {
-                    let y = top + (a.at - time) * 75.0;
+                    let y = top + (a.at - fr.time) * 75.0;
                     if y < top - 20.0 || y > low_h() - 40.0 {
                         continue;
                     }
@@ -4374,7 +4356,7 @@ async fn main() {
                     ui_text(&combo, cx - ui_measure(&combo, 10.0) / 2.0, top + 52.0, 10.0, WHITE);
                 }
             }
-            let source = if time - g.ddr.last_mic < 3.0 { "arrows from the music on your mic" } else if g.microphone.is_some() { "listening... arrows follow the game beat for now" } else { "no mic - arrows follow the game beat and your loop" };
+            let source = if fr.time - g.ddr.last_mic < 3.0 { "arrows from the music on your mic" } else if g.microphone.is_some() { "listening... arrows follow the game beat for now" } else { "no mic - arrows follow the game beat and your loop" };
             ui_text(source, (low_w() - ui_measure(source, 9.0)) / 2.0, low_h() - 30.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.7));
         }
         if g.show_help {

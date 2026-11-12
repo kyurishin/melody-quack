@@ -305,3 +305,18 @@ pub(crate) fn make_view(w: u32, h: u32) -> RenderTarget {
     target.texture.set_filter(FilterMode::Nearest);
     target
 }
+
+#[derive(Default)]
+pub(crate) struct Extras {
+    pub(crate) fishing: bool,
+    pub(crate) ring: f32,
+    pub(crate) in_window: bool,
+    pub(crate) dip: f32,
+    pub(crate) jump: Option<(usize, f32)>,
+    pub(crate) cat: Vec2,
+    pub(crate) pot: bool,
+    pub(crate) hearts: Vec<(Vec3, f32)>,
+    pub(crate) ghost: Option<(i32, i32, Tool)>,
+    pub(crate) friend_rod: Option<Vec2>,
+    pub(crate) sticks: Vec<Vec2>,
+}

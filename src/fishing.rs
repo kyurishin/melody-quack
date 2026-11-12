@@ -27,3 +27,7 @@ pub(crate) struct Fishing {
 pub(crate) const FISH_TRIES: u32 = 3;
 
 pub(crate) const FISH_CUE_GAP: f32 = 8.0;
+
+pub(crate) fn at_dock_end(p: &Player) -> bool {
+    p.pos.distance(DOCK_END) < 0.7
+}

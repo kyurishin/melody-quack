@@ -226,3 +226,12 @@ pub(crate) fn direction(up: &[KeyCode], down: &[KeyCode], left: &[KeyCode], righ
     }
     dir
 }
+
+pub(crate) fn carried_name(c: Option<Carry>) -> &'static str {
+    match c {
+        Some(Carry::Stick) => "stick",
+        Some(Carry::Stone) => "stone",
+        Some(Carry::Acorn) => "acorn",
+        None => "",
+    }
+}
