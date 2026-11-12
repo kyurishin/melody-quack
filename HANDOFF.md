@@ -194,3 +194,9 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Save: lines `djkey <key>` and `welcome 1`, appended.
 - Tested with a local server: first-run key entry, ask, grant from a script and from the admin page in the game, credit going up and being cleared, going live on the in-game decks with pads and mix reaching a second client, the welcome screen after restart. Not tested: real audio links, the web build of these screens, anything with a real Patreon page.
 - Looks: the DJ on air sends `look <0-3>` (`LOOKS` in `venues.rs`); the server keeps it with the live set and sends it to late joiners. `chapel` picks floor, wall and light colours from it and `backdrop` paints the scene on the back wall. The top bar is slimmer and the code tag moves to the bottom left while a look is on. Tested on desktop with a second client receiving the look; not tested in the browser.
+
+## Chat
+
+- Server: `say <text>` from a client in a room becomes `said <kind> <name>|<text>` to everyone in that room (kind 0 raver, 1 dj, 2 admin). Rate limit 600 ms, 120 chars, `|` replaced with `/`. `--admin-name` / `MQ_ADMIN_NAME` sets the admin's shown name; other players can't use it (become "not <name>"). The admin joins under that name and the `who` badge is 2. `/mute` and `/unmute` from the admin; muted players' messages only go back to themselves. Mutes live in memory only.
+- Client: `chat_open`, `chat_draft`, `chat_log` in `VenueState`; the box and log are drawn at the end of `chapel`; Enter opens it while joined and no overlay is up; movement and singing are frozen while it is open. Touch: a "chat" button using `radio::ask_text`.
+- Tested with a local server, the desktop game and two scripted clients (a raver and the admin). Not tested in the browser.

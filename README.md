@@ -510,6 +510,17 @@ On the server: `--djs <file>` is the list of members, one `name = key` per line,
 
 The game doesn't move any money. The credit is a number the admin settles by hand.
 
+## Chat
+
+Everyone in the chapel can talk. Press Enter to open the chat box, type, Enter to send, Esc to close it without sending. On a phone or tablet there is a "chat" button. Messages fade after about fifteen seconds; opening the box shows the last few again.
+
+- Names are coloured like the name tags: blue for ravers, purple with "dj" for DJs, gold with a star for the admin.
+- One message every 0.6 seconds at most, 120 characters each.
+- Nobody else can take the admin's name: anyone who tries shows up as "not <name>".
+- The admin can type `/mute <name>` and `/unmute <name>`. A muted player still sees their own messages, so they don't notice.
+
+On the server, `--admin-name <name>` (or `MQ_ADMIN_NAME`) is the name the admin appears under. The admin signs in with the admin key, in the DJ key box, as before.
+
 ## Downloads: macOS, Linux and Arch
 
 The Packages workflow (`.github/workflows/packages.yml`) builds all of these on every push; find them under the run's Artifacts. Pushing a `v*` tag attaches them to a GitHub Release.

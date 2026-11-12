@@ -53,6 +53,7 @@ pub(crate) struct OnAir {
 }
 
 pub(crate) struct Friend {
+    pub(crate) admin: bool,
     pub(crate) dj: bool,
     pub(crate) id: u32,
     pub(crate) players: u32,
@@ -101,6 +102,9 @@ pub(crate) struct VenueState {
     pub(crate) dj_page: bool,
     pub(crate) post_tab: bool,
     pub(crate) look: usize,
+    pub(crate) chat_open: bool,
+    pub(crate) chat_draft: String,
+    pub(crate) chat_log: Vec<(u8, String, String, f64)>,
     pub(crate) field: u8,
     pub(crate) patreon: String,
     pub(crate) name: String,

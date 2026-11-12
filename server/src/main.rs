@@ -178,6 +178,8 @@ struct Client {
     last: [String; 2],
     dj: Option<String>,
     admin: bool,
+    name: String,
+    spoke: i64,
 }
 
 struct Hub {
@@ -191,6 +193,8 @@ struct Hub {
     djs: Vec<(String, String)>,
     djs_path: Option<String>,
     admin_key: Option<String>,
+    admin_name: String,
+    muted: Vec<String>,
     patreon: String,
     credits: HashMap<String, u32>,
     credits_path: Option<String>,
@@ -215,6 +219,8 @@ impl Hub {
             djs: Vec::new(),
             djs_path: None,
             admin_key: None,
+            admin_name: "admin".to_string(),
+            muted: Vec::new(),
             patreon: String::new(),
             credits: HashMap::new(),
             credits_path: None,
@@ -228,7 +234,7 @@ impl Hub {
     fn connect(&mut self, tx: Option<mpsc::UnboundedSender<Message>>) -> u32 {
         self.next += 1;
         let token = next_rand(&mut self.rng);
-        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false });
+        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false, name: String::new(), spoke: -10_000 });
         self.next
     }
 
@@ -509,6 +515,46 @@ impl Hub {
                     self.say(other, format!("{cmd} {rest}"));
                 }
             }
+            "say" => {
+                let Some(c) = self.clients.get(&id) else {
+                    return;
+                };
+                if c.room.is_none() || now - c.spoke < 600 {
+                    return;
+                }
+                let text = clean(&rest.replace('|', "/"), 120);
+                if text.is_empty() {
+                    return;
+                }
+                let admin = c.admin;
+                let kind = if admin { 2 } else if c.dj.is_some() { 1 } else { 0 };
+                let name = if admin {
+                    self.admin_name.clone()
+                } else if c.name.eq_ignore_ascii_case(&self.admin_name) {
+                    format!("not {}", c.name)
+                } else {
+                    c.name.clone()
+                };
+                self.clients.get_mut(&id).unwrap().spoke = now;
+                if admin && (text.starts_with("/mute ") || text.starts_with("/unmute ")) {
+                    let (on, who) = text.split_once(' ').map(|(c, w)| (c == "/mute", w.trim().to_lowercase())).unwrap();
+                    self.muted.retain(|m| *m != who);
+                    if on {
+                        self.muted.push(who.clone());
+                    }
+                    self.say(id, format!("said 2 {name}|{} {who}", if on { "muted" } else { "unmuted" }));
+                    return;
+                }
+                let line = format!("said {kind} {name}|{text}");
+                if self.muted.contains(&name.to_lowercase()) {
+                    self.say(id, line);
+                    return;
+                }
+                let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
+                for one in all {
+                    self.say(one, line.clone());
+                }
+            }
             "sit" => {
                 let token = self.clients[&id].token;
                 match self.event.sit(token, now) {
@@ -566,13 +612,24 @@ impl Hub {
                     let ch0 = fields[1].parse::<u32>().unwrap_or(0);
                     let ch1 = fields[2].parse::<u32>().unwrap_or(0);
                     let name = clean(fields.get(3).copied().unwrap_or(""), 12);
-                    let badge = self.clients[&id].dj.is_some() as u8;
-                    let who = format!("{players} {ch0} {ch1} {badge} {}", if name.is_empty() { "duckling".to_string() } else { name });
+                    let admin = self.clients[&id].admin;
+                    let badge = if admin { 2 } else { self.clients[&id].dj.is_some() as u8 };
+                    let name = if admin {
+                        self.admin_name.clone()
+                    } else if name.is_empty() {
+                        "duckling".to_string()
+                    } else if name.eq_ignore_ascii_case(&self.admin_name) {
+                        format!("not {name}")
+                    } else {
+                        name
+                    };
+                    let who = format!("{players} {ch0} {ch1} {badge} {name}");
                     {
                         let c = self.clients.get_mut(&id).unwrap();
                         c.room = Some(code.to_string());
                         c.players = players;
                         c.who = who.clone();
+                        c.name = name;
                     }
                     for other in self.others(id) {
                         self.say(other, format!("who {id} {who}"));
@@ -655,6 +712,12 @@ async fn main() {
     let mut first = Hub::new(start, every, now as u64);
     first.djs_path = arg("--djs").or_else(|| std::env::var("MQ_DJS").ok());
     first.admin_key = arg("--admin").or_else(|| std::env::var("MQ_ADMIN").ok()).filter(|k| !k.trim().is_empty());
+    if let Some(name) = arg("--admin-name").or_else(|| std::env::var("MQ_ADMIN_NAME").ok()) {
+        let name = clean(&name.replace('|', ""), 16);
+        if !name.is_empty() {
+            first.admin_name = name;
+        }
+    }
     first.patreon = arg("--patreon").or_else(|| std::env::var("MQ_PATREON").ok()).unwrap_or_default();
     let credits_path = arg("--credits").or_else(|| std::env::var("MQ_CREDITS").ok()).unwrap_or_else(|| "credits.txt".to_string());
     if let Ok(text) = std::fs::read_to_string(&credits_path) {
@@ -833,6 +896,22 @@ mod tests {
         h.handle(dj, "look 9", 7);
         h.handle(fan, "look 1", 7);
         assert_eq!(said(&mut h, fan), vec!["mix 1 0 2 140".to_string(), "pad 3".to_string(), "look 2".to_string()]);
+        h.admin_name = "boss9000".to_string();
+        h.handle(fan, "say hello | all", 1000);
+        h.handle(fan, "say too fast", 1100);
+        assert_eq!(said(&mut h, dj), vec!["said 0 mina|hello / all".to_string()]);
+        h.handle(dj, "say tune", 2000);
+        h.handle(admin, "say not in a room", 2000);
+        h.handle(admin, "join ACD-EFG-HJK 1 0 0 whoever", 2100);
+        h.handle(admin, "say welcome", 3000);
+        h.handle(admin, "say /mute mina", 4000);
+        h.handle(fan, "say can you hear me", 5000);
+        let heard = said(&mut h, dj);
+        assert!(heard.contains(&"said 1 priori|tune".to_string()) && heard.contains(&"said 2 boss9000|welcome".to_string()));
+        assert!(!heard.iter().any(|l| l.contains("can you hear me") || l.contains("muted")));
+        let own: Vec<String> = said(&mut h, fan).into_iter().filter(|l| l.starts_with("said")).collect();
+        assert_eq!(own, vec!["said 0 mina|hello / all".to_string(), "said 1 priori|tune".to_string(), "said 2 boss9000|welcome".to_string(), "said 0 mina|can you hear me".to_string()]);
+        said(&mut h, admin);
         let late = h.connect(None);
         h.handle(late, "join ACD-EFG-HJK 1 1 0 jo", 8);
         let got = said(&mut h, late);

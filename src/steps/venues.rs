@@ -104,6 +104,9 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.joined = false;
     g.venue.on_air = None;
     g.venue.look = 0;
+    g.venue.chat_open = false;
+    g.venue.chat_draft.clear();
+    g.venue.chat_log.clear();
     g.venue.asked = false;
     if venue == Venue::Chapel {
         if let Some(r) = g.venue.now.clone() {
@@ -441,6 +444,15 @@ fn online(g: &mut Game, dt: f32) {
                 retime(g, bpm);
                 g.venue.mix = (parts[1] == "1", parts[2] == "1", parts[3].parse::<usize>().unwrap_or(0) % 3, bpm);
             }
+            "said" if parts.len() >= 3 => {
+                let rest = parts[2..].join(" ");
+                if let Some((name, text)) = rest.split_once('|') {
+                    g.venue.chat_log.push((parts[1].parse().unwrap_or(0), name.to_string(), text.to_string(), get_time()));
+                    if g.venue.chat_log.len() > 40 {
+                        g.venue.chat_log.remove(0);
+                    }
+                }
+            }
             "look" if parts.len() >= 2 => g.venue.look = parts[1].parse::<usize>().unwrap_or(0) % 4,
             "pad" if parts.len() >= 2 => {
                 if let Ok(i) = parts[1].parse::<usize>() {
@@ -457,6 +469,7 @@ fn online(g: &mut Game, dt: f32) {
                         players: parts[2].parse::<u32>().unwrap_or(1).clamp(1, 2),
                         characters: [parts[3].parse::<usize>().unwrap_or(0) % n, parts[4].parse::<usize>().unwrap_or(0) % n],
                         dj: parts[5] == "1",
+                        admin: parts[5] == "2",
                         name: parts[6..].join(" ").chars().take(12).collect(),
                     };
                     g.venue.friends.retain(|f| f.id != id);
@@ -2055,7 +2068,37 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let dt = fr.dt;
     let time = fr.time;
     let solids = chapel_solids();
-    let busy = g.venue.overlay != Overlay::None;
+    let can_chat = g.venue.joined && net::state() == 2;
+    let mut chat_done = false;
+    if g.venue.chat_open && !fresh {
+        while let Some(ch) = get_char_pressed() {
+            if !ch.is_control() && g.venue.chat_draft.chars().count() < 120 {
+                g.venue.chat_draft.push(ch);
+            }
+        }
+        if is_key_pressed(KeyCode::Backspace) {
+            g.venue.chat_draft.pop();
+        }
+        if is_key_pressed(KeyCode::Enter) {
+            let text = g.venue.chat_draft.trim().to_string();
+            if !text.is_empty() && can_chat {
+                net::send(&format!("say {text}"));
+            }
+            chat_done = true;
+        }
+        if is_key_pressed(KeyCode::Escape) || !can_chat {
+            chat_done = true;
+        }
+    } else if !fresh && can_chat && g.venue.overlay == Overlay::None && is_key_pressed(KeyCode::Enter) {
+        g.venue.chat_open = true;
+        g.venue.chat_draft.clear();
+        while get_char_pressed().is_some() {}
+    }
+    let busy = g.venue.overlay != Overlay::None || g.venue.chat_open;
+    if chat_done {
+        g.venue.chat_open = false;
+        g.venue.chat_draft.clear();
+    }
     walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, busy);
     let local = g.players[0].pos - CH_ORIGIN;
     if !fresh && !busy && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
@@ -2222,8 +2265,10 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         friend.draw(&mut b, &g.world, time, pulse);
         let name = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.name.clone()).unwrap_or_default();
         let is_dj = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.dj).unwrap_or(false);
-        let name = if peer.slot == 1 { format!("{name} +1") } else if is_dj { format!("dj {name}") } else { name };
-        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) }));
+        let is_admin = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.admin).unwrap_or(false);
+        let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
+        let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) };
+        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, colour));
     }
     if net::state() == 2 {
         let mine = if g.venue.dj_name.is_some() { format!("dj {}", g.venue.name) } else { g.venue.name.clone() };
@@ -2289,7 +2334,65 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let (code_x, code_y) = if slim { (6.0, low_h() - 18.0) } else { ((low_w() - cw) / 2.0, 42.0) };
     ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_text(&code, code_x + 5.0, code_y + 9.0, 9.0, cream());
-    place_label("st. bassilica", if at_decks { "E: the decks" } else { "wasd: move   1-6: sing over the set   esc or the door: leave" });
+    place_label("st. bassilica", if g.venue.chat_open {
+        "enter: send   esc: close"
+    } else if at_decks {
+        "E: the decks   enter: chat"
+    } else if can_chat {
+        "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
+    } else {
+        "wasd: move   1-6: sing over the set   esc or the door: leave"
+    });
+    if can_chat && g.venue.overlay == Overlay::None {
+        let now = get_time();
+        let open = g.venue.chat_open;
+        let cw = 190.0f32.min(low_w() - 12.0);
+        let base = low_h() - 36.0;
+        let mut rows: Vec<(Color, String, String, f32)> = Vec::new();
+        for (kind, name, text, at) in g.venue.chat_log.iter().rev() {
+            let age = (now - *at) as f32;
+            let alpha = if open { 1.0 } else { (1.0 - (age - 14.0) / 3.0).clamp(0.0, 1.0) };
+            if alpha <= 0.0 || rows.len() >= if open { 9 } else { 5 } {
+                break;
+            }
+            let (colour, shown) = match kind {
+                2 => (Color::from_rgba(255, 214, 110, 255), format!("* {name}")),
+                1 => (Color::from_rgba(196, 130, 255, 255), format!("dj {name}")),
+                _ => (Color::from_rgba(61, 242, 255, 255), name.clone()),
+            };
+            let lead = ui_measure(&shown, 8.0) + 5.0;
+            let wrapped = ui_wrap(text, 8.0, cw - lead - 6.0);
+            for (i, part) in wrapped.iter().enumerate().rev() {
+                rows.push((colour, if i == 0 { shown.clone() } else { String::new() }, part.clone(), alpha));
+            }
+        }
+        for (i, (colour, name, text, alpha)) in rows.iter().enumerate() {
+            let ry = base - 12.0 - i as f32 * 10.0;
+            let lead = if name.is_empty() { 8.0 } else { ui_measure(name, 8.0) + 5.0 };
+            ui_rect(6.0, ry, cw, 10.0, Color::new(0.08, 0.06, 0.16, 0.6 * alpha));
+            ui_text(name, 9.0, ry + 7.5, 8.0, Color::new(colour.r, colour.g, colour.b, *alpha));
+            ui_text(text, 9.0 + lead, ry + 7.5, 8.0, Color::new(1.0, 0.97, 0.88, *alpha));
+        }
+        if open {
+            ui_rect(6.0, base, cw, 13.0, ink());
+            ui_rect(7.0, base + 1.0, cw - 2.0, 11.0, cream());
+            let tail: String = g.venue.chat_draft.chars().rev().take(40).collect::<Vec<char>>().into_iter().rev().collect();
+            ui_text(&tail, 10.0, base + 9.5, 8.0, ink());
+            if (time * 2.0).fract() < 0.6 {
+                ui_rect(11.0 + ui_measure(&tail, 8.0), base + 3.0, 1.0, 7.0, ink());
+            }
+        } else if radio::touch_ui() {
+            if button(fr, "chat", 6.0, base, 34.0, 13.0, false) {
+                if let Some(text) = radio::ask_text("say something to the room", "") {
+                    let text: String = text.chars().filter(|c| !c.is_control()).take(120).collect();
+                    if !text.trim().is_empty() {
+                        net::send(&format!("say {}", text.trim()));
+                    }
+                }
+                fr.click = false;
+            }
+        }
+    }
     if let Some(o) = &on_air {
         if o.audio && !net::can_listen() && !o.url.is_empty() && g.venue.overlay == Overlay::None {
             let label = "listen in your browser";
