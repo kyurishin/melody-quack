@@ -1,0 +1,14 @@
+{
+  "name": "Melody Quack",
+  "short_name": "Melody Quack",
+  "description": "Animal voices are notes. Jam by the campfire, fish on the beat, cook percussion.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#241a47",
+  "theme_color": "#241a47",
+  "icons": [
+    { "src": "icon192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
