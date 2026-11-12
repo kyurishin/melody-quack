@@ -201,7 +201,6 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Client: `chat_open`, `chat_draft`, `chat_log` in `VenueState`; the box and log are drawn at the end of `chapel`; Enter opens it while joined and no overlay is up; movement and singing are frozen while it is open. Touch: a "chat" button using `radio::ask_text`.
 - Tested with a local server, the desktop game and two scripted clients (a raver and the admin). Not tested in the browser.
 
-
 ## The rave tour
 
 - `VenueState.tour` (0 not started, 1-5 steps, 6 done) and `tour_clock`. `tour_tick` in `steps/venues.rs` starts it once `first_steps >= 4` and advances it: mail opened, `pc_open`, a code in `known`, inside the chapel, own chat message or 25 s. `tour_banner` draws it outdoors (from `mail_icon`), in the PC bang, on the desktop (hidden while a program window is open) and in the chapel; it has a compass towards the goal door and a "skip" link.
