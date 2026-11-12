@@ -495,3 +495,13 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## Downloads: macOS, Linux and Arch
+
+The Packages workflow (`.github/workflows/packages.yml`) builds all of these on every push; find them under the run's Artifacts. Pushing a `v*` tag attaches them to a GitHub Release.
+
+- **macOS:** `Melody-Quack-<version>.dmg`, for Apple Silicon and Intel. Open it and drag the game to Applications. It is not notarised by Apple, so the first time macOS refuses to open it: go to System Settings, Privacy & Security, and press Open Anyway, or run `xattr -dr com.apple.quarantine "/Applications/Melody Quack.app"`.
+- **Linux, any distro:** `Melody-Quack-<version>-x86_64.AppImage`. Make it executable (`chmod +x`) and run it. Or unpack `melody-quack-<version>-linux-x86_64.tar.gz` and run `./install.sh`, which puts the game, its icon and a menu entry under `~/.local`.
+- **Arch Linux:** `melody-quack-<version>-1-x86_64.pkg.tar.zst`. Install with `sudo pacman -U <file>`. To build it yourself, `packaging/arch/PKGBUILD` expects a source tarball named `melody-quack-<version>.tar.gz` beside it.
+
+Linux needs ALSA, X11 and OpenGL, which desktop systems already have.
+
