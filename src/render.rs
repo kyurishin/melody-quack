@@ -299,3 +299,9 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
     draw_cottage(&mut b, d, true, focus_pos);
     b.flush();
 }
+
+pub(crate) fn make_view(w: u32, h: u32) -> RenderTarget {
+    let target = render_target_ex(w, h, RenderTargetParams { sample_count: 1, depth: true });
+    target.texture.set_filter(FilterMode::Nearest);
+    target
+}
