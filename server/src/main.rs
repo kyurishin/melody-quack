@@ -156,6 +156,18 @@ struct Room {
     seen: i64,
 }
 
+struct Ask {
+    id: u32,
+    dj: String,
+    code: String,
+}
+
+struct Live {
+    by: u32,
+    line: String,
+    mix: String,
+}
+
 struct Client {
     tx: Option<mpsc::UnboundedSender<Message>>,
     token: u64,
@@ -163,6 +175,8 @@ struct Client {
     players: u32,
     who: String,
     last: [String; 2],
+    dj: Option<String>,
+    admin: bool,
 }
 
 struct Hub {
@@ -173,19 +187,47 @@ struct Hub {
     every: i64,
     rng: u64,
     sent: Vec<(u32, String)>,
+    djs: Vec<(String, String)>,
+    djs_path: Option<String>,
+    admin_key: Option<String>,
+    patreon: String,
+    credits: HashMap<String, u32>,
+    credits_path: Option<String>,
+    asks: Vec<Ask>,
+    next_ask: u32,
+    grants: HashSet<(String, String)>,
+    live: HashMap<String, Live>,
 }
 
 impl Hub {
     fn new(start: i64, every: i64, seed: u64) -> Hub {
         let mut rng = seed;
         let event = Event::new(start, &mut rng);
-        Hub { rooms: HashMap::new(), clients: HashMap::new(), next: 0, event, every, rng, sent: Vec::new() }
+        Hub {
+            rooms: HashMap::new(),
+            clients: HashMap::new(),
+            next: 0,
+            event,
+            every,
+            rng,
+            sent: Vec::new(),
+            djs: Vec::new(),
+            djs_path: None,
+            admin_key: None,
+            patreon: String::new(),
+            credits: HashMap::new(),
+            credits_path: None,
+            asks: Vec::new(),
+            next_ask: 0,
+            grants: HashSet::new(),
+            live: HashMap::new(),
+        }
     }
 
     fn connect(&mut self, tx: Option<mpsc::UnboundedSender<Message>>) -> u32 {
         self.next += 1;
         let token = next_rand(&mut self.rng);
-        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()] });
+        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false });
         self.next
     }
 
@@ -209,7 +251,62 @@ impl Hub {
         self.clients.values().filter(|c| c.room.as_deref() == Some(code)).map(|c| c.players).sum()
     }
 
+    fn load_djs(&mut self) {
+        let Some(path) = self.djs_path.clone() else {
+            return;
+        };
+        if let Ok(text) = std::fs::read_to_string(path) {
+            self.djs = text
+                .lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .filter_map(|l| l.split_once('='))
+                .map(|(n, k)| (clean(n, 12), k.trim().to_string()))
+                .filter(|(n, k)| !n.is_empty() && !k.is_empty())
+                .collect();
+        }
+    }
+
+    fn save_credits(&self) {
+        if let Some(path) = &self.credits_path {
+            let mut lines: Vec<String> = self.credits.iter().map(|(n, c)| format!("{c} {n}")).collect();
+            lines.sort();
+            let _ = std::fs::write(path, lines.join("\n") + "\n");
+        }
+    }
+
+    fn admins(&self) -> Vec<u32> {
+        self.clients.iter().filter(|(_, c)| c.admin).map(|(k, _)| *k).collect()
+    }
+
+    fn brief(&mut self, id: u32) {
+        let asks: Vec<String> = self.asks.iter().map(|a| format!("request {} {} {}", a.id, a.code, a.dj)).collect();
+        for line in asks {
+            self.say(id, line);
+        }
+        let mut names: Vec<(String, u32)> = self.credits.iter().map(|(n, c)| (n.clone(), *c)).collect();
+        names.sort();
+        self.say(id, "balances".to_string());
+        for (n, c) in names {
+            self.say(id, format!("balance {c} {n}"));
+        }
+    }
+
+    fn off_air(&mut self, id: u32) {
+        let Some(room) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
+            return;
+        };
+        if self.live.get(&room).map(|l| l.by == id).unwrap_or(false) {
+            self.live.remove(&room);
+            let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
+            for to in all {
+                self.say(to, "live 0".to_string());
+            }
+        }
+    }
+
     fn leave(&mut self, id: u32, now: i64) {
+        self.off_air(id);
         for other in self.others(id) {
             self.say(other, format!("left {id}"));
         }
@@ -261,6 +358,147 @@ impl Hub {
                     if token != 0 {
                         self.clients.get_mut(&id).unwrap().token = token;
                     }
+                }
+                if !self.patreon.is_empty() {
+                    let line = format!("patreon {}", self.patreon);
+                    self.say(id, line);
+                }
+            }
+            "dj" => {
+                let key = rest.trim();
+                if key.is_empty() {
+                    return;
+                }
+                if let Some(c) = self.clients.get_mut(&id) {
+                    c.admin = false;
+                    c.dj = None;
+                }
+                if key == "-" {
+                    return;
+                }
+                if self.admin_key.as_deref() == Some(key) {
+                    self.clients.get_mut(&id).unwrap().admin = true;
+                    self.say(id, "admin ok".to_string());
+                    self.brief(id);
+                    return;
+                }
+                self.load_djs();
+                match self.djs.iter().find(|(_, k)| k == key).map(|(n, _)| n.clone()) {
+                    Some(name) => {
+                        self.clients.get_mut(&id).unwrap().dj = Some(name.clone());
+                        let credit = self.credits.get(&name).copied().unwrap_or(0);
+                        self.say(id, format!("dj ok {credit} {name}"));
+                        let mine: Vec<String> = self.grants.iter().filter(|(n, _)| *n == name).map(|(_, c)| c.clone()).collect();
+                        for code in mine {
+                            self.say(id, format!("granted {code}"));
+                        }
+                    }
+                    None => self.say(id, "dj no".to_string()),
+                }
+            }
+            "ask" => {
+                let (Some(dj), Some(code)) = (self.clients[&id].dj.clone(), self.clients[&id].room.clone()) else {
+                    return;
+                };
+                if self.grants.contains(&(dj.clone(), code.clone())) {
+                    self.say(id, format!("granted {code}"));
+                    return;
+                }
+                if !self.asks.iter().any(|a| a.dj == dj && a.code == code) && self.asks.len() < 200 {
+                    self.next_ask += 1;
+                    let ask = Ask { id: self.next_ask, dj: dj.clone(), code: code.clone() };
+                    let line = format!("request {} {} {}", ask.id, ask.code, ask.dj);
+                    self.asks.push(ask);
+                    for admin in self.admins() {
+                        self.say(admin, line.clone());
+                    }
+                }
+                self.say(id, format!("asked {code}"));
+            }
+            "grant" | "deny" => {
+                if !self.clients[&id].admin {
+                    return;
+                }
+                let Some(at) = rest.trim().parse::<u32>().ok().and_then(|n| self.asks.iter().position(|a| a.id == n)) else {
+                    return;
+                };
+                let ask = self.asks.remove(at);
+                let djs: Vec<u32> = self.clients.iter().filter(|(_, c)| c.dj.as_deref() == Some(ask.dj.as_str())).map(|(k, _)| *k).collect();
+                if cmd == "grant" {
+                    self.grants.insert((ask.dj.clone(), ask.code.clone()));
+                    let credit = {
+                        let c = self.credits.entry(ask.dj.clone()).or_insert(0);
+                        *c += 1;
+                        *c
+                    };
+                    self.save_credits();
+                    for dj in djs {
+                        self.say(dj, format!("granted {}", ask.code));
+                        self.say(dj, format!("credit {credit}"));
+                    }
+                } else {
+                    for dj in djs {
+                        self.say(dj, format!("denied {}", ask.code));
+                    }
+                }
+                for admin in self.admins() {
+                    self.say(admin, format!("done {}", ask.id));
+                    self.brief(admin);
+                }
+            }
+            "settle" => {
+                if !self.clients[&id].admin {
+                    return;
+                }
+                let name = clean(rest, 12);
+                if self.credits.remove(&name).is_some() {
+                    self.save_credits();
+                    let djs: Vec<u32> = self.clients.iter().filter(|(_, c)| c.dj.as_deref() == Some(name.as_str())).map(|(k, _)| *k).collect();
+                    for dj in djs {
+                        self.say(dj, "credit 0".to_string());
+                    }
+                }
+                self.brief(id);
+            }
+            "golive" => {
+                let (Some(dj), Some(code)) = (self.clients[&id].dj.clone(), self.clients[&id].room.clone()) else {
+                    return;
+                };
+                let (mode, url) = rest.split_once(' ').unwrap_or((rest, ""));
+                let url = url.trim();
+                let fine = match mode {
+                    "decks" => true,
+                    "audio" => url.starts_with("https://") && url.len() < 200 && !url.contains(' '),
+                    _ => false,
+                };
+                if !fine || self.live.contains_key(&code) || !self.grants.remove(&(dj.clone(), code.clone())) {
+                    self.say(id, "nolive".to_string());
+                    return;
+                }
+                let line = format!("live {id} {mode} {} {dj}", if mode == "audio" { url } else { "-" });
+                self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new() });
+                let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
+                for to in all {
+                    self.say(to, line.clone());
+                }
+            }
+            "offair" => self.off_air(id),
+            "mix" | "pad" => {
+                let Some(code) = self.clients[&id].room.clone() else {
+                    return;
+                };
+                let nums: Vec<f32> = rest.split(' ').filter_map(|n| n.parse().ok()).collect();
+                let fine = if cmd == "mix" { nums.len() == 4 && nums[3] >= 100.0 && nums[3] <= 170.0 } else { nums.len() == 1 && nums[0] >= 0.0 && nums[0] < 6.0 };
+                match self.live.get_mut(&code) {
+                    Some(l) if l.by == id && fine => {
+                        if cmd == "mix" {
+                            l.mix = format!("mix {rest}");
+                        }
+                    }
+                    _ => return,
+                }
+                for other in self.others(id) {
+                    self.say(other, format!("{cmd} {rest}"));
                 }
             }
             "sit" => {
@@ -320,7 +558,8 @@ impl Hub {
                     let ch0 = fields[1].parse::<u32>().unwrap_or(0);
                     let ch1 = fields[2].parse::<u32>().unwrap_or(0);
                     let name = clean(fields.get(3).copied().unwrap_or(""), 12);
-                    let who = format!("{players} {ch0} {ch1} {}", if name.is_empty() { "duckling".to_string() } else { name });
+                    let badge = self.clients[&id].dj.is_some() as u8;
+                    let who = format!("{players} {ch0} {ch1} {badge} {}", if name.is_empty() { "duckling".to_string() } else { name });
                     {
                         let c = self.clients.get_mut(&id).unwrap();
                         c.room = Some(code.to_string());
@@ -342,6 +581,14 @@ impl Hub {
                     }
                 }
                 self.say(id, reply);
+                if cmd == "join" {
+                    if let Some((line, mix)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone())) {
+                        self.say(id, line);
+                        if !mix.is_empty() {
+                            self.say(id, mix);
+                        }
+                    }
+                }
             }
             "at" => {
                 let nums: Vec<f32> = rest.split(' ').filter_map(|n| n.parse().ok()).collect();
@@ -394,7 +641,24 @@ async fn main() {
         }
         t
     };
-    let hub = Arc::new(Mutex::new(Hub::new(start, every, now as u64)));
+    let mut first = Hub::new(start, every, now as u64);
+    first.djs_path = arg("--djs").or_else(|| std::env::var("MQ_DJS").ok());
+    first.admin_key = arg("--admin").or_else(|| std::env::var("MQ_ADMIN").ok()).filter(|k| !k.trim().is_empty());
+    first.patreon = arg("--patreon").or_else(|| std::env::var("MQ_PATREON").ok()).unwrap_or_default();
+    let credits_path = arg("--credits").or_else(|| std::env::var("MQ_CREDITS").ok()).unwrap_or_else(|| "credits.txt".to_string());
+    if let Ok(text) = std::fs::read_to_string(&credits_path) {
+        for line in text.lines() {
+            if let Some((n, name)) = line.split_once(' ') {
+                if let Ok(n) = n.parse::<u32>() {
+                    first.credits.insert(name.trim().to_string(), n);
+                }
+            }
+        }
+    }
+    first.credits_path = Some(credits_path);
+    first.load_djs();
+    println!("{} dj(s) on the list, admin key {}", first.djs.len(), if first.admin_key.is_some() { "set" } else { "not set" });
+    let hub = Arc::new(Mutex::new(first));
     println!("the secret rave starts in {} s", (start - now) / 1000);
     {
         let hub = hub.clone();
@@ -519,6 +783,57 @@ mod tests {
     }
 
     #[test]
+    fn a_dj_asks_the_admin_grants_and_the_room_hears_it() {
+        let mut h = hub();
+        h.djs = vec![("priori".to_string(), "k1".to_string())];
+        h.admin_key = Some("boss".to_string());
+        let (admin, dj, fan) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(admin, "dj boss", 0);
+        assert!(said(&mut h, admin).contains(&"admin ok".to_string()));
+        h.handle(fan, "dj wrong", 0);
+        assert_eq!(said(&mut h, fan), vec!["dj no".to_string()]);
+        h.handle(dj, "dj k1", 0);
+        assert_eq!(said(&mut h, dj), vec!["dj ok 0 priori".to_string()]);
+        h.handle(dj, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        h.handle(dj, "join ACD-EFG-HJK 1 0 0 priori", 1);
+        h.handle(fan, "join ACD-EFG-HJK 1 2 0 mina", 2);
+        assert!(said(&mut h, fan).contains(&format!("who {dj} 1 0 0 1 priori")));
+        said(&mut h, dj);
+        h.handle(dj, "golive decks", 3);
+        assert_eq!(said(&mut h, dj), vec!["nolive".to_string()]);
+        h.handle(fan, "ask", 3);
+        assert!(said(&mut h, fan).is_empty());
+        h.handle(dj, "ask", 4);
+        assert_eq!(said(&mut h, dj), vec!["asked ACD-EFG-HJK".to_string()]);
+        assert!(said(&mut h, admin).contains(&"request 1 ACD-EFG-HJK priori".to_string()));
+        h.handle(fan, "grant 1", 5);
+        assert!(said(&mut h, dj).is_empty());
+        h.handle(admin, "grant 1", 5);
+        assert_eq!(said(&mut h, dj), vec!["granted ACD-EFG-HJK".to_string(), "credit 1".to_string()]);
+        assert!(said(&mut h, admin).contains(&"balance 1 priori".to_string()));
+        h.handle(dj, "golive decks", 6);
+        let line = format!("live {dj} decks - priori");
+        assert_eq!(said(&mut h, dj), vec![line.clone()]);
+        assert_eq!(said(&mut h, fan), vec![line.clone()]);
+        h.handle(dj, "mix 1 0 2 140", 7);
+        h.handle(dj, "pad 3", 7);
+        h.handle(fan, "pad 3", 7);
+        assert_eq!(said(&mut h, fan), vec!["mix 1 0 2 140".to_string(), "pad 3".to_string()]);
+        let late = h.connect(None);
+        h.handle(late, "join ACD-EFG-HJK 1 1 0 jo", 8);
+        let got = said(&mut h, late);
+        assert!(got.contains(&line) && got.contains(&"mix 1 0 2 140".to_string()));
+        h.drop_client(dj, 9);
+        assert!(said(&mut h, fan).contains(&"live 0".to_string()));
+        let again = h.connect(None);
+        h.handle(again, "dj k1", 10);
+        h.handle(again, "join ACD-EFG-HJK 1 0 0 priori", 11);
+        said(&mut h, again);
+        h.handle(again, "golive audio https://example.com/live", 12);
+        assert_eq!(said(&mut h, again), vec!["nolive".to_string()]);
+    }
+
+    #[test]
     fn friends_see_both_players_and_names() {
         let mut h = hub();
         let (a, b) = (h.connect(None), h.connect(None));
@@ -528,9 +843,9 @@ mod tests {
         said(&mut h, a);
         h.handle(b, "join ACD-EFG-HJK 1 2 0 mina", 30);
         let got = said(&mut h, b);
-        assert!(got.contains(&format!("who {a} 2 0 4 ky")));
+        assert!(got.contains(&format!("who {a} 2 0 4 0 ky")));
         assert!(got.contains(&format!("peer {a} 1 3.00 4.00 0.00 -1.00 0")));
-        assert!(said(&mut h, a).contains(&format!("who {b} 1 2 0 mina")));
+        assert!(said(&mut h, a).contains(&format!("who {b} 1 2 0 0 mina")));
         h.handle(b, "sing 0 3", 40);
         assert_eq!(said(&mut h, a), vec![format!("sing {b} 0 3")]);
         h.drop_client(b, 50);

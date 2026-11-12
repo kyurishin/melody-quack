@@ -495,6 +495,20 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## Becoming a DJ
+
+The arena has a membership for DJs: 5 euros a month on Patreon. Patreon takes care of the payment, the receipts and cancelling. Every paying member gets a DJ key from the admin.
+
+- **Where you type the key.** On the very first screen, and again every time you press restart in the pause menu, there is a "become a dj" button under the name box. It opens a box for the key and a link to the Patreon page. The key is saved with your game.
+- **Asking to play.** In the chapel, walk up to the booth and press E for the decks. A DJ can ask to play the rave that is running. The request goes to the admin's post.
+- **The admin says yes or no in the game.** The admin types the admin key into the same box. Their envelope then has a "dj requests" page with "yes +1" and "no" next to each request. Every yes is good for one set and adds 1 euro of credit to that DJ, shown at the decks. "paid" clears a DJ's credit once it has been paid out or taken off the next month.
+- **Playing.** After a yes the decks offer two ways to play. *In-game decks*: switch the beat and the melody on and off, change the sound and the tempo, and hit the six pads; everyone in the chapel hears the same thing. *Real audio*: paste the https link of your own live stream (Serato or any other input sent through a streaming service); the browser version plays it in the chapel, the desktop version shows a "listen in your browser" button.
+- DJs have a purple name with "dj" in front of it.
+
+On the server: `--djs <file>` is the list of members, one `name = key` per line, and can be edited while the server runs. `--admin <key>` is the admin's key, `--patreon <url>` is the page the game links to, and `--credits <file>` is where the credit is kept. The same four can be set as `MQ_DJS`, `MQ_ADMIN`, `MQ_PATREON` and `MQ_CREDITS`.
+
+The game doesn't move any money. The credit is a number the admin settles by hand.
+
 ## Downloads: macOS, Linux and Arch
 
 The Packages workflow (`.github/workflows/packages.yml`) builds all of these on every push; find them under the run's Artifacts. Pushing a `v*` tag attaches them to a GitHub Release.

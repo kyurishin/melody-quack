@@ -102,7 +102,13 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.peers.clear();
     g.venue.friends.clear();
     g.venue.joined = false;
+    g.venue.on_air = None;
+    g.venue.asked = false;
     if venue == Venue::Chapel {
+        if let Some(r) = g.venue.now.clone() {
+            g.venue.bpm_now = r.bpm;
+            g.venue.mix = (true, true, r.sound, r.bpm);
+        }
         g.venue.rave_start = get_time();
         g.venue.last_step = -1;
         g.venue.crowd.clear();
@@ -146,6 +152,9 @@ fn leave(g: &mut Game) {
     g.venue.joined = false;
     g.venue.peers.clear();
     g.venue.friends.clear();
+    if g.venue.on_air.take().map(|o| o.audio).unwrap_or(false) {
+        net::listen("");
+    }
     g.venue.at = Venue::None;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
@@ -201,7 +210,20 @@ fn online(g: &mut Game, dt: f32) {
         g.venue.announced = 0;
         g.venue.hello = false;
         g.venue.tonight = None;
+        g.venue.key_sent = false;
+        g.venue.dj_name = None;
+        g.venue.admin = false;
+        g.venue.requests.clear();
+        g.venue.granted.clear();
+        g.venue.asked = false;
+        if g.venue.on_air.take().map(|o| o.audio).unwrap_or(false) {
+            net::listen("");
+        }
     } else {
+        if !g.venue.key_sent && !g.venue.dj_key.is_empty() {
+            net::send(&format!("dj {}", g.venue.dj_key));
+            g.venue.key_sent = true;
+        }
         if !g.venue.hello {
             net::send(&format!("hello {}", g.venue.token));
             g.venue.hello = true;
@@ -339,14 +361,100 @@ fn online(g: &mut Game, dt: f32) {
                     g.audio.play_ch(3, &g.tom, 0.6);
                 }
             }
-            "who" if parts.len() >= 6 => {
+            "patreon" if parts.len() >= 2 => g.venue.patreon = parts[1].to_string(),
+            "dj" if parts.len() >= 2 => {
+                if parts[1] == "ok" && parts.len() >= 4 {
+                    g.venue.credit = parts[2].parse().unwrap_or(0);
+                    let name = parts[3..].join(" ");
+                    g.toasts.push((format!("you're on the dj list, {name}. credit: {} euro", g.venue.credit), 5.0));
+                    g.venue.dj_name = Some(name);
+                } else {
+                    g.venue.dj_name = None;
+                    g.toasts.push(("that dj key isn't on the list".to_string(), 5.0));
+                }
+            }
+            "admin" => {
+                g.venue.admin = true;
+                g.toasts.push(("signed in as the admin. requests come by post.".to_string(), 5.0));
+            }
+            "request" if parts.len() >= 4 => {
+                if let Ok(id) = parts[1].parse::<u32>() {
+                    if !g.venue.requests.iter().any(|r| r.0 == id) {
+                        g.venue.requests.push((id, parts[2].to_string(), parts[3..].join(" ")));
+                        g.audio.play_ch(3, &g.bells[4], 0.4);
+                    }
+                }
+            }
+            "done" if parts.len() >= 2 => {
+                if let Ok(id) = parts[1].parse::<u32>() {
+                    g.venue.requests.retain(|r| r.0 != id);
+                }
+            }
+            "balances" => g.venue.balances.clear(),
+            "balance" if parts.len() >= 3 => {
+                if let Ok(n) = parts[1].parse::<u32>() {
+                    g.venue.balances.push((n, parts[2..].join(" ")));
+                }
+            }
+            "asked" => g.venue.asked = true,
+            "granted" if parts.len() >= 2 => {
+                if !g.venue.granted.iter().any(|c| c == parts[1]) {
+                    g.venue.granted.push(parts[1].to_string());
+                    g.toasts.push(("the admin says yes. the decks are yours for a set.".to_string(), 5.0));
+                    g.audio.play_ch(3, &g.bells[5], 0.5);
+                }
+                g.venue.asked = false;
+            }
+            "denied" => {
+                g.venue.asked = false;
+                g.toasts.push(("the admin says not this time.".to_string(), 5.0));
+            }
+            "credit" if parts.len() >= 2 => g.venue.credit = parts[1].parse().unwrap_or(g.venue.credit),
+            "nolive" => g.toasts.push(("the decks aren't free, or you need a fresh yes from the admin.".to_string(), 5.0)),
+            "live" if parts.len() >= 2 => {
+                let was_audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
+                if parts[1] == "0" || parts.len() < 5 {
+                    g.venue.on_air = None;
+                    if was_audio {
+                        net::listen("");
+                    }
+                    if let Some(r) = g.venue.now.clone() {
+                        retime(g, r.bpm);
+                        g.venue.mix = (true, true, r.sound, r.bpm);
+                    }
+                } else {
+                    let audio = parts[2] == "audio";
+                    let url = if audio && parts[3].starts_with("https://") { parts[3].to_string() } else { String::new() };
+                    let name = parts[4..].join(" ");
+                    if audio && net::can_listen() {
+                        net::listen(&url);
+                    }
+                    g.venue.granted.retain(|c| Some(c) != g.venue.now.as_ref().map(|r| &r.code));
+                    g.toasts.push((format!("dj {name} is live"), 4.0));
+                    g.venue.on_air = Some(OnAir { audio, url, name });
+                }
+            }
+            "mix" if parts.len() >= 5 => {
+                let bpm = parts[4].parse::<f32>().unwrap_or(132.0).clamp(100.0, 170.0);
+                retime(g, bpm);
+                g.venue.mix = (parts[1] == "1", parts[2] == "1", parts[3].parse::<usize>().unwrap_or(0) % 3, bpm);
+            }
+            "pad" if parts.len() >= 2 => {
+                if let Ok(i) = parts[1].parse::<usize>() {
+                    if g.venue.at == Venue::Chapel {
+                        play_pad(g, i);
+                    }
+                }
+            }
+            "who" if parts.len() >= 7 => {
                 if let Ok(id) = parts[1].parse::<u32>() {
                     let n = g.cast_list.len();
                     let friend = Friend {
                         id,
                         players: parts[2].parse::<u32>().unwrap_or(1).clamp(1, 2),
                         characters: [parts[3].parse::<usize>().unwrap_or(0) % n, parts[4].parse::<usize>().unwrap_or(0) % n],
-                        name: parts[5..].join(" ").chars().take(12).collect(),
+                        dj: parts[5] == "1",
+                        name: parts[6..].join(" ").chars().take(12).collect(),
                     };
                     g.venue.friends.retain(|f| f.id != id);
                     if g.venue.friends.len() < 100 {
@@ -418,6 +526,153 @@ fn online(g: &mut Game, dt: f32) {
     }
 }
 
+fn retime(g: &mut Game, bpm: f32) {
+    let t = get_time();
+    let beat = (t - g.venue.rave_start) * g.venue.bpm_now.max(1.0) as f64 / 60.0;
+    g.venue.bpm_now = bpm;
+    g.venue.rave_start = t - beat * 60.0 / bpm as f64;
+}
+
+fn play_pad(g: &Game, i: usize) {
+    let s = [&g.kick, &g.clap, &g.hat, &g.open_hat, &g.tom, &g.rim][i.min(5)];
+    g.audio.play_ch(2, s, 1.0);
+}
+
+fn my_set(g: &Game) -> bool {
+    g.venue.joined && g.venue.dj_name.is_some() && g.venue.on_air.as_ref().map(|o| Some(&o.name) == g.venue.dj_name.as_ref()).unwrap_or(false)
+}
+
+fn send_mix(g: &mut Game) {
+    let m = g.venue.mix;
+    retime(g, m.3);
+    net::send(&format!("mix {} {} {} {}", m.0 as u8, m.1 as u8, m.2, m.3));
+}
+
+fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (w, h) = (270.0f32.min(low_w() - 12.0), 150.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    let purple = Color::from_rgba(176, 92, 255, 255);
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, Color::from_rgba(52, 40, 102, 255));
+    ui_rect(x + 10.0, y + 10.0, 6.0, 6.0, purple);
+    ui_text("the decks", x + 21.0, y + 17.0, 12.0, cream());
+    let code = g.venue.now.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+    let mut close = false;
+    let say = |lines: &[&str]| {
+        for (i, l) in lines.iter().enumerate() {
+            ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
+        }
+    };
+    if net::state() != 2 {
+        say(&["the decks need the server. you're offline."]);
+    } else if g.venue.dj_name.is_none() {
+        say(&["the decks are for djs.", "to become one: esc, restart, then 'become a dj'.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
+    } else if my_set(g) {
+        let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
+        if audio {
+            say(&["you're live with real audio.", "everyone hears your stream."]);
+        } else {
+            say(&["you're live on the in-game decks.", "1-6: pads, heard by everyone."]);
+            let m = g.venue.mix;
+            let mut changed = false;
+            if button(fr, if m.0 { "beat: on" } else { "beat: off" }, x + 10.0, y + 64.0, 58.0, 14.0, m.0) || is_key_pressed(KeyCode::B) {
+                g.venue.mix.0 = !m.0;
+                changed = true;
+            }
+            if button(fr, if m.1 { "melody: on" } else { "melody: off" }, x + 72.0, y + 64.0, 66.0, 14.0, m.1) || is_key_pressed(KeyCode::M) {
+                g.venue.mix.1 = !m.1;
+                changed = true;
+            }
+            if button(fr, SOUNDS[m.2 % 3], x + 142.0, y + 64.0, 76.0, 14.0, false) {
+                g.venue.mix.2 = (m.2 + 1) % 3;
+                changed = true;
+            }
+            ui_text(&format!("{} bpm", m.3 as i32), x + 10.0, y + 96.0, 10.0, cream());
+            if button(fr, "-", x + 60.0, y + 86.0, 16.0, 14.0, false) {
+                g.venue.mix.3 = (m.3 - 2.0).max(100.0);
+                changed = true;
+            }
+            if button(fr, "+", x + 80.0, y + 86.0, 16.0, 14.0, false) {
+                g.venue.mix.3 = (m.3 + 2.0).min(170.0);
+                changed = true;
+            }
+            if changed {
+                send_mix(g);
+            }
+            if !fresh {
+                for i in 0..6 {
+                    if is_key_pressed(NOTE_KEYS[i]) {
+                        play_pad(g, i);
+                        net::send(&format!("pad {i}"));
+                    }
+                }
+            }
+            for (i, name) in DJ_PADS[0].iter().enumerate() {
+                ui_text(&format!("{} {}", i + 1, name), x + 104.0 + (i % 3) as f32 * 54.0, y + 92.0 + (i / 3) as f32 * 11.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
+            }
+        }
+        if button(fr, "go off air", x + 10.0, y + h - 34.0, 70.0, 16.0, false) {
+            net::send("offair");
+        }
+    } else if let Some(o) = g.venue.on_air.clone() {
+        say(&[&format!("dj {} is on. wait for the set to end.", o.name)]);
+    } else if g.venue.granted.iter().any(|c| *c == code) {
+        say(&["the admin said yes. this counts as one set.", "how do you want to play?"]);
+        if button(fr, "in-game decks", x + 10.0, y + 64.0, 84.0, 16.0, false) {
+            net::send("golive decks");
+        }
+        ui_text("or real audio: your own live stream link (https)", x + 10.0, y + 94.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
+        bevel(x + 10.0, y + 98.0, w - 20.0, 14.0, false);
+        ui_rect(x + 11.0, y + 99.0, w - 22.0, 12.0, WHITE);
+        let shown: String = g.venue.stream.chars().rev().take(46).collect::<Vec<char>>().into_iter().rev().collect();
+        ui_text(if shown.is_empty() { "click to paste, or type" } else { &shown }, x + 14.0, y + 108.5, 8.0, if shown.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
+        if !fresh {
+            while let Some(ch) = get_char_pressed() {
+                if !ch.is_control() && ch != ' ' && g.venue.stream.len() < 190 {
+                    g.venue.stream.push(ch);
+                }
+            }
+            if is_key_pressed(KeyCode::Backspace) {
+                g.venue.stream.pop();
+            }
+            if fr.click && hit(fr, x + 10.0, y + 98.0, w - 20.0, 14.0) {
+                if let Some(text) = radio::ask_text("the https link to your live stream", &g.venue.stream) {
+                    g.venue.stream = text.trim().chars().filter(|c| !c.is_control() && *c != ' ').take(190).collect();
+                }
+                fr.click = false;
+            }
+        }
+        if button(fr, "go live with this link", x + 10.0, y + 116.0, 120.0, 16.0, false) {
+            if g.venue.stream.starts_with("https://") {
+                net::send(&format!("golive audio {}", g.venue.stream));
+            } else {
+                g.toasts.push(("the link has to start with https://".to_string(), 4.0));
+            }
+        }
+    } else if g.venue.asked {
+        say(&["asked. the admin will answer by post.", "you can keep dancing."]);
+    } else {
+        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin."]);
+        if button(fr, "ask to play this rave", x + 10.0, y + 64.0, 120.0, 16.0, false) {
+            net::send("ask");
+        }
+    }
+    if button(fr, "close", x + w - 60.0, y + h - 34.0, 50.0, 16.0, false) {
+        close = true;
+    }
+    for (k, (text, _)) in g.toasts.iter().rev().take(1).enumerate() {
+        ui_text(text, x + 10.0, y + h - 6.0 - k as f32 * 10.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+    }
+    if fresh {
+        return;
+    }
+    if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
 fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     if radio::touch_ui() && !g.two_player {
         ((low_w() / 2.0 - 11.0).round(), 20.0, 22.0, 15.0)
@@ -459,7 +714,7 @@ pub(crate) fn mail_icon(g: &mut Game, _fr: &mut Frame) {
         }
     }
     ui_rect(x + mid - 2.0, y + 8.0, 4.0, 1.0, BLACK);
-    if g.venue.tonight.is_some() && g.venue.mail_seen != mail_key(g) {
+    if (g.venue.tonight.is_some() && g.venue.mail_seen != mail_key(g)) || (g.venue.admin && !g.venue.requests.is_empty()) {
         let (bx, by) = (x + w - 6.0, y - 5.0);
         ui_rect(bx + 1.0, by, 7.0, 9.0, BLACK);
         ui_rect(bx, by + 1.0, 9.0, 7.0, BLACK);
@@ -470,7 +725,7 @@ pub(crate) fn mail_icon(g: &mut Game, _fr: &mut Frame) {
 }
 
 fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
-    let (w, h) = (268.0f32.min(low_w() - 12.0), 150.0);
+    let (w, h) = (268.0f32.min(low_w() - 12.0), if g.venue.admin { 166.0 } else { 150.0 });
     let x = ((low_w() - w) / 2.0).round();
     let y = ((low_h() - h) / 2.0).round();
     ui_rect(x + 3.0, y + 3.0, w, h, ink());
@@ -514,7 +769,57 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
             lines.push(("at the pc bang still has it.".to_string(), 9.0, ink()));
         }
     }
-    let mut ty = y + 16.0;
+    let admin = g.venue.admin;
+    if admin {
+        let n = g.venue.requests.len();
+        let label = if n > 0 { format!("dj requests ({n})") } else { "dj requests".to_string() };
+        if button(fr, "post", x + w - 150.0, y + 8.0, 40.0, 14.0, !g.venue.post_tab) {
+            g.venue.post_tab = false;
+        }
+        if button(fr, &label, x + w - 106.0, y + 8.0, 96.0, 14.0, g.venue.post_tab) {
+            g.venue.post_tab = true;
+        }
+    }
+    if admin && g.venue.post_tab {
+        lines.clear();
+        ui_text("dj requests", x + 12.0, y + 20.0, 14.0, ink());
+        let mut ry = y + 30.0;
+        if g.venue.requests.is_empty() {
+            ui_text("nobody is asking right now.", x + 12.0, ry + 9.0, 9.0, grey);
+            ry += 14.0;
+        }
+        let mut act: Option<String> = None;
+        for (id, code, name) in g.venue.requests.iter().take(4) {
+            ui_text(&format!("dj {name} wants {code}"), x + 12.0, ry + 10.0, 9.0, ink());
+            if button(fr, "yes +1", x + w - 96.0, ry, 44.0, 14.0, false) {
+                act = Some(format!("grant {id}"));
+            }
+            if button(fr, "no", x + w - 48.0, ry, 36.0, 14.0, false) {
+                act = Some(format!("deny {id}"));
+            }
+            ry += 17.0;
+        }
+        ry += 4.0;
+        ui_text("credit owed", x + 12.0, ry + 8.0, 8.0, grey);
+        ry += 12.0;
+        if g.venue.balances.is_empty() {
+            ui_text("nothing owed.", x + 12.0, ry + 9.0, 9.0, grey);
+        }
+        for (n, name) in g.venue.balances.iter().take(3) {
+            ui_text(&format!("dj {name}: {n} euro"), x + 12.0, ry + 10.0, 9.0, ink());
+            if button(fr, "paid", x + w - 48.0, ry, 36.0, 14.0, false) {
+                act = Some(format!("settle {name}"));
+            }
+            ry += 17.0;
+        }
+        if let Some(line) = act {
+            if !fresh {
+                net::send(&line);
+                fr.click = false;
+            }
+        }
+    }
+    let mut ty = y + if admin { 30.0 } else { 16.0 };
     for (text, size, col) in lines {
         ty += size * 0.35;
         ui_text(&text, x + 12.0, ty, size, col);
@@ -535,44 +840,132 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     set_default_camera();
     clear_background(Color::from_rgba(36, 26, 71, 255));
     let cx = low_w() / 2.0;
+    let gold = Color::from_rgba(255, 214, 110, 255);
+    let purple = Color::from_rgba(176, 92, 255, 255);
+    let soft = Color::new(1.0, 0.97, 0.88, 0.7);
+    let dj = g.venue.dj_page;
+    let top = (low_h() * if dj { 0.12 } else { 0.3 }).round();
     let title = "melody quack";
-    ui_text(title, cx - ui_measure(title, 26.0) / 2.0 + 2.0, low_h() * 0.3 + 2.0, 26.0, BLACK);
-    ui_text(title, cx - ui_measure(title, 26.0) / 2.0, low_h() * 0.3, 26.0, Color::from_rgba(255, 214, 110, 255));
-    let ask = "what's your name?";
-    ui_text(ask, cx - ui_measure(ask, 12.0) / 2.0, low_h() * 0.3 + 34.0, 12.0, cream());
+    ui_text(title, cx - ui_measure(title, 26.0) / 2.0 + 2.0, top + 2.0, 26.0, BLACK);
+    ui_text(title, cx - ui_measure(title, 26.0) / 2.0, top, 26.0, gold);
+    let ask = if g.venue.name.is_empty() { "what's your name?" } else { "starting again. still you?" };
+    ui_text(ask, cx - ui_measure(ask, 12.0) / 2.0, top + 34.0, 12.0, cream());
     let (w, h) = (170.0, 24.0);
-    let (x, y) = ((cx - w / 2.0).round(), (low_h() * 0.3 + 44.0).round());
-    ui_rect(x + 3.0, y + 3.0, w, h, BLACK);
-    ui_rect(x, y, w, h, ink());
-    ui_rect(x + 2.0, y + 2.0, w - 4.0, h - 4.0, cream());
+    let (x, y) = ((cx - w / 2.0).round(), top + 44.0);
+    let ky = y + h + 74.0;
+    if !dj {
+        g.venue.field = 0;
+    }
+    if is_key_pressed(KeyCode::Tab) && dj {
+        g.venue.field = 1 - g.venue.field.min(1);
+    }
+    if fr.click && hit(fr, x, y, w, h) {
+        g.venue.field = 0;
+    }
+    if fr.click && dj && hit(fr, x, ky, w, h) {
+        g.venue.field = 1;
+    }
+    let on_key = g.venue.field == 1;
     while let Some(ch) = get_char_pressed() {
-        if (ch.is_alphanumeric() || ch == ' ' || ch == '-' || ch == '_') && g.venue.name_draft.chars().count() < 12 {
+        if on_key {
+            if !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 40 {
+                g.venue.key_draft.push(ch);
+            }
+        } else if (ch.is_alphanumeric() || ch == ' ' || ch == '-' || ch == '_') && g.venue.name_draft.chars().count() < 12 {
             g.venue.name_draft.push(ch.to_ascii_lowercase());
         }
     }
     if is_key_pressed(KeyCode::Backspace) {
-        g.venue.name_draft.pop();
+        if on_key {
+            g.venue.key_draft.pop();
+        } else {
+            g.venue.name_draft.pop();
+        }
     }
     if fr.click && hit(fr, x, y, w, h) && radio::touch_ui() {
         if let Some(text) = radio::ask_text("what's your name?", &g.venue.name_draft) {
             g.venue.name_draft = text.chars().filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_').take(12).collect::<String>().to_lowercase();
         }
     }
+    if fr.click && dj && hit(fr, x, ky, w, h) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text("your dj key", &g.venue.key_draft) {
+            g.venue.key_draft = text.chars().filter(|c| !c.is_control() && *c != ' ').take(40).collect();
+        }
+    }
+    let caret = (fr.time * 2.0).fract() < 0.6;
+    ui_rect(x + 3.0, y + 3.0, w, h, BLACK);
+    ui_rect(x, y, w, h, if on_key { ink() } else { gold });
+    ui_rect(x + 2.0, y + 2.0, w - 4.0, h - 4.0, cream());
     ui_text(&g.venue.name_draft, x + 8.0, y + 16.5, 14.0, ink());
-    if (fr.time * 2.0).fract() < 0.6 {
+    if caret && !on_key {
         ui_rect(x + 9.0 + ui_measure(&g.venue.name_draft, 14.0), y + 5.0, 2.0, h - 10.0, ink());
+    }
+    let toggle = if dj { "just play, no dj key" } else { "become a dj" };
+    let tw = ui_measure(toggle, 9.0) + 22.0;
+    let (tx, ty) = ((cx - tw / 2.0).round(), y + h + 8.0);
+    ui_rect(tx + 2.0, ty + 2.0, tw, 15.0, BLACK);
+    ui_rect(tx, ty, tw, 15.0, if dj { Color::from_rgba(70, 56, 120, 255) } else { purple });
+    ui_rect(tx + 5.0, ty + 5.0, 5.0, 5.0, if dj { purple } else { WHITE });
+    ui_text(toggle, tx + 15.0, ty + 10.5, 9.0, WHITE);
+    if fr.click && hit(fr, tx, ty, tw, 15.0) {
+        g.venue.dj_page = !dj;
+        g.venue.field = if dj { 0 } else { 1 };
+        fr.click = false;
+    }
+    let mut bottom = ty + 15.0;
+    if dj {
+        let lines = ["5 euros a month. you get 1 euro back as credit", "every time the admin lets you play the arena.", "members get a dj key. type it in here:"];
+        for (i, l) in lines.iter().enumerate() {
+            ui_text(l, cx - ui_measure(l, 9.0) / 2.0, ty + 28.0 + i as f32 * 11.0, 9.0, if i == 2 { cream() } else { soft });
+        }
+        ui_rect(x + 3.0, ky + 3.0, w, h, BLACK);
+        ui_rect(x, ky, w, h, if on_key { purple } else { ink() });
+        ui_rect(x + 2.0, ky + 2.0, w - 4.0, h - 4.0, cream());
+        let shown: String = g.venue.key_draft.chars().rev().take(20).collect::<Vec<char>>().into_iter().rev().collect();
+        if shown.is_empty() && !on_key {
+            ui_text("dj key", x + 8.0, ky + 16.0, 12.0, Color::from_rgba(150, 146, 140, 255));
+        }
+        ui_text(&shown, x + 8.0, ky + 16.0, 12.0, ink());
+        if caret && on_key {
+            ui_rect(x + 9.0 + ui_measure(&shown, 12.0), ky + 5.0, 2.0, h - 10.0, ink());
+        }
+        bottom = ky + h;
+        let join = if g.venue.patreon.is_empty() { "no key yet? ask the admin for the patreon page" } else { "no key yet? join on patreon" };
+        let jw = ui_measure(join, 9.0);
+        let jy = bottom + 14.0;
+        ui_text(join, cx - jw / 2.0, jy, 9.0, if g.venue.patreon.is_empty() { soft } else { Color::from_rgba(196, 150, 255, 255) });
+        if !g.venue.patreon.is_empty() {
+            ui_rect(cx - jw / 2.0, jy + 2.0, jw, 1.0, Color::from_rgba(196, 150, 255, 255));
+            if fr.click && hit(fr, cx - jw / 2.0 - 3.0, jy - 9.0, jw + 6.0, 14.0) {
+                net::open_url(&g.venue.patreon);
+                fr.click = false;
+            }
+        }
+        bottom = jy + 4.0;
     }
     let ready = !g.venue.name_draft.trim().is_empty();
     let hint = if ready { "enter to start" } else { "friends see it above your head when you rave together" };
-    let hy = y + h + 16.0;
+    let hy = bottom + 18.0;
     let bw = ui_measure(hint, 10.0) + 16.0;
     if ready {
-        ui_rect(cx - bw / 2.0, hy - 11.0, bw, 16.0, Color::from_rgba(255, 214, 110, 255));
+        ui_rect(cx - bw / 2.0, hy - 11.0, bw, 16.0, gold);
     }
-    ui_text(hint, cx - ui_measure(hint, 10.0) / 2.0, hy, 10.0, if ready { ink() } else { Color::new(1.0, 0.97, 0.88, 0.7) });
+    ui_text(hint, cx - ui_measure(hint, 10.0) / 2.0, hy, 10.0, if ready { ink() } else { soft });
     let tapped = ready && fr.click && hit(fr, cx - bw / 2.0, hy - 11.0, bw, 16.0);
     if ready && (is_key_pressed(KeyCode::Enter) || tapped) {
         g.venue.name = g.venue.name_draft.trim().to_string();
+        let key = if g.venue.dj_page { g.venue.key_draft.trim().to_string() } else { String::new() };
+        if key != g.venue.dj_key {
+            g.venue.dj_key = key;
+            g.venue.key_sent = false;
+            g.venue.dj_name = None;
+            g.venue.admin = false;
+            if g.venue.dj_key.is_empty() && net::state() == 2 {
+                net::send("dj -");
+            }
+        }
+        g.venue.welcome = false;
+        g.save_clock = 99.0;
         g.audio.play_ch(3, &g.bells[2], 0.5);
         g.audio.play_ch(3, &g.bells[4], 0.4);
         fr.click = false;
@@ -581,7 +974,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
 
 pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     online(g, fr.dt);
-    if g.venue.name.is_empty() {
+    if g.venue.name.is_empty() || g.venue.welcome {
         if is_quit_requested() {
             return false;
         }
@@ -606,6 +999,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         let (mx, my, mw, mh) = mail_rect(g);
         if hit(fr, mx - 2.0, my - 6.0, mw + 8.0, mh + 8.0) {
             g.venue.overlay = Overlay::Mail;
+            g.venue.post_tab = g.venue.admin && !g.venue.requests.is_empty();
             g.venue.mail_seen = mail_key(g);
             g.audio.play_ch(3, &g.plink, 0.4);
             fr.click = false;
@@ -644,6 +1038,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Flyer(i) => flyer_view(g, fr, i, fresh),
         Overlay::Door => door_talk(g, fr, fresh),
         Overlay::Mail => mail(g, fr, fresh),
+        Overlay::Decks => decks(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -1411,8 +1806,10 @@ fn rave_tick(g: &mut Game, dt: f32) -> (f32, usize, bool) {
     let Some(r) = g.venue.now.clone() else {
         return (0.0, 0, false);
     };
-    let live = !g.venue.live.is_empty();
-    let bpm = if live && g.radio_bpm > 0.0 { g.radio_bpm } else { r.bpm };
+    let decks_live = g.venue.on_air.as_ref().map(|o| !o.audio).unwrap_or(false);
+    let live = !g.venue.live.is_empty() || g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
+    let (beat_on, melody_on, sound) = if decks_live { (g.venue.mix.0, g.venue.mix.1, g.venue.mix.2) } else { (true, true, r.sound) };
+    let bpm = if !g.venue.live.is_empty() && g.radio_bpm > 0.0 { g.radio_bpm } else { g.venue.bpm_now.max(60.0) };
     let beat = (get_time() - g.venue.rave_start) * bpm as f64 / 60.0;
     let step = (beat * 4.0).floor() as i64;
     let bar = (step / 16).rem_euclid(32) as usize;
@@ -1424,24 +1821,24 @@ fn rave_tick(g: &mut Game, dt: f32) -> (f32, usize, bool) {
             let s = step.rem_euclid(16) as i32;
             let seed = (r.seed & 0xfff) as u32;
             let intro = bar < 4;
-            if !breakdown && s % 4 == 0 {
+            if beat_on && !breakdown && s % 4 == 0 {
                 g.audio.play_ch(2, &g.kick, 1.0);
             }
-            if !breakdown && !intro && (s == 4 || s == 12) {
+            if beat_on && !breakdown && !intro && (s == 4 || s == 12) {
                 g.audio.play_ch(2, &g.clap, 0.7);
             }
-            if s % 4 == 2 {
+            if beat_on && s % 4 == 2 {
                 g.audio.play_ch(2, if drop { &g.open_hat } else { &g.hat }, 0.5);
-            } else if s % 2 == 1 && !intro {
+            } else if beat_on && s % 2 == 1 && !intro {
                 g.audio.play_ch(2, &g.hat, 0.22);
             }
-            if !breakdown && !intro && s % 4 != 0 {
+            if beat_on && !breakdown && !intro && s % 4 != 0 {
                 g.audio.play_ch(2, &g.bass, 0.5);
             }
             let on = hash(s, seed as i32, 21) > 0.42;
             let note = ((hash(s, seed as i32, 22) * 6.0) as usize).min(5);
-            if !intro {
-                match r.sound {
+            if !intro && melody_on {
+                match sound {
                     0 => {
                         if on {
                             g.audio.play_ch(3, &g.marimba[note], 0.5);
@@ -1478,10 +1875,17 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let dt = fr.dt;
     let time = fr.time;
     let solids = chapel_solids();
-    walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, false);
+    let busy = g.venue.overlay != Overlay::None;
+    walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, busy);
     let local = g.players[0].pos - CH_ORIGIN;
-    if !fresh && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
+    if !fresh && !busy && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
         leave(g);
+        return;
+    }
+    let at_decks = local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
+    if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
+        g.venue.overlay = Overlay::Decks;
+        while get_char_pressed().is_some() {}
         return;
     }
     let (pulse, bar, drop) = rave_tick(g, dt);
@@ -1593,11 +1997,13 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         friend.lift = if peer.walking { 0.0 } else { pulse * 0.05 };
         friend.draw(&mut b, &g.world, time, pulse);
         let name = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.name.clone()).unwrap_or_default();
-        let name = if peer.slot == 1 { format!("{name} +1") } else { name };
-        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, Color::from_rgba(61, 242, 255, 255)));
+        let is_dj = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.dj).unwrap_or(false);
+        let name = if peer.slot == 1 { format!("{name} +1") } else if is_dj { format!("dj {name}") } else { name };
+        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) }));
     }
     if net::state() == 2 {
-        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), g.venue.name.clone(), Color::from_rgba(255, 214, 110, 255)));
+        let mine = if g.venue.dj_name.is_some() { format!("dj {}", g.venue.name) } else { g.venue.name.clone() };
+        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
         if g.two_player {
             tags.push((vec3(g.players[1].pos.x, 1.75, g.players[1].pos.y), format!("{} +1", g.venue.name), Color::from_rgba(255, 214, 110, 255)));
         }
@@ -1621,16 +2027,22 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let Some(r) = rave else {
         return;
     };
-    let live = !g.venue.live.is_empty();
+    let on_air = g.venue.on_air.clone();
+    let live = !g.venue.live.is_empty() || on_air.is_some();
     let section = if live { "live" } else if bar < 4 { "intro" } else if (16..20).contains(&bar) { "breakdown" } else if drop { "drop" } else { "groove" };
-    let line = if live { format!("live: {}", g.venue.live) } else { format!("generated set - {} - {} bpm - {}", SOUNDS[r.sound % 3], r.bpm as i32, section) };
+    let line = if let Some(o) = &on_air {
+        format!("live: dj {} - {}", o.name, if o.audio { "real audio" } else { "on the decks" })
+    } else if live {
+        format!("live: {}", g.venue.live)
+    } else { format!("generated set - {} - {} bpm - {}", SOUNDS[r.sound % 3], g.venue.bpm_now as i32, section)
+    };
     let w = (ui_measure(&line, 9.0) + 40.0).max(ui_measure(&r.title, 14.0) + 40.0).min(low_w() - 12.0);
     let x = (low_w() - w) / 2.0;
     ui_rect(x, 5.0, w, 34.0, Color::new(0.2, 0.16, 0.4, 0.88));
     ui_text(&r.title, (low_w() - ui_measure(&r.title, 14.0)) / 2.0, 19.0, 14.0, cream());
     let shown = ui_ticker(&line, 9.0, w - 36.0, time);
     ui_text(&shown, x + 8.0, 33.0, 9.0, if live { Color::from_rgba(255, 110, 200, 255) } else { Color::from_rgba(198, 255, 61, 255) });
-    let beat_now = ((get_time() - g.venue.rave_start) * r.bpm as f64 / 60.0).rem_euclid(4.0) as usize;
+    let beat_now = ((get_time() - g.venue.rave_start) * g.venue.bpm_now as f64 / 60.0).rem_euclid(4.0) as usize;
     for k in 0..4 {
         ui_rect(x + w - 26.0 + k as f32 * 5.0, 28.0, 4.0, 4.0, if k == beat_now { Color::from_rgba(255, 214, 110, 255) } else { ink() });
     }
@@ -1638,7 +2050,17 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let cw = ui_measure(&code, 9.0) + 10.0;
     ui_rect((low_w() - cw) / 2.0, 42.0, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_text(&code, (low_w() - cw) / 2.0 + 5.0, 51.0, 9.0, cream());
-    place_label("st. bassilica", "wasd: move   1-6: sing over the set   esc or the door: leave");
+    place_label("st. bassilica", if at_decks { "E: the decks" } else { "wasd: move   1-6: sing over the set   esc or the door: leave" });
+    if let Some(o) = &on_air {
+        if o.audio && !net::can_listen() && !o.url.is_empty() && g.venue.overlay == Overlay::None {
+            let label = "listen in your browser";
+            let bw = ui_measure(label, 9.0) + 14.0;
+            if button(fr, label, (low_w() - bw) / 2.0, 58.0, bw, 14.0, false) {
+                net::open_url(&o.url);
+                fr.click = false;
+            }
+        }
+    }
     let status = match net::state() {
         2 if g.venue.joined => format!("online - {} of 100 here", here(g)),
         2 => "online".to_string(),

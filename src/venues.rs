@@ -30,6 +30,7 @@ pub(crate) enum Overlay {
     Flyer(usize),
     Door,
     Mail,
+    Decks,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -44,7 +45,15 @@ pub(crate) struct Rave {
     pub(crate) expired: bool,
 }
 
+#[derive(Clone)]
+pub(crate) struct OnAir {
+    pub(crate) audio: bool,
+    pub(crate) url: String,
+    pub(crate) name: String,
+}
+
 pub(crate) struct Friend {
+    pub(crate) dj: bool,
     pub(crate) id: u32,
     pub(crate) players: u32,
     pub(crate) characters: [usize; 2],
@@ -74,6 +83,25 @@ pub(crate) struct Peer {
 
 #[derive(Default)]
 pub(crate) struct VenueState {
+    pub(crate) dj_key: String,
+    pub(crate) key_draft: String,
+    pub(crate) key_sent: bool,
+    pub(crate) dj_name: Option<String>,
+    pub(crate) credit: u32,
+    pub(crate) admin: bool,
+    pub(crate) requests: Vec<(u32, String, String)>,
+    pub(crate) balances: Vec<(u32, String)>,
+    pub(crate) granted: Vec<String>,
+    pub(crate) asked: bool,
+    pub(crate) on_air: Option<OnAir>,
+    pub(crate) mix: (bool, bool, usize, f32),
+    pub(crate) bpm_now: f32,
+    pub(crate) stream: String,
+    pub(crate) welcome: bool,
+    pub(crate) dj_page: bool,
+    pub(crate) post_tab: bool,
+    pub(crate) field: u8,
+    pub(crate) patreon: String,
     pub(crate) name: String,
     pub(crate) name_draft: String,
     pub(crate) token: u64,
@@ -257,8 +285,8 @@ impl VenueState {
         won
     }
 
-    pub(crate) fn new(name: String) -> VenueState {
-        let mut v = VenueState { pc_bpm: 132.0, pc_sound: 1, rng: 0x51ab_1e55, name, ..Default::default() };
+    pub(crate) fn new(name: String, dj_key: String, welcome: bool) -> VenueState {
+        let mut v = VenueState { pc_bpm: 132.0, pc_sound: 1, rng: 0x51ab_1e55, name_draft: name.clone(), key_draft: dj_key.clone(), dj_page: !dj_key.is_empty(), name, dj_key, welcome, ..Default::default() };
         let titles = ["acid mass", "bass vespers", "feather fever", "pond life", "midnight moult", "duckstep"];
         for (i, t) in titles.iter().enumerate() {
             let code = make_code(&mut v.rng);

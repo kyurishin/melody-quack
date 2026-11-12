@@ -7,6 +7,8 @@ unsafe extern "C" {
     fn net_recv_get(out: *mut u8);
     fn net_server_len() -> i32;
     fn net_server_get(out: *mut u8);
+    fn net_open_url(url: *const u8, len: u32);
+    fn net_listen(url: *const u8, len: u32);
 }
 
 pub fn server() -> Option<String> {
@@ -41,4 +43,18 @@ pub fn recv() -> Option<String> {
         unsafe { net_recv_get(buf.as_mut_ptr()) };
     }
     String::from_utf8(buf).ok()
+}
+
+pub fn open_url(url: &str) {
+    if url.starts_with("https://") {
+        unsafe { net_open_url(url.as_ptr(), url.len() as u32) };
+    }
+}
+
+pub fn listen(url: &str) {
+    unsafe { net_listen(url.as_ptr(), url.len() as u32) };
+}
+
+pub fn can_listen() -> bool {
+    true
 }

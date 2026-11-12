@@ -43,6 +43,8 @@ pub(crate) struct Progress {
     pub(crate) stored: Vec<u8>,
     pub(crate) seq: [u16; 4],
     pub(crate) name: String,
+    pub(crate) dj_key: String,
+    pub(crate) welcome: bool,
 }
 
 pub(crate) fn kind_index(kind: Kind) -> u8 {
@@ -73,6 +75,12 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("shroomdex {}\n", list(p.shroomdex.iter().map(|n| n.to_string()).collect()));
     if !p.name.is_empty() {
         out += &format!("name {}\n", p.name);
+    }
+    if !p.dj_key.is_empty() {
+        out += &format!("djkey {}\n", p.dj_key);
+    }
+    if p.welcome {
+        out += "welcome 1\n";
     }
     if p.seq.iter().any(|r| *r != 0) {
         out += &format!("seq {} {} {} {}\n", p.seq[0], p.seq[1], p.seq[2], p.seq[3]);
@@ -133,6 +141,8 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         stored: Vec::new(),
         seq: [0; 4],
         name: String::new(),
+        dj_key: String::new(),
+        welcome: false,
     };
     for line in lines {
         let (key, rest) = line.split_once(' ').unwrap_or((line, ""));
@@ -191,6 +201,8 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                 }
             }
             "mush" if nums.len() == 3 => p.mush = [nums[0] as u32, nums[1] as u32, nums[2] as u32],
+            "djkey" => p.dj_key = rest.chars().filter(|c| !c.is_control() && *c != ' ').take(40).collect(),
+            "welcome" => p.welcome = true,
             "name" => p.name = rest.chars().filter(|c| !c.is_control()).take(12).collect::<String>().trim().to_string(),
             "seq" if nums.len() == 4 => p.seq = [nums[0] as u16, nums[1] as u16, nums[2] as u16, nums[3] as u16],
             "stored" => p.stored = rest.split(',').filter_map(|v| v.trim().parse::<u8>().ok()).filter(|v| (*v as usize) < home::ITEMS.len()).collect(),

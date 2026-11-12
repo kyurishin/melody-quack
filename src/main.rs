@@ -312,8 +312,10 @@ async fn main() {
     let radio_bpm = 0.0_f32;
     let fresh_confirm = 0.0_f32;
     let mut saved_name = String::new();
+    let mut saved_dj = (String::new(), false);
     if let Some(saved) = store::read().and_then(|t| decode_progress(&t, cast_list.len())) {
         saved_name = saved.name.clone();
+        saved_dj = (saved.dj_key.clone(), saved.welcome);
         if saved.tiles.len() == world.tiles.len() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
@@ -377,7 +379,7 @@ async fn main() {
 
     venues::stamp(&mut world);
     let mut g = Game {
-        venue: venues::VenueState::new(saved_name),
+        venue: venues::VenueState::new(saved_name, saved_dj.0, saved_dj.1),
         audio,
         cast_list,
         voices,

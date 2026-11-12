@@ -1088,6 +1088,26 @@
           importObject.env.net_recv_get = function (out) {
             new Uint8Array(wasm_memory.buffer, out, net.now.length).set(net.now);
           };
+          importObject.env.net_open_url = function (p, l) {
+            var url = text(p, l);
+            if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");
+          };
+          var liveAudio = null;
+          importObject.env.net_listen = function (p, l) {
+            var url = text(p, l);
+            if (liveAudio) {
+              try { liveAudio.pause(); } catch (e) {}
+              liveAudio = null;
+            }
+            if (/^https:\/\//.test(url)) {
+              try {
+                liveAudio = new Audio(url);
+                liveAudio.setAttribute("playsinline", "");
+                var started = liveAudio.play();
+                if (started && started.catch) started.catch(function () {});
+              } catch (e) {}
+            }
+          };
           importObject.env.net_server_len = function () {
             var s = (window.MELODY_LIVE && window.MELODY_LIVE.server) || "";
             return s ? bytesOf(s).length : -1;

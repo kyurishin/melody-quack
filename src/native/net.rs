@@ -119,3 +119,23 @@ fn run(url: String, rx: Receiver<String>, tx: Sender<String>, state: Arc<AtomicI
         }
     }
 }
+
+pub fn open_url(url: &str) {
+    if !url.starts_with("https://") {
+        return;
+    }
+    let program = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let _ = std::process::Command::new(program).arg(url).spawn();
+}
+
+pub fn listen(_url: &str) {}
+
+pub fn can_listen() -> bool {
+    false
+}
