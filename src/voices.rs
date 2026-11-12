@@ -1,5 +1,3 @@
-//! Synthesised animal voices (woof, meow, quack, hoot...).
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

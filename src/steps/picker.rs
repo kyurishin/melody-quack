@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// V opens the character picker; this runs it.
 pub(crate) fn character_picker(g: &mut Game, fr: &mut Frame) {
     fr.picker_closed = false;
     if is_key_pressed(KeyCode::V) {

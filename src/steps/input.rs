@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Frame timing, the first click, emoji pickers and bubbles.
 pub(crate) fn begin_frame(g: &mut Game, fr: &mut Frame) {
     fr.dt = get_frame_time().min(0.05);
     fr.time = get_time() as f32;

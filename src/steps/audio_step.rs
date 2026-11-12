@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// G for echo, Q for quantise, and the audio tick.
 pub(crate) fn echo_and_quantise(g: &mut Game, _fr: &mut Frame) {
     if is_key_pressed(KeyCode::G) {
         g.ringing = !g.ringing;
@@ -18,7 +17,6 @@ pub(crate) fn echo_and_quantise(g: &mut Game, _fr: &mut Frame) {
     }
 }
 
-/// X and U change the building tool.
 pub(crate) fn tool_keys(g: &mut Game, _fr: &mut Frame) {
     if is_key_pressed(KeyCode::X) && !g.picking && !g.inside {
         g.tools[0] = g.tools[0].next();
@@ -28,7 +26,6 @@ pub(crate) fn tool_keys(g: &mut Game, _fr: &mut Frame) {
     }
 }
 
-/// F: listen to the room through the microphone and follow its tempo.
 pub(crate) fn listening(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::F) {
         if g.listening {
@@ -88,7 +85,6 @@ pub(crate) fn listening(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// Feeds the music-reactive visuals.
 pub(crate) fn visual_bands(g: &mut Game, _fr: &mut Frame) {
     {
         let mic_bands = if g.listening { g.microphone.as_ref().and_then(|m| m.detector.lock().ok().map(|d| d.bands)) } else { None };

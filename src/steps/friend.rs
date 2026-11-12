@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Player two or the helper dog, stick deliveries and bedtime.
 pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
     fr.delivered = None;
     fr.delivered_by = 1usize;
@@ -181,7 +180,6 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// What happens when someone brings something to the fire.
 pub(crate) fn receive_delivery(g: &mut Game, fr: &mut Frame) {
     fr.friend = g.cast_list[g.players[1].character].noun;
     fr.bringer = if fr.delivered_by == 0 { "you".to_string() } else if g.two_player { "player 2".to_string() } else { format!("the {}", fr.friend) };

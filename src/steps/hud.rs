@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// The note bar, loop grid, status line, meters and hints.
 pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     fr.ink = Color::from_rgba(40, 30, 60, 255);
     fr.touch_ui = radio::touch_ui() && !g.two_player;
@@ -336,6 +335,11 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
             ui_text(&p2_hint, x, y, 11.0, Color::from_rgba(255, 236, 200, 255));
         }
     }
+    if !g.inside && !g.players[0].seated && !g.fishing.active {
+        if let Some(h) = venues::outdoor_hint(g.players[0].pos) {
+            fr.hint = h.to_string();
+        }
+    }
     if !fr.hint.is_empty() && !g.picking {
         let w = ui_measure(&fr.hint, 12.0);
         let hy = if fr.touch_ui && fr.portrait { (low_h() * 0.56).round() } else if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
@@ -349,7 +353,6 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// The bag panel.
 pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
     if g.show_inventory && !g.picking && !g.shop_open && !g.show_help {
         let lines = [

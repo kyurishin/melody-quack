@@ -1,0 +1,1128 @@
+#[allow(unused_imports)]
+use crate::*;
+#[allow(unused_imports)]
+use macroquad::prelude::*;
+use crate::venues::*;
+
+const PC_ROWS: [f32; 2] = [0.75, 2.9];
+const PC_COLS: [f32; 4] = [1.0, 2.5, 4.0, 5.5];
+const COUNTER: (f32, f32) = (7.75, 2.3);
+const PILLARS: [(f32, f32); 6] = [(1.6, 2.6), (1.6, 4.6), (1.6, 6.6), (9.4, 2.6), (9.4, 4.6), (9.4, 6.6)];
+const BOOTH: (f32, f32) = (5.5, 1.3);
+
+fn ink() -> Color {
+    Color::from_rgba(36, 26, 71, 255)
+}
+
+fn cream() -> Color {
+    Color::from_rgba(255, 247, 224, 255)
+}
+
+fn hit(fr: &Frame, x: f32, y: f32, w: f32, h: f32) -> bool {
+    fr.ux >= x && fr.ux < x + w && fr.uy >= y && fr.uy < y + h
+}
+
+fn bevel(x: f32, y: f32, w: f32, h: f32, raised: bool) {
+    let grey = Color::from_rgba(198, 195, 189, 255);
+    let dark = Color::from_rgba(110, 107, 102, 255);
+    let (tl, br) = if raised { (WHITE, dark) } else { (dark, WHITE) };
+    ui_rect(x, y, w, h, BLACK);
+    ui_rect(x, y, w - 1.0, h - 1.0, tl);
+    ui_rect(x + 1.0, y + 1.0, w - 2.0, h - 2.0, br);
+    ui_rect(x + 1.0, y + 1.0, w - 3.0, h - 3.0, grey);
+}
+
+fn button(fr: &Frame, label: &str, x: f32, y: f32, w: f32, h: f32, on: bool) -> bool {
+    let over = hit(fr, x, y, w, h);
+    bevel(x, y, w, h, !(on || (over && is_mouse_button_down(MouseButton::Left))));
+    if on {
+        ui_rect(x + 2.0, y + 2.0, w - 4.0, h - 4.0, Color::from_rgba(27, 42, 138, 255));
+    }
+    let tw = ui_measure(label, 9.0);
+    ui_text(label, x + (w - tw) / 2.0, y + h / 2.0 + 3.0, 9.0, if on { WHITE } else { BLACK });
+    over && fr.click
+}
+
+fn link(fr: &Frame, label: &str, x: f32, y: f32, colour: Color) -> bool {
+    let w = ui_measure(label, 10.0);
+    let over = hit(fr, x, y - 9.0, w, 12.0);
+    let c = if over { Color::from_rgba(255, 61, 242, 255) } else { colour };
+    ui_text(label, x, y, 10.0, c);
+    ui_rect(x, y + 1.5, w, 1.0, c);
+    over && fr.click
+}
+
+fn pc_seats() -> Vec<Vec2> {
+    let mut v = Vec::new();
+    for z in PC_ROWS {
+        for x in PC_COLS {
+            v.push(vec2(x, z + 0.72));
+        }
+    }
+    v
+}
+
+fn pc_solids() -> Vec<(f32, f32, f32, f32)> {
+    let mut v = Vec::new();
+    for z in PC_ROWS {
+        for x in PC_COLS {
+            v.push((x - 0.55, z - 0.3, x + 0.55, z + 0.3));
+        }
+    }
+    v.push((COUNTER.0 - 0.8, COUNTER.1 - 1.6, COUNTER.0 + 0.8, COUNTER.1 + 0.3));
+    v.push((8.1, 3.9, 8.8, 4.7));
+    v
+}
+
+fn chapel_solids() -> Vec<(f32, f32, f32, f32)> {
+    let mut v: Vec<(f32, f32, f32, f32)> = PILLARS.iter().map(|(x, z)| (x - 0.25, z - 0.25, x + 0.25, z + 0.25)).collect();
+    v.push((BOOTH.0 - 1.3, 0.0, BOOTH.0 + 1.3, BOOTH.1 + 0.35));
+    v.push((2.7, 0.6, 3.5, 1.5));
+    v.push((7.5, 0.6, 8.3, 1.5));
+    v
+}
+
+fn can_use(g: &Game) -> bool {
+    !g.inside && !g.picking && !g.show_help && !g.show_inventory && !g.shop_open && !g.fishing.active && !g.sampler.open && !g.players[0].seated && !g.first_pick
+}
+
+fn enter(g: &mut Game, venue: Venue) {
+    let (origin, size) = if venue == Venue::PcBang { (PC_ORIGIN, PC_SIZE) } else { (CH_ORIGIN, CH_SIZE) };
+    let door = origin + vec2(size.0 / 2.0, size.1 - 0.7);
+    for (who, off) in [(0usize, 0.0f32), (1, 0.8)] {
+        g.players[who].seated = false;
+        g.players[who].sleeping = false;
+        g.players[who].place_at(door + vec2(off, 0.0));
+        g.players[who].facing = vec2(0.0, -1.0);
+    }
+    g.venue.at = venue;
+    g.venue.overlay = Overlay::None;
+    g.venue.pc_open = false;
+    g.venue.talk = 0.0;
+    if venue == Venue::Chapel {
+        g.venue.rave_start = get_time();
+        g.venue.last_step = -1;
+        g.venue.crowd.clear();
+        let solids = chapel_solids();
+        let seed = g.venue.now.as_ref().map(|r| r.seed).unwrap_or(1) as i32 & 0xffff;
+        let mut n = 0;
+        while g.venue.crowd.len() < 14 && n < 200 {
+            n += 1;
+            let p = vec2(2.3 + hash(n, seed, 41) * 6.4, 2.3 + hash(n, seed, 42) * 5.2);
+            let blocked = solids.iter().any(|s| p.x > s.0 - 0.3 && p.x < s.2 + 0.3 && p.y > s.1 - 0.3 && p.y < s.3 + 0.3);
+            let crowded = g.venue.crowd.iter().any(|c| (c.pos - CH_ORIGIN).distance(p) < 0.75);
+            if blocked || crowded {
+                continue;
+            }
+            let who = (hash(n, seed, 43) * g.cast_list.len() as f32) as usize % g.cast_list.len();
+            let mut c = Player::new(who, g.cast_list[who].body, CH_ORIGIN + p);
+            c.facing = (vec2(BOOTH.0, BOOTH.1) - p).normalize();
+            c.yaw = c.facing.x.atan2(c.facing.y);
+            g.venue.crowd.push(c);
+        }
+    }
+    g.audio.play_ch(3, &g.plink, 0.6);
+    while get_char_pressed().is_some() {}
+}
+
+fn leave(g: &mut Game) {
+    let door = match g.venue.at {
+        Venue::PcBang => PCBANG_DOOR,
+        Venue::Chapel => CHAPEL_DOOR + vec2(-0.5, 0.2),
+        Venue::None => return,
+    };
+    for (who, off) in [(0usize, vec2(0.0, 0.25)), (1, vec2(0.8, 0.5))] {
+        g.players[who].seated = false;
+        let spot = rescue(&g.world, door + off);
+        g.players[who].place_at(spot);
+        g.players[who].facing = vec2(0.0, 1.0);
+    }
+    g.venue.at = Venue::None;
+    g.venue.overlay = Overlay::None;
+    g.venue.pc_open = false;
+    g.audio.play_ch(3, &g.plink, 0.5);
+}
+
+pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
+    FLYER_COLOURS.with(|f| {
+        let mut f = f.borrow_mut();
+        f.clear();
+        for r in g.venue.all_flyers().iter().take(4) {
+            let (a, b, _, _) = flyer_palette(r.seed);
+            f.push((a, b));
+        }
+    });
+    if is_quit_requested() && (g.venue.at != Venue::None || g.venue.overlay != Overlay::None) {
+        leave(g);
+        g.venue.overlay = Overlay::None;
+        return false;
+    }
+    let mut fresh = false;
+    if g.venue.at == Venue::None && g.venue.overlay == Overlay::None {
+        if !can_use(g) || !is_key_pressed(KeyCode::E) {
+            return false;
+        }
+        let p = g.players[0].pos;
+        if p.distance(PCBANG_DOOR) < 0.8 {
+            enter(g, Venue::PcBang);
+        } else if p.distance(BOARD) < 0.9 {
+            g.venue.overlay = Overlay::Flyer(0);
+        } else if p.distance(CHAPEL_DOOR) < 0.9 || p.distance(GOOSE) < 0.9 {
+            g.venue.overlay = Overlay::Door;
+            g.venue.door_code.clear();
+            g.venue.door_msg = "evening. code?".to_string();
+            while get_char_pressed().is_some() {}
+        } else {
+            return false;
+        }
+        fresh = true;
+    }
+    g.audio.tick();
+    match g.venue.at {
+        Venue::None => {
+            blit(g);
+            ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, 0.6));
+        }
+        Venue::PcBang => pcbang(g, fr, fresh),
+        Venue::Chapel => chapel(g, fr, fresh),
+    }
+    match g.venue.overlay {
+        Overlay::Flyer(i) => flyer_view(g, fr, i, fresh),
+        Overlay::Door => door_talk(g, fr, fresh),
+        Overlay::None => {}
+    }
+    true
+}
+
+fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) {
+    if low_w() as u32 != g.view_w || low_h() as u32 != g.view_h {
+        g.view_w = low_w() as u32;
+        g.view_h = low_h() as u32;
+        g.full_view = make_view(g.view_w, g.view_h);
+    }
+    let (width, height) = (low_w(), low_h());
+    set_camera(&Camera2D {
+        render_target: Some(g.full_view.clone()),
+        zoom: vec2(2.0 / g.full_view.texture.width(), -2.0 / height),
+        target: vec2(g.full_view.texture.width() / 2.0, height / 2.0),
+        ..Default::default()
+    });
+    clear_background(back);
+    draw_rectangle(0.0, 0.0, width, height, back);
+    let eye = center + vec3(0.0, 5.6 * scale, 6.2 * scale);
+    let look_at = center + vec3(0.0, 0.1, 0.2);
+    let aspect = width / height;
+    let base = 21.0_f32.to_radians().tan();
+    let fovy = if aspect < 4.0 / 3.0 { 2.0 * (base * (4.0 / 3.0) / aspect).min(48f32.to_radians().tan()).atan() } else { 2.0 * base.atan() };
+    set_camera(&Camera3D {
+        position: eye,
+        target: look_at,
+        up: Vec3::Y,
+        fovy,
+        aspect: Some(aspect),
+        render_target: Some(g.full_view.clone()),
+        viewport: Some((0, 0, width as i32, height as i32)),
+        ..Default::default()
+    });
+}
+
+fn blit(g: &Game) {
+    set_default_camera();
+    clear_background(BLACK);
+    draw_texture_ex(
+        &g.full_view.texture,
+        0.0,
+        0.0,
+        WHITE,
+        DrawTextureParams { dest_size: Some(vec2(screen_width(), screen_height())), flip_y: true, ..Default::default() },
+    );
+}
+
+fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f32, f32, f32, f32)], frozen: bool) {
+    let walk = |p: Vec2| {
+        let l = p - origin;
+        let in_door = (l.x - size.0 / 2.0).abs() < 0.45;
+        l.x > 0.3 && l.x < size.0 - 0.3 && l.y > 0.45 && (l.y < size.1 - 0.3 || (in_door && l.y < size.1 + 0.4)) && !solids.iter().any(|s| l.x > s.0 - 0.17 && l.x < s.2 + 0.17 && l.y > s.1 - 0.17 && l.y < s.3 + 0.17)
+    };
+    let save = |_p: Vec2| origin + vec2(size.0 / 2.0, size.1 - 1.0);
+    let d0 = if frozen {
+        Vec2::ZERO
+    } else if g.two_player {
+        direction(&[KeyCode::W], &[KeyCode::S], &[KeyCode::A], &[KeyCode::D])
+    } else {
+        direction(&[KeyCode::W, KeyCode::Up], &[KeyCode::S, KeyCode::Down], &[KeyCode::A, KeyCode::Left], &[KeyCode::D, KeyCode::Right])
+    };
+    if !g.players[0].seated || d0 != Vec2::ZERO {
+        g.players[0].step_with(d0, dt, &walk, &save);
+    }
+    let d1 = if g.two_player {
+        if frozen { Vec2::ZERO } else { direction(&[KeyCode::I, KeyCode::Up], &[KeyCode::K, KeyCode::Down], &[KeyCode::J, KeyCode::Left], &[KeyCode::L, KeyCode::Right]) }
+    } else {
+        let to = g.players[0].pos - g.players[1].pos;
+        if to.length() > 1.3 { to.normalize() } else { Vec2::ZERO }
+    };
+    g.players[1].step_with(d1, dt, &walk, &save);
+    if frozen {
+        return;
+    }
+    for who in 0..2 {
+        if who == 1 && !g.two_player {
+            break;
+        }
+        let keys = if who == 0 { NOTE_KEYS } else { P2_NOTE_KEYS };
+        for i in 0..6 {
+            if is_key_pressed(keys[i]) {
+                let voice = g.players[who].character;
+                g.audio.play_ch(who, &g.voices[voice][i], 1.0);
+                g.players[who].voice_timer = 0.25;
+                g.players[who].key_glow[i] = 1.0;
+            }
+        }
+    }
+}
+
+fn place_label(text: &str, sub: &str) {
+    let w = ui_measure(text, 12.0) + 12.0;
+    ui_rect(6.0, 6.0, w, 16.0, Color::new(0.14, 0.1, 0.28, 0.85));
+    ui_text(text, 12.0, 17.0, 12.0, Color::from_rgba(255, 214, 110, 255));
+    if !sub.is_empty() {
+        let sw = ui_measure(sub, 9.0);
+        ui_rect((low_w() - sw) / 2.0 - 4.0, low_h() - 16.0, sw + 8.0, 12.0, Color::new(0.1, 0.08, 0.2, 0.6));
+        ui_text(sub, (low_w() - sw) / 2.0, low_h() - 7.0, 9.0, Color::from_rgba(255, 236, 200, 255));
+    }
+}
+
+fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let dt = fr.dt;
+    let time = fr.time;
+    let solids = pc_solids();
+    let seats = pc_seats();
+    let busy = g.venue.pc_open || g.venue.overlay != Overlay::None;
+    walk_room(g, dt, PC_ORIGIN, PC_SIZE, &solids, busy);
+    let local = g.players[0].pos - PC_ORIGIN;
+    let near_seat = seats.iter().position(|s| s.distance(local) < 0.5);
+    let near_kim = local.distance(vec2(COUNTER.0, COUNTER.1 + 0.6)) < 0.8;
+    g.venue.talk = (g.venue.talk - dt).max(0.0);
+    if !busy && !fresh {
+        if local.y > PC_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape) {
+            leave(g);
+            return;
+        }
+        if is_key_pressed(KeyCode::E) {
+            if let Some(i) = near_seat {
+                g.players[0].place_at(PC_ORIGIN + seats[i]);
+                g.players[0].facing = vec2(0.0, -1.0);
+                g.players[0].seated = true;
+                g.venue.pc_open = true;
+                g.venue.pc_boot = 0.0;
+                g.venue.pc_app = 0;
+                g.audio.play_ch(3, &g.bells[2], 0.5);
+                g.audio.play_ch(3, &g.bells[4], 0.4);
+                while get_char_pressed().is_some() {}
+            } else if near_kim {
+                g.venue.talk = 5.0;
+                g.audio.play_ch(1, &g.voices[g.players[1].character][1], 0.6);
+            }
+        }
+    }
+
+    let center = vec3(PC_ORIGIN.x + PC_SIZE.0 / 2.0, 0.5, PC_ORIGIN.y + PC_SIZE.1 / 2.0);
+    begin_room(g, center, 1.28, Color::from_rgba(24, 18, 40, 255));
+    let mut lamps = Vec::new();
+    for z in PC_ROWS {
+        for x in PC_COLS {
+            lamps.push((vec3(PC_ORIGIN.x + x, 1.3, PC_ORIGIN.y + z + 0.5), 0.5, vec3(0.2, 0.9, 0.95)));
+        }
+    }
+    lamps.push((vec3(center.x, 2.2, PC_ORIGIN.y + 0.4), 1.3, vec3(1.0, 0.2, 0.9)));
+    let light = Light { dusk: 0.62, fire: center + vec3(0.0, 2.0, 0.0), fire_strength: 0.25, tint: vec3(0.6, 0.6, 1.0), lamps };
+    let mut b = Batch::new(center + vec3(0.0, 5.6, -1.8), light);
+    let o = vec3(PC_ORIGIN.x, 0.5, PC_ORIGIN.y);
+    for z in 0..PC_SIZE.1 as i32 {
+        for x in 0..PC_SIZE.0 as i32 {
+            let c = if (x + z) % 2 == 0 { Color::from_rgba(52, 44, 96, 255) } else { Color::from_rgba(44, 38, 84, 255) };
+            b.top(o + vec3(x as f32 + 0.5, 0.0, z as f32 + 0.5), c);
+        }
+    }
+    let wall = Color::from_rgba(40, 34, 64, 255);
+    b.cube(o + vec3(PC_SIZE.0 / 2.0, 1.1, -0.1), vec3(PC_SIZE.0 + 0.4, 2.2, 0.2), wall);
+    b.cube(o + vec3(-0.1, 0.8, PC_SIZE.1 / 2.0), vec3(0.2, 1.6, PC_SIZE.1), wall);
+    b.cube(o + vec3(PC_SIZE.0 + 0.1, 0.8, PC_SIZE.1 / 2.0), vec3(0.2, 1.6, PC_SIZE.1), wall);
+    b.unlit = true;
+    b.cube(o + vec3(PC_SIZE.0 / 2.0, 2.0, 0.02), vec3(PC_SIZE.0, 0.05, 0.04), Color::from_rgba(255, 61, 242, 255));
+    b.cube(o + vec3(PC_SIZE.0 / 2.0, 1.86, 0.02), vec3(PC_SIZE.0, 0.03, 0.04), Color::from_rgba(61, 242, 255, 255));
+    for (i, hue) in [0.02f32, 0.6, 0.38].iter().enumerate() {
+        let c = hsv(*hue, 0.6, 0.9);
+        b.cube(o + vec3(6.9 + i as f32 * 0.62, 1.35, 0.03), vec3(0.46, 0.6, 0.03), c);
+    }
+    b.unlit = false;
+    let beige = Color::from_rgba(226, 216, 190, 255);
+    let beige_dark = Color::from_rgba(186, 176, 150, 255);
+    let desk = Color::from_rgba(74, 66, 110, 255);
+    for (zi, z) in PC_ROWS.iter().enumerate() {
+        for (xi, x) in PC_COLS.iter().enumerate() {
+            let d = o + vec3(*x, 0.0, *z);
+            b.cube(d + vec3(0.0, 0.34, 0.0), vec3(1.1, 0.06, 0.56), desk);
+            b.cube(d + vec3(-0.48, 0.16, 0.0), vec3(0.06, 0.32, 0.5), desk);
+            b.cube(d + vec3(0.48, 0.16, 0.0), vec3(0.06, 0.32, 0.5), desk);
+            b.cube(d + vec3(-0.12, 0.59, -0.06), vec3(0.44, 0.38, 0.4), beige);
+            b.cube(d + vec3(-0.12, 0.39, 0.0), vec3(0.3, 0.05, 0.3), beige_dark);
+            b.cube(d + vec3(0.34, 0.56, -0.04), vec3(0.18, 0.4, 0.4), beige);
+            b.cube(d + vec3(0.34, 0.64, 0.165), vec3(0.12, 0.03, 0.01), beige_dark);
+            b.cube(d + vec3(-0.12, 0.39, 0.2), vec3(0.4, 0.03, 0.12), beige);
+            b.unlit = true;
+            let flick = 0.85 + 0.15 * (time * 3.0 + (xi + zi * 4) as f32 * 1.3).sin();
+            b.cube(d + vec3(-0.12, 0.6, 0.145), vec3(0.34, 0.26, 0.01), Color::new(0.06 * flick, 0.56 * flick, 0.54 * flick, 1.0));
+            b.cube(d + vec3(-0.12, 0.49, 0.15), vec3(0.34, 0.035, 0.01), Color::from_rgba(198, 195, 189, 255));
+            b.cube(d + vec3(0.34, 0.42, 0.165), vec3(0.02, 0.02, 0.01), Color::from_rgba(198, 255, 61, 255));
+            b.unlit = false;
+            let seat = d + vec3(0.0, 0.0, 0.72);
+            b.cube(seat + vec3(0.0, 0.1, 0.0), vec3(0.34, 0.08, 0.34), Color::from_rgba(176, 42, 74, 255));
+            b.cube(seat + vec3(0.0, 0.3, 0.19), vec3(0.34, 0.4, 0.06), Color::from_rgba(217, 74, 106, 255));
+        }
+    }
+    let k = o + vec3(COUNTER.0, 0.0, COUNTER.1);
+    b.cube(k + vec3(0.0, 0.25, 0.0), vec3(1.6, 0.5, 0.5), desk);
+    b.cube(k + vec3(0.0, 0.52, 0.0), vec3(1.7, 0.05, 0.6), Color::from_rgba(107, 99, 144, 255));
+    b.unlit = true;
+    b.cube(k + vec3(0.0, 0.3, 0.26), vec3(1.5, 0.04, 0.01), Color::from_rgba(255, 61, 242, 255));
+    b.unlit = false;
+    for (i, c) in [rgba(255, 128, 98), rgba(255, 214, 110), rgba(140, 222, 168), rgba(255, 168, 204)].iter().enumerate() {
+        b.cube(k + vec3(-0.6 + i as f32 * 0.2, 0.62, 0.05), vec3(0.14, 0.16, 0.14), *c);
+    }
+    b.cube(k + vec3(0.5, 0.63, 0.0), vec3(0.3, 0.18, 0.26), Color::from_rgba(198, 195, 189, 255));
+    let vend = o + vec3(8.45, 0.0, 4.3);
+    b.cube(vend + vec3(0.0, 0.6, 0.0), vec3(0.6, 1.2, 0.6), Color::from_rgba(217, 67, 61, 255));
+    b.unlit = true;
+    b.cube(vend + vec3(-0.31, 0.7, 0.0), vec3(0.01, 0.7, 0.44), Color::from_rgba(180, 230, 255, 255));
+    b.unlit = false;
+    let kim_at = PC_ORIGIN + vec2(COUNTER.0, COUNTER.1 - 0.75);
+    let who = g.cast_list.iter().position(|c| matches!(c.body, Body::Otter)).unwrap_or(0);
+    let mut kim = Player::new(who, g.cast_list[who].body, kim_at);
+    kim.yaw = 0.0;
+    kim.voice_timer = if g.venue.talk > 4.6 { 0.2 } else { 0.0 };
+    kim.draw(&mut b, &g.world, time, 0.0);
+    for p in g.players.iter() {
+        p.draw(&mut b, &g.world, time, 0.0);
+    }
+    b.flush();
+    blit(g);
+
+    if g.venue.pc_open {
+        desktop(g, fr);
+        return;
+    }
+    let hint = if near_seat.is_some() {
+        "E: use the computer"
+    } else if near_kim {
+        "E: talk to mr. kim"
+    } else {
+        "walk out of the door or press esc to leave   1-6: sing"
+    };
+    place_label("pc bang  24h", hint);
+    if g.venue.talk > 0.0 {
+        let lines = if g.venue.raves.is_empty() {
+            ["mr. kim: first hour's free. the snacks are not.", "the kids use rave.exe on those machines, get a code,", "and go to the old chapel in the forest. i don't ask."]
+        } else {
+            ["mr. kim: you again. busy night?", "the goose at the chapel wants your code.", "don't spill ramyeon on the keyboards."]
+        };
+        let w = lines.iter().map(|l| ui_measure(l, 10.0)).fold(0.0, f32::max) + 16.0;
+        let x = (low_w() - w) / 2.0;
+        ui_rect(x, 30.0, w, 44.0, Color::new(1.0, 0.97, 0.88, 0.95));
+        ui_rect(x, 30.0, w, 2.0, ink());
+        for (i, l) in lines.iter().enumerate() {
+            ui_text(l, x + 8.0, 45.0 + i as f32 * 12.0, 10.0, ink());
+        }
+    }
+}
+
+fn desktop(g: &mut Game, fr: &mut Frame) {
+    let grey = Color::from_rgba(198, 195, 189, 255);
+    let navy = Color::from_rgba(27, 42, 138, 255);
+    let teal = Color::from_rgba(15, 143, 138, 255);
+    g.venue.pc_boot += fr.dt;
+    ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, 0.7));
+    let (mw, mh) = (304.0, 214.0);
+    let mx = ((low_w() - mw) / 2.0).round();
+    let my = ((low_h() - mh) / 2.0 - 8.0).round().max(2.0);
+    ui_rect(mx + 3.0, my + 3.0, mw, mh, ink());
+    ui_rect(mx, my, mw, mh, Color::from_rgba(232, 220, 192, 255));
+    ui_rect(mx, my + mh - 14.0, mw, 14.0, Color::from_rgba(191, 178, 148, 255));
+    ui_text("quacktron 15", mx + 10.0, my + mh - 4.0, 8.0, Color::from_rgba(120, 108, 84, 255));
+    ui_rect(mx + mw - 24.0, my + mh - 9.0, 8.0, 3.0, Color::from_rgba(198, 255, 61, 255));
+    let (sx, sy, sw, sh) = (mx + 10.0, my + 8.0, mw - 20.0, mh - 28.0);
+    ui_rect(sx - 2.0, sy - 2.0, sw + 4.0, sh + 4.0, Color::from_rgba(27, 26, 34, 255));
+    let mut stand = false;
+    let mut typed: Vec<char> = Vec::new();
+    while let Some(ch) = get_char_pressed() {
+        typed.push(ch);
+    }
+    if g.venue.pc_boot < 1.4 {
+        ui_rect(sx, sy, sw, sh, BLACK);
+        ui_text("quackbios v4.20", sx + 6.0, sy + 14.0, 10.0, grey);
+        if g.venue.pc_boot > 0.3 {
+            ui_text("640k ram ok   cd-rom ok   modem ok", sx + 6.0, sy + 26.0, 10.0, grey);
+        }
+        if g.venue.pc_boot > 0.7 {
+            ui_rect(sx, sy, sw, sh, teal);
+            let t = "quack 95";
+            ui_text(t, sx + (sw - ui_measure(t, 24.0)) / 2.0, sy + sh / 2.0, 24.0, WHITE);
+            let t = "starting up...";
+            ui_text(t, sx + (sw - ui_measure(t, 9.0)) / 2.0, sy + sh / 2.0 + 16.0, 9.0, cream());
+        }
+        return;
+    }
+    ui_rect(sx, sy, sw, sh, teal);
+    let icons = [("quacknet", 1u8), ("rave.exe", 2), ("readme", 3), ("terminal", 4)];
+    for (i, (label, app)) in icons.iter().enumerate() {
+        let (ix, iy) = (sx + 8.0, sy + 8.0 + i as f32 * 40.0);
+        let over = hit(fr, ix - 4.0, iy - 2.0, 44.0, 36.0) && g.venue.pc_app == 0;
+        if over {
+            ui_rect(ix - 4.0, iy - 2.0, 44.0, 36.0, Color::new(0.1, 0.16, 0.54, 0.4));
+        }
+        ui_rect(ix + 7.0, iy, 20.0, 20.0, ink());
+        match app {
+            1 => {
+                ui_rect(ix + 8.0, iy + 1.0, 18.0, 18.0, Color::from_rgba(116, 172, 255, 255));
+                ui_rect(ix + 11.0, iy + 4.0, 7.0, 6.0, Color::from_rgba(140, 222, 168, 255));
+                ui_rect(ix + 16.0, iy + 11.0, 6.0, 5.0, Color::from_rgba(140, 222, 168, 255));
+            }
+            2 => {
+                ui_rect(ix + 8.0, iy + 1.0, 18.0, 18.0, Color::from_rgba(255, 226, 60, 255));
+                ui_rect(ix + 12.0, iy + 6.0, 2.0, 4.0, ink());
+                ui_rect(ix + 20.0, iy + 6.0, 2.0, 4.0, ink());
+                ui_rect(ix + 12.0, iy + 13.0, 10.0, 2.0, ink());
+            }
+            4 => {
+                ui_rect(ix + 8.0, iy + 1.0, 18.0, 18.0, BLACK);
+                ui_text(">_", ix + 10.0, iy + 13.0, 9.0, Color::from_rgba(198, 255, 61, 255));
+            }
+            _ => {
+                ui_rect(ix + 8.0, iy + 1.0, 18.0, 18.0, WHITE);
+                for k in 0..4 {
+                    ui_rect(ix + 11.0, iy + 4.0 + k as f32 * 3.5, 12.0, 1.0, Color::from_rgba(110, 107, 102, 255));
+                }
+            }
+        }
+        ui_text(label, ix + 17.0 - ui_measure(label, 8.0) / 2.0, iy + 30.0, 8.0, WHITE);
+        if over && fr.click {
+            g.venue.pc_app = *app;
+            g.venue.pc_page = 0;
+            g.audio.play_ch(3, &g.plink, 0.5);
+            fr.click = false;
+        }
+    }
+    let bar_y = sy + sh - 14.0;
+    if g.venue.pc_app != 0 {
+        let (wx, wy, ww, wh) = (sx + 46.0, sy + 6.0, sw - 54.0, sh - 26.0);
+        bevel(wx, wy, ww, wh, true);
+        for k in 0..8 {
+            let t = k as f32 / 8.0;
+            ui_rect(wx + 2.0 + (ww - 4.0) * t, wy + 2.0, (ww - 4.0) / 8.0 + 0.5, 11.0, mix(navy, Color::from_rgba(74, 106, 216, 255), t));
+        }
+        let title = ["", "quacknet explorer", "rave.exe", "readme.txt - notepad", "terminal"][g.venue.pc_app.min(4) as usize];
+        ui_text(title, wx + 5.0, wy + 10.5, 9.0, WHITE);
+        if button(fr, "x", wx + ww - 13.0, wy + 3.0, 10.0, 9.0, false) {
+            g.venue.pc_app = 0;
+            fr.click = false;
+        }
+        let (bx, by, bw, bh) = (wx + 3.0, wy + 15.0, ww - 6.0, wh - 18.0);
+        match g.venue.pc_app {
+            1 => browser(g, fr, bx, by, bw, bh),
+            2 => rave_exe(g, fr, bx, by, bw, bh, &typed),
+            4 => terminal(g, fr, bx, by, bw, bh, &typed),
+            _ => {
+                ui_rect(bx, by, bw, bh, WHITE);
+                let lines = [
+                    "melody quack - readme.txt",
+                    "",
+                    "rave.exe books a rave and gives you a code.",
+                    "the goose at st. bassilica, the old chapel",
+                    "at the end of the forest path, wants it.",
+                    "",
+                    "flyers carry codes too. old ones are no use.",
+                    "",
+                    "in the chapel: wasd to move, 1-6 to sing.",
+                    "",
+                    "bored? the terminal hides a secret rave.",
+                ];
+                for (i, l) in lines.iter().enumerate() {
+                    ui_text(l, bx + 5.0, by + 12.0 + i as f32 * 11.0, 9.0, BLACK);
+                }
+            }
+        }
+    }
+    ui_rect(sx, bar_y, sw, 14.0, grey);
+    ui_rect(sx, bar_y, sw, 1.0, WHITE);
+    if button(fr, "shut down", sx + 2.0, bar_y + 2.0, 54.0, 11.0, false) {
+        stand = true;
+    }
+    let s = sky();
+    let clock = format!("{:02}:{:02}", s.hour as u32, (s.hour.fract() * 60.0) as u32);
+    bevel(sx + sw - 38.0, bar_y + 2.0, 36.0, 11.0, false);
+    ui_text(&clock, sx + sw - 32.0, bar_y + 10.5, 9.0, BLACK);
+    let mut y = sy;
+    while y < sy + sh {
+        ui_rect(sx, y, sw, 0.5, Color::new(0.0, 0.0, 0.0, 0.1));
+        y += 2.0;
+    }
+    let t = "esc: close a window, or stand up";
+    ui_text(t, (low_w() - ui_measure(t, 9.0)) / 2.0, (my + mh + 12.0).min(low_h() - 3.0), 9.0, Color::new(1.0, 0.97, 0.88, 0.7));
+    if g.venue.overlay == Overlay::None && is_key_pressed(KeyCode::Escape) {
+        if g.venue.pc_app != 0 {
+            g.venue.pc_app = 0;
+        } else {
+            stand = true;
+        }
+    }
+    if stand {
+        g.venue.pc_open = false;
+        g.players[0].seated = false;
+        let p = g.players[0].pos + vec2(0.0, 0.25);
+        g.players[0].place_at(p);
+        g.audio.play_ch(3, &g.plink, 0.4);
+    }
+}
+
+fn browser(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32) {
+    let blue = Color::from_rgba(26, 47, 208, 255);
+    let url = ["quack://home", "quack://news", "quack://weather", "quack://underground"][g.venue.pc_page.min(3) as usize];
+    ui_rect(x, y, w, 13.0, Color::from_rgba(198, 195, 189, 255));
+    if button(fr, "home", x + 1.0, y + 1.0, 26.0, 11.0, false) {
+        g.venue.pc_page = 0;
+        fr.click = false;
+    }
+    bevel(x + 29.0, y + 1.0, w - 30.0, 11.0, false);
+    ui_rect(x + 30.0, y + 2.0, w - 32.0, 9.0, WHITE);
+    ui_text(url, x + 33.0, y + 9.5, 9.0, BLACK);
+    let (px, py, ph) = (x, y + 13.0, h - 13.0);
+    match g.venue.pc_page {
+        0 => {
+            ui_rect(px, py, w, ph, Color::from_rgba(253, 243, 208, 255));
+            ui_text("quackville online", px + 7.0, py + 17.0, 16.0, Color::from_rgba(255, 128, 98, 255));
+            let msg = "*** welcome to the information superpondway ***   ";
+            ui_rect(px, py + 22.0, w, 11.0, ink());
+            ui_text(&ui_ticker(msg, 9.0, w - 6.0, fr.time), px + 3.0, py + 30.0, 9.0, Color::from_rgba(198, 255, 61, 255));
+            ui_text(&format!("you are visitor no. {:06}", 1337 + g.venue.raves.len() * 7), px + 7.0, py + 47.0, 9.0, ink());
+            if link(fr, "> town news", px + 7.0, py + 62.0, blue) {
+                g.venue.pc_page = 1;
+            }
+            if link(fr, "> weather", px + 7.0, py + 76.0, blue) {
+                g.venue.pc_page = 2;
+            }
+            for k in 0..10 {
+                ui_rect(px + 7.0 + k as f32 * 7.0, py + 86.0, 7.0, 7.0, if k % 2 == 0 { Color::from_rgba(255, 214, 110, 255) } else { BLACK });
+            }
+            ui_text("under construction", px + 82.0, py + 93.0, 9.0, ink());
+            ui_text("best viewed at 640x480", px + 7.0, py + ph - 5.0, 8.0, Color::from_rgba(120, 116, 110, 255));
+            if link(fr, ".", px + w - 9.0, py + ph - 5.0, Color::from_rgba(214, 200, 160, 255)) {
+                g.venue.pc_page = 3;
+                g.audio.play_ch(3, &g.bells[0], 0.5);
+            }
+        }
+        1 => {
+            ui_rect(px, py, w, ph, WHITE);
+            ui_text("town news", px + 7.0, py + 16.0, 14.0, ink());
+            let lines = [
+                "* pc bang now open 24h. first hour free.",
+                "* strange bass heard from the old chapel",
+                "  every night. council 'looking into it'.",
+                "* flyers keep appearing on the board by",
+                "  the chapel. nobody admits to pasting them.",
+                "* campfire: still on fire.",
+            ];
+            for (i, l) in lines.iter().enumerate() {
+                ui_text(l, px + 7.0, py + 31.0 + i as f32 * 11.0, 9.0, ink());
+            }
+        }
+        2 => {
+            ui_rect(px, py, w, ph, Color::from_rgba(186, 230, 255, 255));
+            let s = sky();
+            ui_text("weather", px + 7.0, py + 16.0, 14.0, ink());
+            ui_text(&format!("quackville: {}, {}.", SEASONS[s.season], WEATHERS[s.weather]), px + 7.0, py + 32.0, 9.0, ink());
+            ui_text("the chapel: fog, lasers, 100% chance of bass.", px + 7.0, py + 44.0, 9.0, ink());
+        }
+        _ => {
+            ui_rect(px, py, w, ph, BLACK);
+            let glitch = if (fr.time * 7.0).sin() > 0.9 { 1.5 } else { 0.0 };
+            ui_text("u n d e r g r o u n d", px + 7.0 - glitch, py + 15.0, 13.0, Color::from_rgba(61, 242, 255, 255));
+            ui_text("u n d e r g r o u n d", px + 7.0 + glitch, py + 15.0, 13.0, Color::from_rgba(255, 61, 242, 255));
+            ui_text("the code on the flyer is the way in. tell no one.", px + 7.0, py + 27.0, 8.0, Color::from_rgba(198, 255, 61, 255));
+            let flyers: Vec<Rave> = g.venue.all_flyers().into_iter().take(6).cloned().collect();
+            for (i, r) in flyers.iter().enumerate() {
+                let (fx, fy) = (px + 7.0 + i as f32 * 35.0, py + 34.0);
+                draw_flyer(r, fx, fy, 1.0);
+                if hit(fr, fx, fy, 30.0, 42.0) {
+                    ui_rect(fx - 1.0, fy - 1.0, 32.0, 1.0, Color::from_rgba(198, 255, 61, 255));
+                    ui_rect(fx - 1.0, fy + 42.0, 32.0, 1.0, Color::from_rgba(198, 255, 61, 255));
+                    if fr.click {
+                        g.venue.overlay = Overlay::Flyer(i);
+                        fr.click = false;
+                    }
+                }
+            }
+            ui_text("throw your own: rave.exe on the desktop.", px + 7.0, py + ph - 14.0, 8.0, Color::from_rgba(198, 195, 189, 255));
+            ui_text("<!-- goose: never change the house tempo. 132. -->", px + 7.0, py + ph - 4.0, 7.0, Color::from_rgba(70, 66, 80, 255));
+        }
+    }
+}
+
+fn rave_exe(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
+    ui_rect(x, y, w, h, Color::from_rgba(198, 195, 189, 255));
+    if let Some(i) = g.venue.pc_made {
+        if let Some(r) = g.venue.raves.get(i).cloned() {
+            ui_text("your rave is booked. the code:", x + 6.0, y + 12.0, 9.0, BLACK);
+            bevel(x + 6.0, y + 16.0, 118.0, 24.0, false);
+            ui_rect(x + 8.0, y + 18.0, 114.0, 20.0, BLACK);
+            ui_text(&r.code, x + 13.0, y + 33.0, 16.0, Color::from_rgba(198, 255, 61, 255));
+            draw_flyer(&r, x + w - 56.0, y + 6.0, 1.6);
+            let tips = ["1. give the code to the goose", "   at the chapel door, north", "   along the forest path.", "2. tell your friends the code,", "   or let them find the flyer."];
+            for (k, t) in tips.iter().enumerate() {
+                ui_text(t, x + 6.0, y + 54.0 + k as f32 * 10.0, 9.0, BLACK);
+            }
+            if button(fr, "host another", x + 6.0, y + h - 18.0, 70.0, 13.0, false) {
+                g.venue.pc_made = None;
+                g.venue.pc_title.clear();
+            }
+            return;
+        }
+        g.venue.pc_made = None;
+    }
+    for ch in typed {
+        if (ch.is_ascii_alphanumeric() || *ch == ' ') && g.venue.pc_title.len() < 16 {
+            g.venue.pc_title.push(ch.to_ascii_lowercase());
+        }
+    }
+    if is_key_pressed(KeyCode::Backspace) {
+        g.venue.pc_title.pop();
+    }
+    ui_text("event name (just type)", x + 6.0, y + 12.0, 9.0, BLACK);
+    bevel(x + 6.0, y + 15.0, w - 12.0, 14.0, false);
+    ui_rect(x + 7.0, y + 16.0, w - 14.0, 12.0, WHITE);
+    let shown = if g.venue.pc_title.is_empty() { "acid mass".to_string() } else { g.venue.pc_title.clone() };
+    ui_text(&shown, x + 10.0, y + 25.5, 9.0, if g.venue.pc_title.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
+    if (fr.time * 2.0).fract() < 0.6 {
+        let cx = x + 11.0 + if g.venue.pc_title.is_empty() { 0.0 } else { ui_measure(&g.venue.pc_title, 9.0) };
+        ui_rect(cx, y + 18.0, 1.0, 8.0, BLACK);
+    }
+    ui_text("sound", x + 6.0, y + 42.0, 9.0, BLACK);
+    let bw = (w - 12.0) / 3.0;
+    for (i, s) in SOUNDS.iter().enumerate() {
+        if button(fr, s, x + 6.0 + i as f32 * bw, y + 45.0, bw - 2.0, 13.0, g.venue.pc_sound == i) {
+            g.venue.pc_sound = i;
+            g.venue.pc_bpm = [136.0, 130.0, 142.0][i];
+        }
+    }
+    ui_text(&format!("tempo: {} bpm", g.venue.pc_bpm as i32), x + 6.0, y + 72.0, 9.0, BLACK);
+    if button(fr, "-", x + 86.0, y + 63.0, 14.0, 12.0, false) {
+        g.venue.pc_bpm = (g.venue.pc_bpm - 2.0).max(110.0);
+    }
+    if button(fr, "+", x + 102.0, y + 63.0, 14.0, 12.0, false) {
+        g.venue.pc_bpm = (g.venue.pc_bpm + 2.0).min(160.0);
+    }
+    if button(fr, "generate code", x + 6.0, y + 84.0, 90.0, 16.0, false) || is_key_pressed(KeyCode::Enter) {
+        let title = g.venue.pc_title.clone();
+        let i = g.venue.host(&title, g.venue.pc_sound, g.venue.pc_bpm);
+        g.venue.pc_made = Some(i);
+        for n in [0usize, 2, 4, 5] {
+            g.audio.play_ch(3, &g.bells[n], 0.4);
+        }
+    }
+    if !g.venue.raves.is_empty() {
+        ui_text("your raves:", x + 6.0, y + h - 16.0, 8.0, BLACK);
+        let codes: Vec<String> = g.venue.raves.iter().rev().take(2).map(|r| r.code.clone()).collect();
+        ui_text(&codes.join("  "), x + 6.0, y + h - 6.0, 9.0, Color::from_rgba(27, 42, 138, 255));
+    }
+}
+
+fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
+    let green = Color::from_rgba(198, 255, 61, 255);
+    ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
+    for ch in typed {
+        if !ch.is_control() && g.venue.term_in.len() < 30 {
+            g.venue.term_in.push(*ch);
+        }
+    }
+    if is_key_pressed(KeyCode::Backspace) {
+        g.venue.term_in.pop();
+    }
+    if is_key_pressed(KeyCode::Enter) {
+        let line = std::mem::take(&mut g.venue.term_in);
+        if g.venue.run(&line) {
+            for n in [0usize, 2, 4, 5] {
+                g.audio.play_ch(3, &g.bells[n], 0.45);
+            }
+        } else {
+            g.audio.play_ch(3, &g.plink, 0.25);
+        }
+    }
+    let rows = ((h - 16.0) / 10.0) as usize;
+    let start = g.venue.term.len().saturating_sub(rows);
+    for (i, l) in g.venue.term[start..].iter().enumerate() {
+        let c = if l.starts_with("flag captured") { Color::from_rgba(255, 214, 110, 255) } else if l.contains("@pc7") { WHITE } else { green };
+        ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, c);
+    }
+    let prompt = if g.venue.term_pw { "password: ".to_string() } else { format!("{}@pc7:~$ ", if g.venue.term_goose { "goose" } else { "guest" }) };
+    let shown = if g.venue.term_pw { "*".repeat(g.venue.term_in.len()) } else { g.venue.term_in.clone() };
+    let line = format!("{prompt}{shown}");
+    ui_text(&line, x + 4.0, y + h - 4.0, 9.0, WHITE);
+    if (fr.time * 2.0).fract() < 0.6 {
+        ui_rect(x + 5.0 + ui_measure(&line, 9.0), y + h - 11.0, 4.0, 8.0, green);
+    }
+}
+
+fn flyer_view(g: &mut Game, fr: &mut Frame, i: usize, fresh: bool) {
+    let flyers: Vec<Rave> = g.venue.all_flyers().into_iter().cloned().collect();
+    if flyers.is_empty() {
+        g.venue.overlay = Overlay::None;
+        return;
+    }
+    let i = i.min(flyers.len() - 1);
+    let r = &flyers[i];
+    g.venue.learn(&r.code);
+    ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, 0.72));
+    let cell = ((low_h() - 44.0) / FLYER_H as f32).floor().max(3.0);
+    let (w, h) = (FLYER_W as f32 * cell, FLYER_H as f32 * cell);
+    let x = ((low_w() - w) / 2.0 - 58.0).max(6.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    draw_flyer(r, x, y, cell);
+    let cx = x + w + 12.0;
+    ui_rect(cx + 2.0, y + 12.0, 112.0, 76.0, ink());
+    ui_rect(cx, y + 10.0, 112.0, 76.0, cream());
+    ui_text("the code", cx + 8.0, y + 24.0, 9.0, Color::from_rgba(110, 100, 130, 255));
+    ui_text(&r.code, cx + 8.0, y + 42.0, 15.0, ink());
+    let note = if r.expired { "old and torn. that night's over." } else { "take it to the goose." };
+    for (k, l) in ui_wrap(note, 9.0, 98.0).iter().enumerate() {
+        ui_text(l, cx + 8.0, y + 56.0 + k as f32 * 10.0, 9.0, ink());
+    }
+    ui_text(&format!("flyer {} of {}", i + 1, flyers.len()), cx + 8.0, y + 80.0, 8.0, Color::from_rgba(110, 100, 130, 255));
+    let hint = "a/d: next flyer   esc: close";
+    ui_text(hint, (low_w() - ui_measure(hint, 9.0)) / 2.0, low_h() - 6.0, 9.0, Color::new(1.0, 0.97, 0.88, 0.8));
+    if fresh {
+        return;
+    }
+    let n = flyers.len();
+    if is_key_pressed(KeyCode::D) || is_key_pressed(KeyCode::Right) {
+        g.venue.overlay = Overlay::Flyer((i + 1) % n);
+        g.audio.play_ch(3, &g.plink, 0.3);
+    } else if is_key_pressed(KeyCode::A) || is_key_pressed(KeyCode::Left) {
+        g.venue.overlay = Overlay::Flyer((i + n - 1) % n);
+        g.audio.play_ch(3, &g.plink, 0.3);
+    } else if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::E) || (fr.click && !hit(fr, x, y, w + 130.0, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (w, h) = (250.0, 128.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, Color::from_rgba(52, 40, 102, 255));
+    let (gx, gy) = (x + 12.0, y + 14.0);
+    ui_rect(gx + 4.0, gy + 44.0, 44.0, 44.0, Color::from_rgba(30, 28, 44, 255));
+    ui_rect(gx + 18.0, gy + 12.0, 16.0, 40.0, WHITE);
+    ui_rect(gx + 12.0, gy, 28.0, 22.0, WHITE);
+    ui_rect(gx + 34.0, gy + 12.0, 16.0, 7.0, Color::from_rgba(255, 154, 60, 255));
+    ui_rect(gx + 12.0, gy + 6.0, 30.0, 6.0, Color::from_rgba(10, 10, 20, 255));
+    let tx = x + 76.0;
+    ui_text("the goose", tx, y + 18.0, 9.0, Color::from_rgba(255, 168, 204, 255));
+    for (k, l) in ui_wrap(&g.venue.door_msg, 11.0, w - 88.0).iter().take(2).enumerate() {
+        ui_text(l, tx, y + 34.0 + k as f32 * 12.0, 11.0, cream());
+    }
+    let raw: String = g.venue.door_code.clone();
+    let mut shown = String::new();
+    for (k, c) in raw.chars().enumerate() {
+        if k == 3 || k == 6 {
+            shown.push('-');
+        }
+        shown.push(c);
+    }
+    ui_rect(tx, y + 58.0, 150.0, 22.0, ink());
+    ui_rect(tx + 2.0, y + 60.0, 146.0, 18.0, cream());
+    ui_text(if shown.is_empty() { "type the code" } else { &shown }, tx + 8.0, y + 74.0, 14.0, if shown.is_empty() { Color::from_rgba(170, 160, 150, 255) } else { ink() });
+    let mut submit: Option<String> = None;
+    if !g.venue.known.is_empty() {
+        ui_text("codes you've seen (click one)", x + 12.0, y + 100.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.6));
+        let mut cx = x + 12.0;
+        for c in g.venue.known.clone().iter().take(3) {
+            let cw = ui_measure(c, 9.0) + 10.0;
+            let over = hit(fr, cx, y + 104.0, cw, 14.0);
+            ui_rect(cx, y + 104.0, cw, 14.0, if over { Color::from_rgba(255, 214, 110, 255) } else { ink() });
+            ui_text(c, cx + 5.0, y + 114.0, 9.0, if over { ink() } else { cream() });
+            if over && fr.click {
+                submit = Some(c.clone());
+                fr.click = false;
+            }
+            cx += cw + 5.0;
+        }
+    }
+    if fresh {
+        return;
+    }
+    while let Some(ch) = get_char_pressed() {
+        if ch.is_ascii_alphanumeric() && g.venue.door_code.len() < 9 {
+            g.venue.door_code.push(ch.to_ascii_uppercase());
+        }
+    }
+    if is_key_pressed(KeyCode::Backspace) {
+        g.venue.door_code.pop();
+    }
+    if fr.click && hit(fr, tx, y + 58.0, 150.0, 22.0) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text("the code on the flyer", &shown) {
+            g.venue.door_code = text.chars().filter(|c| c.is_ascii_alphanumeric()).take(9).collect::<String>().to_uppercase();
+        }
+    }
+    if is_key_pressed(KeyCode::Enter) {
+        submit = Some(g.venue.door_code.clone());
+    }
+    if is_key_pressed(KeyCode::Escape) {
+        g.venue.overlay = Overlay::None;
+        return;
+    }
+    if let Some(text) = submit {
+        match tidy_code(&text) {
+            None => {
+                g.venue.door_msg = "nine letters and numbers, mate.".to_string();
+                g.audio.play_ch(3, &g.tom, 0.6);
+            }
+            Some(code) => {
+                let found = g.venue.raves.iter().chain(g.venue.secret.iter()).find(|r| r.code == code).cloned();
+                if let Some(r) = found {
+                    g.venue.now = Some(r);
+                    enter(g, Venue::Chapel);
+                } else if g.venue.decoys.iter().any(|r| r.code == code) {
+                    g.venue.door_msg = "that flyer's from last summer. that night's long over.".to_string();
+                    g.venue.door_code.clear();
+                    g.audio.play_ch(3, &g.tom, 0.6);
+                } else {
+                    g.venue.door_msg = "never heard of it. no code, no rave.".to_string();
+                    g.venue.door_code.clear();
+                    g.audio.play_ch(3, &g.tom, 0.6);
+                }
+            }
+        }
+    }
+}
+
+fn rave_tick(g: &mut Game, dt: f32) -> (f32, usize, bool) {
+    g.venue.live_clock += dt;
+    if g.venue.live_clock > 0.5 {
+        g.venue.live_clock = 0.0;
+        g.venue.live = radio::now_playing();
+        let bpm = radio::bpm();
+        if bpm > 0.0 {
+            g.radio_bpm = bpm;
+        }
+    }
+    let Some(r) = g.venue.now.clone() else {
+        return (0.0, 0, false);
+    };
+    let live = !g.venue.live.is_empty();
+    let bpm = if live && g.radio_bpm > 0.0 { g.radio_bpm } else { r.bpm };
+    let beat = (get_time() - g.venue.rave_start) * bpm as f64 / 60.0;
+    let step = (beat * 4.0).floor() as i64;
+    let bar = (step / 16).rem_euclid(32) as usize;
+    let breakdown = (16..20).contains(&bar);
+    let drop = bar >= 20;
+    if step != g.venue.last_step {
+        g.venue.last_step = step;
+        if !live {
+            let s = step.rem_euclid(16) as i32;
+            let seed = (r.seed & 0xfff) as u32;
+            let intro = bar < 4;
+            if !breakdown && s % 4 == 0 {
+                g.audio.play_ch(2, &g.kick, 1.0);
+            }
+            if !breakdown && !intro && (s == 4 || s == 12) {
+                g.audio.play_ch(2, &g.clap, 0.7);
+            }
+            if s % 4 == 2 {
+                g.audio.play_ch(2, if drop { &g.open_hat } else { &g.hat }, 0.5);
+            } else if s % 2 == 1 && !intro {
+                g.audio.play_ch(2, &g.hat, 0.22);
+            }
+            if !breakdown && !intro && s % 4 != 0 {
+                g.audio.play_ch(2, &g.bass, 0.5);
+            }
+            let on = hash(s, seed as i32, 21) > 0.42;
+            let note = ((hash(s, seed as i32, 22) * 6.0) as usize).min(5);
+            if !intro {
+                match r.sound {
+                    0 => {
+                        if on {
+                            g.audio.play_ch(3, &g.marimba[note], 0.5);
+                        }
+                    }
+                    1 => {
+                        if on && s % 2 == 0 {
+                            g.audio.play_ch(3, &g.bells[note], 0.38);
+                        }
+                        if s == 0 {
+                            for n in [0usize, 2, 4] {
+                                g.audio.play_ch(3, &g.piano[n], 0.26);
+                            }
+                        }
+                    }
+                    _ => {
+                        if s % 2 == 0 {
+                            g.audio.play_ch(3, &g.piano[[0usize, 2, 4, 5, 4, 2, 3, 1][(s / 2) as usize % 8]], 0.32);
+                        }
+                    }
+                }
+            }
+            if breakdown && s == 0 && bar == 19 {
+                g.audio.play_ch(2, &g.tom, 0.8);
+            }
+        }
+    }
+    let frac = beat.rem_euclid(1.0) as f32;
+    let pulse = if breakdown { 0.2 * (1.0 - frac) } else { (1.0 - frac).powi(3) };
+    (pulse, bar, drop)
+}
+
+fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let dt = fr.dt;
+    let time = fr.time;
+    let solids = chapel_solids();
+    walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, false);
+    let local = g.players[0].pos - CH_ORIGIN;
+    if !fresh && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
+        leave(g);
+        return;
+    }
+    let (pulse, bar, drop) = rave_tick(g, dt);
+    g.venue.pulse = pulse;
+    let rave = g.venue.now.clone();
+    let center = vec3(CH_ORIGIN.x + CH_SIZE.0 / 2.0, 0.5, CH_ORIGIN.y + CH_SIZE.1 / 2.0);
+    begin_room(g, center, 1.75, Color::from_rgba(10, 7, 20, 255));
+    let o = vec3(CH_ORIGIN.x, 0.5, CH_ORIGIN.y);
+    let booth = o + vec3(BOOTH.0, 0.0, BOOTH.1);
+    let mut lamps = Vec::new();
+    for n in 0..4 {
+        let a = time * (0.5 + n as f32 * 0.13) + n as f32 * 1.7;
+        let c = hsv((0.82 + n as f32 * 0.17 + time * 0.02).fract(), 0.8, 1.0);
+        lamps.push((o + vec3(5.5 + a.cos() * 3.2, 0.9, 4.6 + (a * 0.8).sin() * 2.2), 0.7 + pulse * 0.9, vec3(c.r, c.g, c.b)));
+    }
+    lamps.push((booth + vec3(0.0, 1.2, 0.3), 0.9 + pulse * 0.8, vec3(1.0, 0.25, 0.95)));
+    let light = Light { dusk: 0.96, fire: booth + vec3(0.0, 1.5, 0.0), fire_strength: 0.15 + pulse * 0.35, tint: vec3(0.9, 0.3, 1.0), lamps };
+    let mut b = Batch::new(center + vec3(0.0, 5.6, -1.8), light);
+    for z in 0..CH_SIZE.1 as i32 {
+        for x in 0..CH_SIZE.0 as i32 {
+            let c = if (x + z) % 2 == 0 { Color::from_rgba(96, 92, 108, 255) } else { Color::from_rgba(86, 82, 98, 255) };
+            b.top(o + vec3(x as f32 + 0.5, 0.0, z as f32 + 0.5), c);
+        }
+    }
+    let conc = Color::from_rgba(150, 146, 162, 255);
+    let conc_dark = Color::from_rgba(118, 114, 132, 255);
+    let conc_deep = Color::from_rgba(78, 74, 94, 255);
+    for level in 0..9 {
+        let c = if level % 2 == 0 { conc } else { conc_dark };
+        b.cube(o + vec3(CH_SIZE.0 / 2.0, 0.2 + level as f32 * 0.4, -0.15), vec3(CH_SIZE.0 + 0.6, 0.4, 0.3), c);
+    }
+    for level in 0..5 {
+        let c = if level % 2 == 0 { conc_dark } else { conc };
+        b.cube(o + vec3(-0.15, 0.2 + level as f32 * 0.4, CH_SIZE.1 / 2.0), vec3(0.3, 0.4, CH_SIZE.1), c);
+        b.cube(o + vec3(CH_SIZE.0 + 0.15, 0.2 + level as f32 * 0.4, CH_SIZE.1 / 2.0), vec3(0.3, 0.4, CH_SIZE.1), c);
+    }
+    b.cube(o + vec3(CH_SIZE.0 / 2.0, 3.7, -0.05), vec3(CH_SIZE.0 + 0.8, 0.3, 0.5), conc_deep);
+    for (x, z) in PILLARS {
+        for level in 0..7 {
+            let c = if level % 2 == 0 { conc } else { conc_dark };
+            b.cube(o + vec3(x, 0.2 + level as f32 * 0.4, z), vec3(0.42, 0.4, 0.42), c);
+        }
+        b.cube(o + vec3(x, 2.9, z), vec3(0.6, 0.16, 0.6), conc_deep);
+    }
+    b.unlit = true;
+    let glow = 0.35 + 0.65 * pulse;
+    for (i, (wx, ww, wh)) in [(2.0f32, 0.8f32, 1.7f32), (5.5, 1.1, 2.1), (9.0, 0.8, 1.7)].iter().enumerate() {
+        let c = hsv((0.86 - i as f32 * 0.16 + (bar / 4) as f32 * 0.09).rem_euclid(1.0), 0.75, glow);
+        lancet(&mut b, o.x + wx, o.y + 0.9, o.z + 0.02, *ww, *wh, c, 0.04);
+        b.cube(o + vec3(*wx, 0.9 + wh * 0.5, 0.05), vec3(0.05, *wh, 0.02), Color::from_rgba(14, 10, 26, 255));
+        for k in 1..4 {
+            b.cube(o + vec3(*wx, 0.9 + wh * k as f32 / 4.0, 0.05), vec3(*ww, 0.04, 0.02), Color::from_rgba(14, 10, 26, 255));
+        }
+    }
+    for k in 0..10 {
+        let a = k as f32 / 10.0 * std::f32::consts::TAU + time * 0.3;
+        let c = hsv((0.8 + k as f32 * 0.03).fract(), 0.7, glow);
+        b.cube(o + vec3(3.75 + a.cos() * 0.32, 2.6 + a.sin() * 0.32, 0.03), vec3(0.13, 0.13, 0.03), c);
+        b.cube(o + vec3(7.25 + a.cos() * 0.32, 2.6 + a.sin() * 0.32, 0.03), vec3(0.13, 0.13, 0.03), c);
+    }
+    b.unlit = false;
+    b.cube(booth + vec3(0.0, 0.3, 0.0), vec3(2.4, 0.6, 0.6), conc_dark);
+    b.cube(booth + vec3(0.0, 0.62, 0.0), vec3(2.6, 0.06, 0.7), conc_deep);
+    for dx in [-0.75f32, 0.75] {
+        b.cube(booth + vec3(dx, 0.69, 0.0), vec3(0.6, 0.06, 0.46), Color::from_rgba(26, 24, 38, 255));
+        let spin = time * 4.0 * dx.signum();
+        b.box_at(booth + vec3(dx - 0.06, 0.74, 0.0), spin, Vec3::ZERO, vec3(0.34, 0.03, 0.34), Color::from_rgba(50, 46, 70, 255));
+        b.box_at(booth + vec3(dx - 0.06, 0.76, 0.0), spin, vec3(0.1, 0.0, 0.0), vec3(0.06, 0.02, 0.06), Color::from_rgba(255, 61, 242, 255));
+    }
+    b.cube(booth + vec3(0.0, 0.7, 0.0), vec3(0.5, 0.08, 0.44), Color::from_rgba(26, 24, 38, 255));
+    b.unlit = true;
+    b.cube(booth + vec3(0.0, 0.3, 0.31), vec3(2.3, 0.05, 0.01), Color::new(1.0, 0.24, 0.95, 1.0));
+    for k in 0..4 {
+        let lvl = (0.3 + 0.7 * pulse * hash(k, (time * 8.0) as i32, 5)).min(1.0);
+        b.cube(booth + vec3(-0.15 + k as f32 * 0.1, 0.76, 0.1), vec3(0.04, 0.02, 0.12 * lvl), Color::from_rgba(61, 242, 255, 255));
+    }
+    b.unlit = false;
+    for sx in [3.1f32, 7.9] {
+        for level in 0..3 {
+            let sp = o + vec3(sx, 0.3 + level as f32 * 0.6, 1.05);
+            b.cube(sp, vec3(0.7, 0.58, 0.6), Color::from_rgba(30, 28, 44, 255));
+            let throb = 0.3 + 0.08 * pulse;
+            b.cube(sp + vec3(0.0, 0.0, 0.31), vec3(throb, throb, 0.02), Color::from_rgba(58, 54, 82, 255));
+        }
+    }
+    let duck = g.cast_list.iter().position(|c| matches!(c.body, Body::Duck)).unwrap_or(0);
+    let mut dj = Player::new(duck, g.cast_list[duck].body, CH_ORIGIN + vec2(BOOTH.0, BOOTH.1 - 0.75));
+    dj.yaw = 0.0;
+    dj.lift = pulse * 0.05;
+    dj.draw(&mut b, &g.world, time, pulse);
+    for (i, c) in g.venue.crowd.iter_mut().enumerate() {
+        let off = hash(i as i32, 7, 44);
+        c.lift = (pulse * (0.04 + off * 0.07)).max(0.0);
+        c.voice_timer = if drop && off > 0.6 && pulse > 0.7 { 0.1 } else { 0.0 };
+    }
+    for c in g.venue.crowd.iter() {
+        c.draw(&mut b, &g.world, time, pulse);
+    }
+    for p in g.players.iter() {
+        p.draw(&mut b, &g.world, time, pulse);
+    }
+    b.unlit = true;
+    let beams = if drop { 9 } else { 5 };
+    for i in 0..beams {
+        let k = i as f32 / (beams - 1) as f32 - 0.5;
+        let yaw = k * 2.1 + (time * (0.7 + 0.2 * i as f32) + i as f32).sin() * 0.25;
+        let c = if i % 2 == 0 { Color::new(0.78, 1.0, 0.24, 0.3 + 0.4 * pulse) } else { Color::new(1.0, 0.24, 0.95, 0.3 + 0.4 * pulse) };
+        b.box_at(booth + vec3(0.0, 1.75, 0.2), yaw, vec3(0.0, 0.0, 4.6), vec3(0.03, 0.03, 9.2), c);
+    }
+    b.flush();
+    blit(g);
+    if drop && pulse > 0.85 {
+        ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(1.0, 1.0, 1.0, 0.06));
+    }
+    let Some(r) = rave else {
+        return;
+    };
+    let live = !g.venue.live.is_empty();
+    let section = if live { "live" } else if bar < 4 { "intro" } else if (16..20).contains(&bar) { "breakdown" } else if drop { "drop" } else { "groove" };
+    let line = if live { format!("live: {}", g.venue.live) } else { format!("generated set - {} - {} bpm - {}", SOUNDS[r.sound % 3], r.bpm as i32, section) };
+    let w = (ui_measure(&line, 9.0) + 40.0).max(ui_measure(&r.title, 14.0) + 40.0).min(low_w() - 12.0);
+    let x = (low_w() - w) / 2.0;
+    ui_rect(x, 5.0, w, 34.0, Color::new(0.2, 0.16, 0.4, 0.88));
+    ui_text(&r.title, (low_w() - ui_measure(&r.title, 14.0)) / 2.0, 19.0, 14.0, cream());
+    let shown = ui_ticker(&line, 9.0, w - 36.0, time);
+    ui_text(&shown, x + 8.0, 33.0, 9.0, if live { Color::from_rgba(255, 110, 200, 255) } else { Color::from_rgba(198, 255, 61, 255) });
+    let beat_now = ((get_time() - g.venue.rave_start) * r.bpm as f64 / 60.0).rem_euclid(4.0) as usize;
+    for k in 0..4 {
+        ui_rect(x + w - 26.0 + k as f32 * 5.0, 28.0, 4.0, 4.0, if k == beat_now { Color::from_rgba(255, 214, 110, 255) } else { ink() });
+    }
+    let code = format!("code {}", r.code);
+    let cw = ui_measure(&code, 9.0) + 10.0;
+    ui_rect((low_w() - cw) / 2.0, 42.0, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
+    ui_text(&code, (low_w() - cw) / 2.0 + 5.0, 51.0, 9.0, cream());
+    place_label("st. bassilica", "wasd: move   1-6: sing over the set   esc or the door: leave");
+}

@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// The bookshelf and an open book. Takes over the whole frame.
 pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
         let left_k = is_key_pressed(KeyCode::A) || is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::J);
         let right_k = is_key_pressed(KeyCode::D) || is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::L);
@@ -92,7 +91,6 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
         }
 }
 
-/// The fishdex / shroomdex screen. Takes over the whole frame.
 pub(crate) fn fishdex(g: &mut Game, fr: &mut Frame) {
         let shrooms_mode = g.dex_mode == 1;
         let counts: &Vec<u32> = if shrooms_mode { &g.shroom_counts } else { &g.dex_counts };
@@ -293,7 +291,6 @@ pub(crate) fn fishdex(g: &mut Game, fr: &mut Frame) {
         ui_text(help, x + (w - ui_measure(help, 9.0)) / 2.0, y + h - 5.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.5));
 }
 
-/// The pause menu and mixer. Takes over the whole frame.
 pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         let labels: [String; 5] = if g.two_player {
             [

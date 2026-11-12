@@ -1,5 +1,3 @@
-//! Drawing the home, its furniture and the shop preview.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

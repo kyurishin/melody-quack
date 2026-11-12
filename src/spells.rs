@@ -1,5 +1,3 @@
-//! Note spells and the particles they throw.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

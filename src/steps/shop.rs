@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// The furniture shop and diary.
 pub(crate) fn draw_shop(g: &mut Game, _fr: &mut Frame) {
     if g.shop_open {
         let rows = home::shop_rows();

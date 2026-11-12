@@ -1,5 +1,3 @@
-//! Values worked out fresh every frame and shared between the frame's steps.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

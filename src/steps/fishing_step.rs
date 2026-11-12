@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Fishing on the beat, and the lesson cards' timers.
 pub(crate) fn fishing(g: &mut Game, fr: &mut Frame) {
     if g.fishing.active && g.fish_card <= 0.0 {
         let fish_window = 0.22 * g.fishing.tight / g.looper.step_seconds();

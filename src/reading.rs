@@ -1,5 +1,3 @@
-//! The bookshelf and reading pages.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

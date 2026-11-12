@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// The step sampler and recording your own sounds.
 pub(crate) fn sampler(g: &mut Game, fr: &mut Frame) {
     if g.sampler.open && !g.inside {
         g.sampler.open = false;

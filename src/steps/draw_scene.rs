@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Renders the 3D world (or home) and puts it on screen.
 pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
     let cat = &g.players[0];
     fr.ahead = cat.ahead();

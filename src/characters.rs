@@ -1,5 +1,3 @@
-//! Who you can play as, and their voices.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

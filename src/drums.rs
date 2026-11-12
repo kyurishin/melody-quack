@@ -1,5 +1,3 @@
-//! Drum and bass synthesis and the beat styles.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Saves every few seconds, on quit and on restart.
 pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
     g.save_clock += get_frame_time();
     fr.quitting = is_quit_requested();

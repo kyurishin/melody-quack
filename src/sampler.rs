@@ -1,5 +1,3 @@
-//! The step sampler and recording clean-up.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

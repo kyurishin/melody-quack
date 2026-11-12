@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Closing help, the sampler or the arcade, and Esc to pause.
 pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
     fr.just_paused = false;
     fr.help_closed = false;
@@ -49,7 +48,6 @@ pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// P, Tab, R, C, B and H.
 pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::P) {
         g.two_player = !g.two_player;
@@ -117,7 +115,6 @@ pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// Opening the bag and taking furniture out of it.
 pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
     fr.bag_keys = [is_key_pressed(KeyCode::M) || is_key_pressed(KeyCode::Enter), g.two_player && is_key_pressed(KeyCode::Backspace)];
     for who in 0..2 {
@@ -187,7 +184,6 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// T for the tape recorder, N to start a fresh game.
 pub(crate) fn tape_and_fresh_start(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::T) {
         if g.audio.tape_seconds().is_some() {

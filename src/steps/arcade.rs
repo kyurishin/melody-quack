@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// The dance arcade.
 pub(crate) fn dance_arcade(g: &mut Game, fr: &mut Frame) {
     if let Some((who, i)) = g.ddr_request.take() {
         if !g.ddr.on[who] && i < g.house.pieces.len() {

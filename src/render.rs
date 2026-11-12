@@ -1,5 +1,3 @@
-//! Rendering the main view and the character picker.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]
@@ -167,6 +165,7 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
     draw_world(&mut b, view.world, view.time, focus_pos, false);
     draw_shrooms(&mut b, view.time);
     draw_cottage(&mut b, d, false, focus_pos);
+    venues::draw_exteriors(&mut b, d, false, focus_pos, view.time);
     draw_camp(&mut b, view.camp, view.time);
     for (lx, lz) in LANTERNS {
         draw_lantern(&mut b, vec3(lx, 0.5, lz), view.time);
@@ -297,6 +296,7 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
     b.flush();
     draw_world(&mut b, view.world, view.time, focus_pos, true);
     draw_cottage(&mut b, d, true, focus_pos);
+    venues::draw_exteriors(&mut b, d, true, focus_pos, view.time);
     b.flush();
 }
 

@@ -1,5 +1,3 @@
-//! The island map: tiles, walking and collision.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]
@@ -203,7 +201,6 @@ impl World {
 }
 
 pub(crate) fn walkable(world: &World, p: Vec2) -> bool {
-
 
     let r = CAT_RADIUS;
     for (ox, oz) in [(-r, -r), (r, -r), (-r, r), (r, r)] {

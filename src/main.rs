@@ -49,6 +49,7 @@ mod ddr;
 mod state;
 mod frame_state;
 mod steps;
+mod venues;
 
 use util::*;
 use ui::*;
@@ -114,25 +115,14 @@ mod clock;
 #[path = "native/clock.rs"]
 mod clock;
 
-fn icon_pixels<const N: usize>(png: &[u8]) -> [u8; N] {
-    let img = Image::from_file_with_format(png, None).expect("could not read icon");
-    img.bytes.try_into().expect("icon has the wrong size")
-}
-
 fn window_conf() -> Conf {
     Conf {
         window_title: "Melody Quack".to_owned(),
         window_width: (VIEW_W * 3) as i32,
         window_height: (VIEW_H * 3) as i32,
-        icon: Some(miniquad::conf::Icon {
-            small: icon_pixels(include_bytes!("../assets/icon16.png")),
-            medium: icon_pixels(include_bytes!("../assets/icon32.png")),
-            big: icon_pixels(include_bytes!("../assets/icon64.png")),
-        }),
         ..Default::default()
     }
 }
-
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -365,7 +355,9 @@ async fn main() {
     }
     prevent_quit();
 
+    venues::stamp(&mut world);
     let mut g = Game {
+        venue: venues::VenueState::new(),
         audio,
         cast_list,
         voices,
@@ -523,6 +515,10 @@ async fn main() {
     loop {
         let mut fr = Frame::default();
         steps::input::begin_frame(&mut g, &mut fr);
+        if steps::venues::frame(&mut g, &mut fr) {
+            next_frame().await;
+            continue;
+        }
         if g.shelf_open {
             steps::screens::bookshelf(&mut g, &mut fr);
             next_frame().await;

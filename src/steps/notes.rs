@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Players and the dog singing notes; the looper replays them.
 pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
     fr.active = if g.two_player { 2 } else { 1 };
     fr.dog_jamming = g.jam && !g.two_player && g.players[1].seated;
@@ -181,7 +180,6 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
     });
 }
 
-/// Runs once per 16th-note step: beats, partner answers, cooking.
 pub(crate) fn on_step(g: &mut Game, fr: &mut Frame) {
     fr.step = g.looper.current_step();
     if g.looper.last_step != Some(fr.step) {
@@ -384,7 +382,6 @@ pub(crate) fn on_step(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// Stars for playing together, and playing a diary tune back.
 pub(crate) fn session_and_playback(g: &mut Game, fr: &mut Frame) {
     fr.together = !g.inside && if g.two_player { g.players[0].seated && g.players[1].seated } else { fr.dog_jamming };
     fr.playing = fr.together && fr.time - g.last_note_at < 8.0;

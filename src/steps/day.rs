@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// A new day: quests, mushrooms, and dusk falling.
 pub(crate) fn day_and_mushrooms(g: &mut Game, fr: &mut Frame) {
     fr.real_night = update_sky().night * 0.95;
     {

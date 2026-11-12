@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Sitting down to jam, and the campfire burning.
 pub(crate) fn jam_and_fire(g: &mut Game, fr: &mut Frame) {
     fr.was_jam = g.jam;
     g.jam = !g.inside && (g.players[0].seated || (g.two_player && g.players[1].seated));

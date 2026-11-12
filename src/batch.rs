@@ -1,5 +1,3 @@
-//! The 3D renderer: lights and batched cubes.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

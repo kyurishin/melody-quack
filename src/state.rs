@@ -1,11 +1,10 @@
-//! Everything the game keeps between frames.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
 pub(crate) struct Game {
+    pub(crate) venue: venues::VenueState,
     pub(crate) audio: audio::Audio,
     pub(crate) cast_list: Vec<Character>,
     pub(crate) voices: Vec<Vec<audio::Sound>>,
@@ -162,12 +161,10 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    /// The percussion sounds the cooking pot plays, in pad order.
     pub(crate) fn perc(&self) -> [&audio::Sound; 4] {
         [&self.kick, &self.lid, &self.chop, &self.sizzle]
     }
 
-    /// Play DJ pad `i` for player `who` (player 2 gets the melodic pads).
     pub(crate) fn play_pad(&self, who: usize, i: usize, volume: f32, friend_voice: usize) {
         let audio = &self.audio;
         if who == 0 {

@@ -1,5 +1,3 @@
-//! Sound effects, the tape recorder and the echo effect.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

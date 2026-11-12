@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// First-steps guide, picker, sleep fade, sampler, arcade and help.
 pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
     if !g.picking && !g.show_help && g.first_steps > 0 && g.first_steps < 4 {
         let (heading, message) = match g.first_steps {

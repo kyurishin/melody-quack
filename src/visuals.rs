@@ -1,5 +1,3 @@
-//! Music-reactive TV visuals.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

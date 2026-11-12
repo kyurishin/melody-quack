@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Everything a player can do at home: furniture, shop, instruments.
 pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
     if g.inside && !g.picking {
         for who in 0..(if g.two_player { 2 } else { 1 }) {

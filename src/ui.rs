@@ -1,5 +1,3 @@
-//! Screen-space UI: scaling, text, wrapping and pixel-art icons.
-
 #[allow(unused_imports)]
 use crate::*;
 #[allow(unused_imports)]

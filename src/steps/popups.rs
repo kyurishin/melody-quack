@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// DJ pads, fish pop-ups, emoji strips and lesson cards.
 pub(crate) fn draw_popups(g: &mut Game, fr: &mut Frame) {
     for who in 0..2 {
         if !(g.inside && g.dj[who]) || (who == 1 && !g.two_player) {

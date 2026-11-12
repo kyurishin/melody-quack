@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Reads both players' directions and the door keys.
 pub(crate) fn read_movement(g: &mut Game, fr: &mut Frame) {
     fr.p1_dir = if g.two_player {
         direction(&[KeyCode::W], &[KeyCode::S], &[KeyCode::A], &[KeyCode::D])
@@ -57,7 +56,6 @@ pub(crate) fn read_movement(g: &mut Game, fr: &mut Frame) {
     fr.build_request = None;
 }
 
-/// Everything a player can do outside: walk, gather, fish, cook, sing.
 pub(crate) fn outdoors(g: &mut Game, fr: &mut Frame) {
     if !g.inside && !g.picking && !fr.picker_closed {
         for who in 0..(if g.two_player { 2 } else { 1 }) {
@@ -234,7 +232,6 @@ pub(crate) fn outdoors(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// Walking in and out of the cottage.
 pub(crate) fn doors(g: &mut Game, fr: &mut Frame) {
     if fr.go_in && !g.inside {
         g.inside = true;
@@ -279,7 +276,6 @@ pub(crate) fn doors(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-/// Places or removes a wall where a player asked.
 pub(crate) fn build_walls(g: &mut Game, fr: &mut Frame) {
     if let Some((who, x, z)) = fr.build_request {
         let blocked = g.players.iter().any(|p| touches_cat(x, z, p.pos));

@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Trees, fire, wind, particles, hearts and toasts.
 pub(crate) fn world_tick(g: &mut Game, fr: &mut Frame) {
     g.stick_trees.retain(|&(x, z)| g.world.get(x, z).map(|t| t.kind == Kind::Tree && t.fire <= 0.0).unwrap_or(false));
     g.stick_clock -= fr.dt;

@@ -3,7 +3,6 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-/// Tells the web page what the touch buttons mean, and reads the radio.
 pub(crate) fn report_and_radio(g: &mut Game, _fr: &mut Frame) {
     {
         let labels: Vec<&str> = (0..6)
