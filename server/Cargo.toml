@@ -1,0 +1,13 @@
+[package]
+name = "mq-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mq-shared = { path = "../shared" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+tokio-tungstenite = "0.24"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+[dev-dependencies]
+tungstenite = "0.24"
