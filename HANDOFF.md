@@ -169,7 +169,7 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - **Venues (`venues.rs`, `steps/venues.rs`):** the PC bang (tiles `PCBANG`) and St. Bassilica (tiles `CHAPEL`) are stamped onto the map by `venues::stamp`, also after loading an old save. Interiors sit at `PC_ORIGIN` and `CH_ORIGIN`, far off the map like the home. `VenueState` is `g.venue`; it is not saved.
 - **PC bang:** sit at a computer (E) for the Quack 95 desktop: quacknet (a hidden `.` link opens the underground flyer page), rave.exe (books a rave, gives a code and a flyer), readme, and a terminal with a small capture the flag (`ls -a`, `su goose` with the tempo 132 as password, `rot13`) that reveals the secret rave's code.
 - **Chapel:** the goose at the door takes a code typed in or picked from codes already seen; old flyers' codes are refused. Inside, `rave_tick` sequences techno from the existing drum, bass, bell, marimba and piano sounds, seeded by the rave. If the radio reports a live track, the generated set stays silent and the panel shows the live title.
-- **Icons:** the old cat icon was removed on request; the window, page and manifest have no icon until a new file is added.
+- **Icons:** `assets/icon16/32/64.png` (window) and `web/icon64/180/192/512.png` (page and manifest) are scaled from the owner's icon artwork.
 
 ## Online play
 

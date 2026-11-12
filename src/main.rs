@@ -123,11 +123,21 @@ mod clock;
 #[path = "native/clock.rs"]
 mod clock;
 
+fn icon_pixels<const N: usize>(png: &[u8]) -> [u8; N] {
+    let img = Image::from_file_with_format(png, None).expect("could not read icon");
+    img.bytes.try_into().expect("icon has the wrong size")
+}
+
 fn window_conf() -> Conf {
     Conf {
         window_title: "Melody Quack".to_owned(),
         window_width: (VIEW_W * 3) as i32,
         window_height: (VIEW_H * 3) as i32,
+        icon: Some(miniquad::conf::Icon {
+            small: icon_pixels(include_bytes!("../assets/icon16.png")),
+            medium: icon_pixels(include_bytes!("../assets/icon32.png")),
+            big: icon_pixels(include_bytes!("../assets/icon64.png")),
+        }),
         ..Default::default()
     }
 }

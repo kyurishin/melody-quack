@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p dist
           cp target/wasm32-unknown-unknown/release/melody-quack.wasm dist/
-          cp web/index.html web/mq_js_bundle.js web/sets.js web/manifest.webmanifest dist/
+          cp web/index.html web/mq_js_bundle.js web/sets.js web/manifest.webmanifest web/icon64.png web/icon180.png web/icon192.png web/icon512.png dist/
 
       - uses: actions/upload-pages-artifact@v3
         with:
