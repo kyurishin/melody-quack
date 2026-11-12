@@ -56,7 +56,15 @@ pub fn step(g: &mut Game) {
         }
         1 => shot(g, "01-title"),
         2 => {
-            g.connect(true);
+            // MQ_AUTOPILOT_SERVER=ws://... runs the tour against a real server.
+            match std::env::var("MQ_AUTOPILOT_SERVER") {
+                Ok(url) => {
+                    g.settings.server = url;
+                    g.settings.dj_key = std::env::var("MQ_AUTOPILOT_DJ_KEY").unwrap_or_default();
+                    g.connect(false);
+                }
+                Err(_) => g.connect(true),
+            }
             wait = 30;
         }
         3 => {

@@ -1,0 +1,49 @@
+name: macOS DMG
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev cmake
+      - run: cargo test --workspace
+
+  dmg:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build universal binary
+        env:
+          # Build libopus from source for each architecture.
+          LIBOPUS_NO_PKG: "1"
+          LIBOPUS_STATIC: "1"
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          # Optional: set a repository variable to bake in your server address.
+          MQ_DEFAULT_SERVER: ${{ vars.MQ_DEFAULT_SERVER }}
+        run: |
+          cargo build --release -p melody-quack --target aarch64-apple-darwin
+          cargo build --release -p melody-quack --target x86_64-apple-darwin
+      - name: Make .app and .dmg
+        run: packaging/macos/make-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Melody-Quack-macOS
+          path: dist/Melody-Quack.dmg
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Melody-Quack.dmg

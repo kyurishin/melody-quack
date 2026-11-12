@@ -1,0 +1,8 @@
+# DJ list for the server: one "name = key" per line.
+# A player who types the key in "I'm a DJ" on the title screen joins as that
+# DJ, gets the purple dot, and can stream live sets into the events they host.
+# Copy to djs.txt (kept out of git), change the keys, and start the server with:
+#   mq-server --djs djs.txt
+#
+# Auratek = change-me-1
+# Priori = change-me-2

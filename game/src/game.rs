@@ -121,8 +121,6 @@ pub struct Game {
     pub input_sel: usize,
     pub particles: Vec<Particle>,
     pub ghosts: Vec<Ghost>,
-    pub flash: f32,
-    pub last_beat: i64,
     pub autopilot: Option<crate::autopilot::Autopilot>,
 }
 
@@ -182,8 +180,6 @@ impl Game {
             input_sel: 0,
             particles: Vec::new(),
             ghosts,
-            flash: 0.0,
-            last_beat: 0,
             autopilot: crate::autopilot::Autopilot::from_env(),
         }
     }

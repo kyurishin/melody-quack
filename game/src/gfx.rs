@@ -32,7 +32,6 @@ pub mod pal {
     use macroquad::color::Color;
     pub const INK: Color = hex(0x241a47);
     pub const INK2: Color = hex(0x342866);
-    pub const DUSK: Color = hex(0x3b2a6b);
     pub const DUSK2: Color = hex(0x5a3f8f);
     pub const CREAM: Color = hex(0xfff7e0);
     pub const YELLOW: Color = hex(0xffd66e);
@@ -94,6 +93,10 @@ impl Canvas {
         if x >= 0 && y >= 0 && x < self.w && y < self.h {
             self.px[(y * self.w + x) as usize] = to_rgba(c);
         }
+    }
+
+    pub fn get(&self, x: i32, y: i32) -> [u8; 4] {
+        self.px[(y * self.w + x) as usize]
     }
 
     pub fn get_alpha(&self, x: i32, y: i32) -> u8 {
@@ -204,14 +207,6 @@ impl Canvas {
         }
     }
 
-    /// Vertical gradient, dithered.
-    pub fn vgrad(&mut self, x: i32, y: i32, w: i32, h: i32, top: Color, bottom: Color) {
-        for yy in 0..h {
-            let t = yy as f32 / (h - 1).max(1) as f32;
-            self.dither(x, y + yy, w, 1, top, bottom, t);
-        }
-    }
-
     /// Clear every pixel where `f` is false.
     pub fn keep(&mut self, f: impl Fn(i32, i32) -> bool) {
         for y in 0..self.h {
@@ -254,6 +249,14 @@ impl Canvas {
                 }
             }
         }
+    }
+
+    pub fn image(&self) -> Image {
+        let mut bytes = Vec::with_capacity(self.px.len() * 4);
+        for p in &self.px {
+            bytes.extend_from_slice(p);
+        }
+        Image { bytes, width: self.w as u16, height: self.h as u16 }
     }
 
     pub fn texture(&self) -> Texture2D {
@@ -393,17 +396,6 @@ pub fn text_rot(font: &Font, s: &str, x: f32, y: f32, size: f32, color: Color, r
 
 pub fn text_w(font: &Font, s: &str, size: f32) -> f32 {
     measure_text(s, Some(font), size.max(1.0).round() as u16, 1.0).width
-}
-
-/// Text with the cover's hard drop shadow.
-pub fn text_shadow(font: &Font, s: &str, x: f32, y: f32, size: f32, color: Color, shadow: f32) {
-    text(font, s, x + shadow, y + shadow, size, pal::INK);
-    text(font, s, x, y, size, color);
-}
-
-pub fn text_center(font: &Font, s: &str, cx: f32, y: f32, size: f32, color: Color) {
-    let w = text_w(font, s, size);
-    text(font, s, cx - w / 2.0, y, size, color);
 }
 
 // ---------------------------------------------------------------------------

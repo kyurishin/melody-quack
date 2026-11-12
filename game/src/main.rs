@@ -28,6 +28,10 @@ fn conf() -> Conf {
 
 #[macroquad::main(conf)]
 async fn main() {
+    if let Ok(path) = std::env::var("MQ_WRITE_ICON") {
+        sprites::write_app_icon(&path);
+        return;
+    }
     let mut game = game::Game::new();
     if game.settings.fullscreen {
         set_fullscreen(true);

@@ -56,7 +56,6 @@ pub struct Sprites {
     pub pillar: Texture2D,
     pub bouncer: Texture2D,
     pub owner: Texture2D,
-    pub icon: Texture2D,
 }
 
 impl Sprites {
@@ -95,7 +94,6 @@ impl Sprites {
             pillar: pillar().texture(),
             bouncer: bouncer().texture(),
             owner: owner().texture(),
-            icon: app_icon().texture(),
         }
     }
 }
@@ -813,9 +811,47 @@ fn owner() -> Canvas {
     c
 }
 
-fn app_icon() -> Canvas {
-    let mut c = critter(2, 3);
-    c.outline(pal::INK);
-    c
+/// The macOS app icon: a duck wizard on a dark rounded tile with a
+/// stained-glass glow, 1024x1024, scaled up from the pixel sprite.
+pub fn write_app_icon(path: &str) {
+    let duck = critter(2, 3);
+    let n = 1024;
+    let mut c = Canvas::new(n, n);
+    let r = 180.0;
+    let inside = |x: f32, y: f32| {
+        let (lo, hi) = (100.0, n as f32 - 100.0);
+        let cx = x.clamp(lo + r, hi - r);
+        let cy = y.clamp(lo + r, hi - r);
+        x >= lo && x <= hi && y >= lo && y <= hi && (x - cx).powi(2) + (y - cy).powi(2) <= r * r
+    };
+    for y in 0..n {
+        for x in 0..n {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            if inside(fx, fy) {
+                let t = (fy - 100.0) / 824.0;
+                let base = mix(hex(0x3b2a6b), pal::INK, t);
+                let d = ((fx - 512.0).powi(2) + (fy - 430.0).powi(2)).sqrt() / 420.0;
+                let glow = mix(pal::MAGENTA, pal::CYAN, fx / 1024.0);
+                c.set(x, y, mix(base, glow, (1.0 - d).max(0.0) * 0.45));
+            }
+        }
+    }
+    // The duck, 20x, crisp.
+    let s = 20;
+    let (ox, oy) = (512 - 16 * s, 560 - 22 * s);
+    for y in 0..duck.h {
+        for x in 0..duck.w {
+            if duck.get_alpha(x, y) > 0 {
+                let p = duck.get(x, y);
+                c.rect(ox + x * s, oy + y * s, s, s, Color::from_rgba(p[0], p[1], p[2], 255));
+            }
+        }
+    }
+    // export_png expects GL (bottom-up) rows.
+    let mut img = c.image();
+    let row = n as usize * 4;
+    let flipped: Vec<u8> = img.bytes.chunks(row).rev().flatten().copied().collect();
+    img.bytes = flipped;
+    img.export_png(path);
 }
 

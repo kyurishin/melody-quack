@@ -718,6 +718,7 @@ dependencies = [
  "mq-shared",
  "tokio",
  "tokio-tungstenite",
+ "tungstenite",
 ]
 
 [[package]]

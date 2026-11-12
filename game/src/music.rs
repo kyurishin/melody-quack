@@ -661,3 +661,47 @@ impl Synth {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stats(sound: Sound, bar: f64) -> (f32, f32) {
+        let sr = 48_000.0;
+        let mut s = Synth::new(sr, 1234, sound);
+        let bpm = sound.default_bpm() as f64;
+        let bps = bpm / 60.0 / sr as f64;
+        let mut buf = vec![0.0f32; 48_000 * 2 * 2]; // two seconds
+        let mut beat = bar * 4.0;
+        for chunk in buf.chunks_mut(1024) {
+            s.render(chunk, beat, bps, 1.0);
+            beat += (chunk.len() / 2) as f64 * bps;
+        }
+        assert!(buf.iter().all(|x| x.is_finite()), "NaN/inf in {sound:?} at bar {bar}");
+        let peak = buf.iter().fold(0.0f32, |a, x| a.max(x.abs()));
+        let rms = (buf.iter().map(|x| x * x).sum::<f32>() / buf.len() as f32).sqrt();
+        (peak, rms)
+    }
+
+    #[test]
+    fn every_section_is_audible_and_safe() {
+        for sound in Sound::ALL {
+            for bar in [0.0, 10.0, 18.0, 26.0, 34.0, 50.0, 58.0] {
+                let (peak, rms) = stats(sound, bar);
+                assert!(peak <= 1.0, "{sound:?} bar {bar} clips: {peak}");
+                assert!(rms > 0.02, "{sound:?} bar {bar} too quiet: {rms}");
+            }
+        }
+    }
+
+    #[test]
+    fn same_seed_same_track() {
+        let render = || {
+            let mut s = Synth::new(48_000.0, 7, Sound::Acid);
+            let mut buf = vec![0.0f32; 9600];
+            s.render(&mut buf, 40.0, 136.0 / 60.0 / 48_000.0, 1.0);
+            buf
+        };
+        assert_eq!(render(), render());
+    }
+}

@@ -310,8 +310,6 @@ pub fn town() -> Map {
     m
 }
 
-pub const PCBANG_SEATS: usize = 15;
-
 pub fn pcbang() -> Map {
     let (w, h) = (20usize, 14usize);
     let mut m = Map::new(w, h, Ground::Carpet);

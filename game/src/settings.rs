@@ -20,7 +20,7 @@ impl Default for Settings {
         Settings {
             name: String::new(),
             avatar: 0,
-            server: option_env!("MQ_DEFAULT_SERVER").unwrap_or("ws://127.0.0.1:7777").to_string(),
+            server: option_env!("MQ_DEFAULT_SERVER").filter(|s| !s.is_empty()).unwrap_or("ws://127.0.0.1:7777").to_string(),
             dj_key: String::new(),
             volume: 0.8,
             crt: true,

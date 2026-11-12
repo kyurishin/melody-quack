@@ -24,7 +24,6 @@ pub enum Sfx {
     Door,
     Chime,
     Quack,
-    Type,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -88,7 +87,6 @@ fn load(a: &AtomicU32) -> f32 {
 pub struct Audio {
     shared: Arc<Shared>,
     _stream: Option<cpal::Stream>,
-    pub device_name: String,
     packet_tx: Sender<Vec<u8>>,
 }
 
@@ -110,14 +108,14 @@ impl Audio {
                 .spawn(move || decode_thread(packet_rx, shared))
                 .expect("spawn decoder");
         }
-        let (stream, device_name) = match open_output(shared.clone()) {
-            Ok(v) => (Some(v.0), v.1),
+        let stream = match open_output(shared.clone()) {
+            Ok(v) => Some(v.0),
             Err(e) => {
                 eprintln!("audio: no output ({e}); playing silently");
-                (None, "no audio device".to_string())
+                None
             }
         };
-        Audio { shared, _stream: stream, device_name, packet_tx }
+        Audio { shared, _stream: stream, packet_tx }
     }
 
     /// Where the network should send incoming live-set packets.
@@ -129,10 +127,6 @@ impl Audio {
         if let Ok(mut c) = self.shared.ctl.lock() {
             f(&mut c);
         }
-    }
-
-    pub fn ctl(&self) -> Ctl {
-        self.shared.ctl.lock().map(|c| c.clone()).unwrap_or_default()
     }
 
     pub fn play(&self, s: Sfx) {
@@ -456,7 +450,7 @@ fn open_output(shared: Arc<Shared>) -> Result<(cpal::Stream, String), String> {
 
 fn sfx_len(k: Sfx) -> f32 {
     match k {
-        Sfx::Blip | Sfx::Type => 0.05,
+        Sfx::Blip => 0.05,
         Sfx::Select => 0.14,
         Sfx::Back => 0.12,
         Sfx::Error => 0.3,
@@ -477,7 +471,6 @@ fn sq(phase: f32) -> f32 {
 fn sfx_sample(k: Sfx, t: f32) -> f32 {
     match k {
         Sfx::Blip => sq(t * 880.0) * (1.0 - t / 0.05) * 0.25,
-        Sfx::Type => sq(t * 1500.0 + (t * 9000.0).sin()) * (1.0 - t / 0.05) * 0.12,
         Sfx::Select => {
             let f = if t < 0.06 { 660.0 } else { 990.0 };
             sq(t * f) * (1.0 - t / 0.14) * 0.25
@@ -584,5 +577,37 @@ fn encode_thread(rx: Receiver<Vec<f32>>, channels: usize, sr: u32, uplink: Audio
         let used = pos as usize;
         src.drain(..used.min(src.len()));
         pos -= used as f64;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opus_round_trip() {
+        let mut enc = Encoder::new(SampleRate::Hz48000, Channels::Stereo, Application::Audio).unwrap();
+        enc.set_bitrate(Bitrate::BitsPerSecond(160_000)).unwrap();
+        let mut dec = Decoder::new(SampleRate::Hz48000, Channels::Stereo).unwrap();
+        let mut out = vec![0u8; 4000];
+        let mut pcm = vec![0f32; AUDIO_FRAME * 2];
+        let mut energy = 0.0;
+        for f in 0..20 {
+            let frame: Vec<f32> = (0..AUDIO_FRAME * 2)
+                .map(|i| ((f * AUDIO_FRAME + i / 2) as f32 * TAU * 440.0 / 48_000.0).sin() * 0.5)
+                .collect();
+            let n = enc.encode_float(&frame, &mut out).unwrap();
+            assert!(n > 0 && n < 1500, "packet {n} bytes");
+            let p = audiopus::packet::Packet::try_from(&out[..n]).unwrap();
+            let sig = audiopus::MutSignals::try_from(&mut pcm[..]).unwrap();
+            let got = dec.decode_float(Some(p), sig, false).unwrap();
+            assert_eq!(got, AUDIO_FRAME);
+            if f > 5 {
+                energy += pcm.iter().map(|x| x * x).sum::<f32>();
+            }
+        }
+        // A 0.5 sine has mean square 0.125; allow codec loss.
+        let ms = energy / (14.0 * AUDIO_FRAME as f32 * 2.0);
+        assert!((ms - 0.125).abs() < 0.03, "mean square {ms}");
     }
 }
