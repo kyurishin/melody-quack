@@ -45,6 +45,7 @@ pub(crate) struct Progress {
     pub(crate) name: String,
     pub(crate) dj_key: String,
     pub(crate) welcome: bool,
+    pub(crate) tour: u8,
 }
 
 pub(crate) fn kind_index(kind: Kind) -> u8 {
@@ -81,6 +82,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     }
     if p.welcome {
         out += "welcome 1\n";
+    }
+    if p.tour > 0 {
+        out += &format!("tour {}\n", p.tour);
     }
     if p.seq.iter().any(|r| *r != 0) {
         out += &format!("seq {} {} {} {}\n", p.seq[0], p.seq[1], p.seq[2], p.seq[3]);
@@ -143,6 +147,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         name: String::new(),
         dj_key: String::new(),
         welcome: false,
+        tour: 0,
     };
     for line in lines {
         let (key, rest) = line.split_once(' ').unwrap_or((line, ""));
@@ -203,6 +208,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
             "mush" if nums.len() == 3 => p.mush = [nums[0] as u32, nums[1] as u32, nums[2] as u32],
             "djkey" => p.dj_key = rest.chars().filter(|c| !c.is_control() && *c != ' ').take(40).collect(),
             "welcome" => p.welcome = true,
+            "tour" if nums.len() == 1 => p.tour = (nums[0] as u8).min(6),
             "name" => p.name = rest.chars().filter(|c| !c.is_control()).take(12).collect::<String>().trim().to_string(),
             "seq" if nums.len() == 4 => p.seq = [nums[0] as u16, nums[1] as u16, nums[2] as u16, nums[3] as u16],
             "stored" => p.stored = rest.split(',').filter_map(|v| v.trim().parse::<u8>().ok()).filter(|v| (*v as usize) < home::ITEMS.len()).collect(),

@@ -313,9 +313,11 @@ async fn main() {
     let fresh_confirm = 0.0_f32;
     let mut saved_name = String::new();
     let mut saved_dj = (String::new(), false);
+    let mut saved_tour = 0u8;
     if let Some(saved) = store::read().and_then(|t| decode_progress(&t, cast_list.len())) {
         saved_name = saved.name.clone();
         saved_dj = (saved.dj_key.clone(), saved.welcome);
+        saved_tour = saved.tour;
         if saved.tiles.len() == world.tiles.len() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
@@ -534,6 +536,7 @@ async fn main() {
         radio_bpm,
         fresh_confirm,
     };
+    g.venue.tour = saved_tour;
     loop {
         let mut fr = Frame::default();
         steps::input::begin_frame(&mut g, &mut fr);

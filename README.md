@@ -495,6 +495,18 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## The rave tour
+
+After the first three steps (sing, find the fire, make a memory) a second chapter leads new players to the rave, in the same banners:
+
+1. open the envelope
+2. go to the PC bang and sit at a computer
+3. find tonight's code in rave.exe or the terminal
+4. take it to the chapel door
+5. say hello in the chat
+
+A gold arrow floats over the door you're heading for, and over the nearest computer inside the PC bang. A small compass on the banner points the way when the door is off screen. "skip" on the banner ends the tour. Players who already had a save see the tour once too; once finished or skipped it doesn't come back.
+
 ## Becoming a DJ
 
 The arena has a membership for DJs: 5 euros a month on Patreon. Patreon takes care of the payment, the receipts and cancelling. Every paying member gets a DJ key from the admin.

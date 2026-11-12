@@ -866,6 +866,99 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
 }
 
+fn tour_tick(g: &mut Game, dt: f32) {
+    if g.venue.tour == 0 && g.first_steps >= 4 && !g.first_pick && !g.venue.name.is_empty() {
+        g.venue.tour = 1;
+    }
+    match g.venue.tour {
+        1 if g.venue.overlay == Overlay::Mail => g.venue.tour = 2,
+        2 if g.venue.pc_open => g.venue.tour = 3,
+        3 if !g.venue.known.is_empty() => g.venue.tour = 4,
+        2 | 3 | 4 if g.venue.at == Venue::Chapel => {
+            g.venue.tour = 5;
+            g.venue.tour_clock = 0.0;
+        }
+        5 => {
+            g.venue.tour_clock += dt;
+            if g.venue.tour_clock > 25.0 || g.venue.chat_log.iter().any(|(_, n, _, _)| *n == g.venue.name) {
+                g.venue.tour = 6;
+                g.toasts.push(("that's the rave. see you on the dance floor.".to_string(), 4.0));
+            }
+        }
+        _ => {}
+    }
+    let mark = match g.venue.tour {
+        2 if g.venue.at == Venue::None => 1,
+        4 if g.venue.at == Venue::None => 2,
+        _ => 0,
+    };
+    TOUR_MARK.with(|m| m.set(mark));
+}
+
+fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
+    if !(1..=5).contains(&g.venue.tour) || g.picking || g.show_help || g.paused || g.venue.overlay != Overlay::None {
+        return;
+    }
+    let (heading, message) = match g.venue.tour {
+        1 => ("the rave - 1/5", "post came. click the envelope at the top left"),
+        2 if g.venue.at == Venue::PcBang => ("the pc bang - 2/5", "walk to the computer under the gold arrow and press E to sit down"),
+        2 => ("the pc bang - 2/5", "follow the gold arrow to the pc bang and walk in through the door"),
+        3 => ("a secret - 3/5", "tonight's code is hidden in this computer. try rave.exe or the terminal"),
+        4 => ("the chapel - 4/5", "you have a code. follow the arrow to st. bassilica and give it at the door"),
+        _ => ("you're in - 5/5", "press enter and say hello to everyone. 1-6 sings along. want to play here one day? esc, restart, become a dj."),
+    };
+    if g.venue.pc_open && g.venue.pc_app != 0 {
+        return;
+    }
+    let w = (low_w() - 16.0).min(if g.venue.pc_open { 215.0 } else { 250.0 });
+    let x = if g.venue.pc_open { (low_w() / 2.0 - w / 2.0 + 22.0).round() } else { ((low_w() - w) / 2.0).round() };
+    let lines = ui_wrap(message, 9.0, w - 34.0);
+    let h = 16.0 + lines.len() as f32 * 10.0 + 4.0;
+    let y = if y < 0.0 { (low_h() + y - h).round() } else { y };
+    ui_rect(x, y, w, h, Color::new(0.1, 0.08, 0.2, 0.88));
+    ui_rect(x, y, 3.0, h, Color::from_rgba(176, 92, 255, 255));
+    ui_text(heading, x + 9.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
+    for (i, l) in lines.iter().enumerate() {
+        ui_text(l, x + 9.0, y + 24.0 + i as f32 * 10.0, 9.0, WHITE);
+    }
+    let goal = match g.venue.tour {
+        2 => Some(PCBANG_DOOR),
+        4 => Some(CHAPEL_DOOR),
+        _ => None,
+    };
+    if let (Some(goal), Venue::None, false) = (goal, g.venue.at, g.inside) {
+        let d = goal - g.players[0].pos;
+        let (cx, cy) = (x + w - 16.0, y + h - 11.0);
+        if d.length() > 1.2 {
+            let n = d.normalize();
+            for k in -3..5 {
+                let t = k as f32 * 1.4;
+                ui_rect((cx + n.x * t).round() - 1.0, (cy + n.y * t).round() - 1.0, 2.0, 2.0, Color::from_rgba(255, 214, 110, 255));
+            }
+            let tip = vec2(cx, cy) + n * 7.0;
+            let side = vec2(-n.y, n.x);
+            for k in 1..4 {
+                let back = tip - n * k as f32 * 1.4;
+                for s in [-1.0f32, 1.0] {
+                    let p = back + side * s * k as f32 * 1.4;
+                    ui_rect(p.x.round() - 1.0, p.y.round() - 1.0, 2.0, 2.0, Color::from_rgba(255, 214, 110, 255));
+                }
+            }
+        } else {
+            ui_rect(cx - 2.0, cy - 2.0, 4.0, 4.0, Color::from_rgba(255, 214, 110, 255));
+        }
+    }
+    let skip = "skip";
+    let sw = ui_measure(skip, 8.0);
+    let (sx, sy) = (x + w - sw - 8.0, y + 4.0);
+    ui_text(skip, sx, sy + 7.0, 8.0, Color::new(1.0, 1.0, 1.0, 0.55));
+    if fr.click && hit(fr, sx - 4.0, sy - 2.0, sw + 8.0, 12.0) {
+        g.venue.tour = 6;
+        TOUR_MARK.with(|m| m.set(0));
+        fr.click = false;
+    }
+}
+
 fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     if radio::touch_ui() && !g.two_player {
         ((low_w() / 2.0 - 11.0).round(), 20.0, 22.0, 15.0)
@@ -886,7 +979,10 @@ fn mail_key(g: &Game) -> (String, u8, u8) {
     g.venue.tonight.as_ref().map(|t| (t.info.clone(), t.phase, t.mine)).unwrap_or_default()
 }
 
-pub(crate) fn mail_icon(g: &mut Game, _fr: &mut Frame) {
+pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
+    if g.venue.at == Venue::None && !g.inside {
+        tour_banner(g, fr, if fr.touch_ui && fr.portrait { 52.0 } else { 44.0 });
+    }
     if !mail_visible(g) {
         return;
     }
@@ -1167,6 +1263,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
 
 pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     online(g, fr.dt);
+    tour_tick(g, fr.dt);
     if g.venue.name.is_empty() || g.venue.welcome {
         if is_quit_requested() {
             return false;
@@ -1463,6 +1560,13 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
     kim.yaw = 0.0;
     kim.voice_timer = if g.venue.talk > 4.6 { 0.2 } else { 0.0 };
     kim.draw(&mut b, &g.world, time, 0.0);
+    if g.venue.tour == 2 && !g.venue.pc_open {
+        let me = g.players[0].pos - PC_ORIGIN;
+        if let Some(seat) = pc_seats().into_iter().min_by(|a, c| a.distance(me).total_cmp(&c.distance(me))) {
+            let bob = (time * 4.0).sin().abs() * 0.12;
+            guide_arrow(&mut b, vec3(PC_ORIGIN.x + seat.x, 1.05 + bob, PC_ORIGIN.y + seat.y), 0.05);
+        }
+    }
     for p in g.players.iter() {
         p.draw(&mut b, &g.world, time, 0.0);
     }
@@ -1471,8 +1575,10 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
 
     if g.venue.pc_open {
         desktop(g, fr);
+        tour_banner(g, fr, 34.0);
         return;
     }
+    tour_banner(g, fr, -22.0);
     let hint = if near_seat.is_some() {
         "E: use the computer"
     } else if near_kim {
@@ -2334,6 +2440,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let (code_x, code_y) = if slim { (6.0, low_h() - 18.0) } else { ((low_w() - cw) / 2.0, 42.0) };
     ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_text(&code, code_x + 5.0, code_y + 9.0, 9.0, cream());
+    tour_banner(g, fr, if look != 0 { 26.0 } else { 58.0 });
     place_label("st. bassilica", if g.venue.chat_open {
         "enter: send   esc: close"
     } else if at_decks {

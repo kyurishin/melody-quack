@@ -103,6 +103,8 @@ pub(crate) struct VenueState {
     pub(crate) post_tab: bool,
     pub(crate) look: usize,
     pub(crate) chat_open: bool,
+    pub(crate) tour: u8,
+    pub(crate) tour_clock: f32,
     pub(crate) chat_draft: String,
     pub(crate) chat_log: Vec<(u8, String, String, f64)>,
     pub(crate) field: u8,
@@ -417,8 +419,32 @@ fn behind(focus: Vec2, r: (i32, i32, i32, i32), reach: f32) -> bool {
     focus.y < r.1 as f32 && focus.y > r.1 as f32 - reach && focus.x > r.0 as f32 - 0.8 && focus.x < r.2 as f32 + 0.8
 }
 
+pub(crate) fn guide_arrow(b: &mut Batch, base: Vec3, px: f32) {
+    let gold = Color::from_rgba(255, 214, 110, 255);
+    let dark = Color::from_rgba(40, 24, 60, 255);
+    let shape: [(i32, i32); 13] = [(0, 0), (-1, 1), (0, 1), (1, 1), (-2, 2), (-1, 2), (0, 2), (1, 2), (2, 2), (0, 3), (0, 4), (0, 5), (0, 6)];
+    let was = b.unlit;
+    b.unlit = true;
+    for (dx, dy) in shape {
+        b.cube(base + vec3(dx as f32 * px, dy as f32 * px, -0.02), vec3(px * 1.8, px * 1.8, 0.03), dark);
+    }
+    for (dx, dy) in shape {
+        b.cube(base + vec3(dx as f32 * px, dy as f32 * px, 0.0), vec3(px, px, 0.04), gold);
+    }
+    b.unlit = was;
+}
+
 pub(crate) fn draw_exteriors(b: &mut Batch, dusk: f32, see_through: bool, focus: Vec2, time: f32) {
     let was_unlit = b.unlit;
+    let mark = TOUR_MARK.with(|m| m.get());
+    if !see_through && mark > 0 {
+        let door = if mark == 1 { PCBANG_DOOR } else { CHAPEL_DOOR };
+        let bob = (time * 4.0).sin().abs() * 0.25;
+        let top = if mark == 1 { 3.3 } else { 5.0 };
+        b.unlit = true;
+        guide_arrow(b, vec3(door.x, top + bob, door.y + 0.3), 0.1);
+        b.unlit = was_unlit;
+    }
 
     if behind(focus, PCBANG, 2.4) == see_through {
         let a = if see_through { 0.35 } else { 1.0 };
@@ -537,6 +563,7 @@ pub(crate) fn draw_exteriors(b: &mut Batch, dusk: f32, see_through: bool, focus:
 }
 
 thread_local! {
+    pub(crate) static TOUR_MARK: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
     pub(crate) static FLYER_COLOURS: std::cell::RefCell<Vec<(Color, Color)>> = std::cell::RefCell::new(Vec::new());
 }
 

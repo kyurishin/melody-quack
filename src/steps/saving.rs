@@ -43,6 +43,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             name: g.venue.name.clone(),
             dj_key: g.venue.dj_key.clone(),
             welcome: g.restart_now,
+            tour: if g.venue.tour >= 6 { 6 } else { 0 },
             seq: g.sampler.grid.map(|row| row.iter().enumerate().fold(0u16, |m, (k, on)| if *on { m | (1 << k) } else { m })),
             quests: if g.quests.day == i64::MIN { None } else { Some((g.quests.day, g.quests.list.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
         };

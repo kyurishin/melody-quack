@@ -200,3 +200,11 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Server: `say <text>` from a client in a room becomes `said <kind> <name>|<text>` to everyone in that room (kind 0 raver, 1 dj, 2 admin). Rate limit 600 ms, 120 chars, `|` replaced with `/`. `--admin-name` / `MQ_ADMIN_NAME` sets the admin's shown name; other players can't use it (become "not <name>"). The admin joins under that name and the `who` badge is 2. `/mute` and `/unmute` from the admin; muted players' messages only go back to themselves. Mutes live in memory only.
 - Client: `chat_open`, `chat_draft`, `chat_log` in `VenueState`; the box and log are drawn at the end of `chapel`; Enter opens it while joined and no overlay is up; movement and singing are frozen while it is open. Touch: a "chat" button using `radio::ask_text`.
 - Tested with a local server, the desktop game and two scripted clients (a raver and the admin). Not tested in the browser.
+
+
+## The rave tour
+
+- `VenueState.tour` (0 not started, 1-5 steps, 6 done) and `tour_clock`. `tour_tick` in `steps/venues.rs` starts it once `first_steps >= 4` and advances it: mail opened, `pc_open`, a code in `known`, inside the chapel, own chat message or 25 s. `tour_banner` draws it outdoors (from `mail_icon`), in the PC bang, on the desktop (hidden while a program window is open) and in the chapel; it has a compass towards the goal door and a "skip" link.
+- `TOUR_MARK` in `venues.rs` tells `draw_exteriors` which door gets the gold arrow (`guide_arrow`, also used over the nearest PC bang seat).
+- Save: line `tour 6` when finished or skipped, appended.
+- Tested on desktop through all five steps with a returning player's save. Not tested in the browser or on touch screens.
