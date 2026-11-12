@@ -166,6 +166,7 @@ struct Live {
     by: u32,
     line: String,
     mix: String,
+    look: String,
 }
 
 struct Client {
@@ -476,23 +477,30 @@ impl Hub {
                     return;
                 }
                 let line = format!("live {id} {mode} {} {dj}", if mode == "audio" { url } else { "-" });
-                self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new() });
+                self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new(), look: String::new() });
                 let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
                 for to in all {
                     self.say(to, line.clone());
                 }
             }
             "offair" => self.off_air(id),
-            "mix" | "pad" => {
+            "mix" | "pad" | "look" => {
                 let Some(code) = self.clients[&id].room.clone() else {
                     return;
                 };
                 let nums: Vec<f32> = rest.split(' ').filter_map(|n| n.parse().ok()).collect();
-                let fine = if cmd == "mix" { nums.len() == 4 && nums[3] >= 100.0 && nums[3] <= 170.0 } else { nums.len() == 1 && nums[0] >= 0.0 && nums[0] < 6.0 };
+                let fine = if cmd == "mix" {
+                    nums.len() == 4 && nums[3] >= 100.0 && nums[3] <= 170.0
+                } else if cmd == "look" {
+                    nums.len() == 1 && nums[0] >= 0.0 && nums[0] < 4.0
+                } else { nums.len() == 1 && nums[0] >= 0.0 && nums[0] < 6.0 };
                 match self.live.get_mut(&code) {
                     Some(l) if l.by == id && fine => {
                         if cmd == "mix" {
                             l.mix = format!("mix {rest}");
+                        }
+                        if cmd == "look" {
+                            l.look = format!("look {rest}");
                         }
                     }
                     _ => return,
@@ -582,10 +590,13 @@ impl Hub {
                 }
                 self.say(id, reply);
                 if cmd == "join" {
-                    if let Some((line, mix)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone())) {
+                    if let Some((line, mix, look)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone(), l.look.clone())) {
                         self.say(id, line);
                         if !mix.is_empty() {
                             self.say(id, mix);
+                        }
+                        if !look.is_empty() {
+                            self.say(id, look);
                         }
                     }
                 }
@@ -818,11 +829,14 @@ mod tests {
         h.handle(dj, "mix 1 0 2 140", 7);
         h.handle(dj, "pad 3", 7);
         h.handle(fan, "pad 3", 7);
-        assert_eq!(said(&mut h, fan), vec!["mix 1 0 2 140".to_string(), "pad 3".to_string()]);
+        h.handle(dj, "look 2", 7);
+        h.handle(dj, "look 9", 7);
+        h.handle(fan, "look 1", 7);
+        assert_eq!(said(&mut h, fan), vec!["mix 1 0 2 140".to_string(), "pad 3".to_string(), "look 2".to_string()]);
         let late = h.connect(None);
         h.handle(late, "join ACD-EFG-HJK 1 1 0 jo", 8);
         let got = said(&mut h, late);
-        assert!(got.contains(&line) && got.contains(&"mix 1 0 2 140".to_string()));
+        assert!(got.contains(&line) && got.contains(&"mix 1 0 2 140".to_string()) && got.contains(&"look 2".to_string()));
         h.drop_client(dj, 9);
         assert!(said(&mut h, fan).contains(&"live 0".to_string()));
         let again = h.connect(None);

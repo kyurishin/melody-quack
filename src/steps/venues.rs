@@ -103,6 +103,7 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.friends.clear();
     g.venue.joined = false;
     g.venue.on_air = None;
+    g.venue.look = 0;
     g.venue.asked = false;
     if venue == Venue::Chapel {
         if let Some(r) = g.venue.now.clone() {
@@ -413,6 +414,7 @@ fn online(g: &mut Game, dt: f32) {
             "nolive" => g.toasts.push(("the decks aren't free, or you need a fresh yes from the admin.".to_string(), 5.0)),
             "live" if parts.len() >= 2 => {
                 let was_audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
+                g.venue.look = 0;
                 if parts[1] == "0" || parts.len() < 5 {
                     g.venue.on_air = None;
                     if was_audio {
@@ -439,6 +441,7 @@ fn online(g: &mut Game, dt: f32) {
                 retime(g, bpm);
                 g.venue.mix = (parts[1] == "1", parts[2] == "1", parts[3].parse::<usize>().unwrap_or(0) % 3, bpm);
             }
+            "look" if parts.len() >= 2 => g.venue.look = parts[1].parse::<usize>().unwrap_or(0) % 4,
             "pad" if parts.len() >= 2 => {
                 if let Ok(i) = parts[1].parse::<usize>() {
                     if g.venue.at == Venue::Chapel {
@@ -523,6 +526,179 @@ fn online(g: &mut Game, dt: f32) {
                 net::send(&format!("at {slot} {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
             }
         }
+    }
+}
+
+fn backdrop(b: &mut Batch, o: Vec3, look: usize, time: f32, pulse: f32) {
+    let rgb = |r: f32, g: f32, bl: f32| Color::new(r / 255.0, g / 255.0, bl / 255.0, 1.0);
+    let mut px = |x: f32, y: f32, w: f32, h: f32, z: f32, c: Color| {
+        b.cube(o + vec3(x + w / 2.0, y + h / 2.0, z), vec3(w, h, 0.04), c);
+    };
+    let (left, wide) = (-0.3f32, CH_SIZE.0 + 0.6);
+    match look {
+        1 => {
+            for k in 0..17 {
+                let t = k as f32 / 16.0;
+                let c = if t < 0.45 {
+                    let u = t / 0.45;
+                    rgb(255.0 - 10.0 * u, 176.0 - 80.0 * u, 70.0 + 40.0 * u)
+                } else {
+                    let u = (t - 0.45) / 0.55;
+                    rgb(245.0 - 150.0 * u, 96.0 - 56.0 * u, 110.0 + 20.0 * u)
+                };
+                px(left, 0.4 + k as f32 * 0.2, wide, 0.2, -0.3, c);
+            }
+            for k in -5i32..6 {
+                let y = 1.75 + k as f32 * 0.15;
+                let half = (0.85f32 * 0.85 - (k as f32 * 0.15).powi(2)).max(0.0).sqrt();
+                if k < 0 && k % 2 == 0 {
+                    continue;
+                }
+                px(5.5 - half, y - 0.075, half * 2.0, 0.15, -0.26, rgb(255.0, 232.0 - (k + 5) as f32 * 6.0, 120.0));
+            }
+            for k in 0..30 {
+                let x = left + k as f32 * 0.4;
+                let h = 0.35 + 0.3 * hash(k, 3, 17) + 0.2 * ((k as f32) * 0.6).sin();
+                px(x, 0.4, 0.4, h, -0.22, rgb(60.0, 40.0, 70.0));
+            }
+            for (i, (tx, th, lean)) in [(0.9f32, 2.6f32, 0.5f32), (2.6, 2.0, -0.3), (8.4, 2.2, 0.35), (10.3, 2.8, -0.5)].iter().enumerate() {
+                let sway = (time * 0.6 + i as f32).sin() * 0.06;
+                for k in 0..12 {
+                    let t = k as f32 / 11.0;
+                    px(tx + lean * t * t - 0.07, 0.4 + th * t, 0.14, th / 11.0 + 0.02, -0.18, rgb(24.0, 30.0, 34.0));
+                }
+                let (cx, cy) = (tx + lean + sway, 0.4 + th);
+                for f in 0..7 {
+                    let a = f as f32 / 6.0 * std::f32::consts::PI;
+                    for s in 1..6 {
+                        let r = s as f32 * 0.17;
+                        px(cx + a.cos() * r - 0.09, cy + a.sin() * r * 0.55 - r * r * 0.5 - 0.05, 0.18, 0.1, -0.18, rgb(18.0, 52.0 + f as f32 * 4.0, 40.0));
+                    }
+                }
+            }
+            for k in 0..14 {
+                let x = left + 0.4 + k as f32 * 0.82;
+                let len = 3 + (hash(k, 9, 5) * 6.0) as i32;
+                for s in 0..len {
+                    let sway = (time * 0.9 + k as f32 + s as f32 * 0.4).sin() * 0.03 * s as f32;
+                    px(x + sway, 3.7 - s as f32 * 0.12, 0.07, 0.12, 0.3, rgb(40.0, 120.0 + (s * 8) as f32, 60.0));
+                }
+            }
+            for k in 0..12 {
+                let on = ((time * 1.3 + k as f32 * 1.7).sin() * 0.5 + 0.5).powi(4);
+                let x = 0.5 + hash(k, 1, 77) * 10.0 + (time * 0.3 + k as f32).sin() * 0.3;
+                let y = 0.7 + hash(k, 2, 77) * 1.6;
+                px(x, y, 0.06, 0.06, 0.4, Color::new(0.9, 1.0, 0.4, on));
+            }
+        }
+        2 => {
+            for k in 0..17 {
+                let t = k as f32 / 16.0;
+                let c = if t < 0.35 {
+                    rgb(30.0, 58.0 + 30.0 * t, 104.0 + 40.0 * t)
+                } else {
+                    let u = (t - 0.35) / 0.65;
+                    rgb(250.0 - 190.0 * u, 170.0 - 110.0 * u, 130.0 + 10.0 * u)
+                };
+                px(left, 0.4 + k as f32 * 0.2, wide, 0.2, -0.3, c);
+            }
+            for k in 0..22 {
+                let x = left + hash(k, 4, 31) * wide;
+                let y = 0.5 + hash(k, 5, 31) * 1.0;
+                let on = (time * 1.5 + k as f32).sin() * 0.5 + 0.5;
+                px(x, y, 0.3 + hash(k, 6, 31) * 0.4, 0.04, -0.27, Color::new(0.8, 0.9, 1.0, 0.15 + 0.35 * on));
+            }
+            for k in 0..16 {
+                let x = 5.6 + k as f32 * 0.36;
+                let hill = 0.5 + 0.5 * ((k as f32 - 8.0) / 8.0 * 1.4).cos();
+                px(x, 1.75, 0.36, 0.15 + hill * 0.5, -0.25, rgb(52.0, 50.0, 84.0));
+                let h = 0.25 + hash(k, 8, 13) * 0.75 + hill * 0.5;
+                let bw = 0.3;
+                px(x + 0.03, 1.8, bw, h, -0.23, rgb(34.0, 34.0, 62.0));
+                for wy in 0..((h / 0.14) as i32) {
+                    for wx in 0..2 {
+                        if hash(k * 7 + wx, wy, 23) > 0.45 {
+                            px(x + 0.07 + wx as f32 * 0.13, 1.84 + wy as f32 * 0.14, 0.06, 0.06, -0.21, rgb(255.0, 214.0, 120.0));
+                        }
+                    }
+                }
+            }
+            for s in 0..9 {
+                let w = 0.5 - s as f32 * 0.055;
+                px(8.6 - w / 2.0, 1.8 + s as f32 * 0.2, w, 0.2, -0.2, rgb(214.0, 208.0, 196.0));
+            }
+            px(8.58, 3.6, 0.04, 0.3, -0.2, rgb(214.0, 208.0, 196.0));
+            let red = rgb(206.0, 66.0, 44.0);
+            let (t1, t2, deck, top) = (1.3f32, 4.4f32, 1.95f32, 3.25f32);
+            px(left, deck, 6.2, 0.07, -0.16, red);
+            px(left, deck - 0.05, 6.2, 0.04, -0.16, rgb(120.0, 36.0, 30.0));
+            for tx in [t1, t2] {
+                px(tx - 0.13, 1.5, 0.09, top - 1.5, -0.15, red);
+                px(tx + 0.04, 1.5, 0.09, top - 1.5, -0.15, red);
+                for k in 0..4 {
+                    px(tx - 0.13, deck + 0.3 + k as f32 * 0.3, 0.26, 0.05, -0.15, red);
+                }
+            }
+            for k in 0..32 {
+                let t = k as f32 / 31.0;
+                let x = t1 + (t2 - t1) * t;
+                let y = deck + 0.12 + (top - deck - 0.12) * (2.0 * t - 1.0).powi(2);
+                px(x - 0.05, y, 0.1, 0.035, -0.14, red);
+                if k % 2 == 0 {
+                    px(x - 0.01, deck, 0.02, y - deck, -0.14, rgb(150.0, 50.0, 40.0));
+                }
+            }
+            for k in 0..14 {
+                let t = k as f32 / 13.0;
+                px(t1 - 1.6 * t - 0.05, top - (top - deck) * t, 0.12, 0.035, -0.14, red);
+                px(t2 + 1.5 * t - 0.05, top - (top - deck) * t, 0.12, 0.035, -0.14, red);
+            }
+            for k in 0..9 {
+                let drift = (time * 0.12 + k as f32 * 1.37).rem_euclid(wide + 3.0) - 1.5;
+                let y = 1.7 + hash(k, 2, 61) * 0.7;
+                let w = 1.2 + hash(k, 3, 61) * 1.6;
+                px(left + drift, y, w, 0.12, -0.1, Color::new(0.95, 0.94, 1.0, 0.28));
+                px(left + drift + 0.25, y + 0.1, w * 0.6, 0.1, -0.1, Color::new(0.95, 0.94, 1.0, 0.2));
+            }
+            px(left, 0.4, wide, 0.5, 0.02, rgb(96.0, 100.0, 116.0));
+            for k in 0..24 {
+                px(left + k as f32 * 0.5, 0.9, 0.06, 0.35, 0.02, rgb(60.0, 62.0, 80.0));
+            }
+            px(left, 1.25, wide, 0.06, 0.02, rgb(60.0, 62.0, 80.0));
+        }
+        3 => {
+            let neon = Color::new(1.0, 0.1 + 0.2 * pulse, 0.25 + 0.2 * pulse, 0.45 + 0.55 * pulse);
+            let pink = Color::new(1.0, 0.35, 0.75, 0.45 + 0.55 * pulse);
+            for k in 0..15 {
+                px(left + 0.15 + k as f32 * 0.8, 0.4, 0.4, 3.1, 0.02, rgb(96.0, 12.0, 28.0));
+            }
+            for k in 0..40 {
+                let t = k as f32 / 40.0 * std::f32::consts::TAU;
+                let hx = 16.0 * t.sin().powi(3);
+                let hy = 13.0 * t.cos() - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
+                px(5.5 + hx * 0.055 - 0.05, 2.25 + hy * 0.055, 0.1, 0.1, 0.06, neon);
+            }
+            for cx in [2.0f32, 9.0] {
+                for k in 0..15 {
+                    let t = k as f32 / 14.0 - 0.5;
+                    px(cx + t * 1.1 - 0.05, 2.0 + t * 1.6, 0.1, 0.12, 0.06, pink);
+                    px(cx - t * 1.1 - 0.05, 2.0 + t * 1.6, 0.1, 0.12, 0.06, pink);
+                }
+            }
+            for k in 0..9 {
+                let x = 0.9 + k as f32 * 1.15;
+                let len = 6 + (hash(k, 4, 9) * 7.0) as i32;
+                for s in 0..len {
+                    let sway = (time * 1.2 + k as f32).sin() * 0.012 * s as f32;
+                    let (w, h) = if s % 2 == 0 { (0.09, 0.06) } else { (0.04, 0.1) };
+                    px(x + sway - w / 2.0, 3.55 - s as f32 * 0.09, w, h, 0.35, rgb(176.0, 178.0, 190.0));
+                }
+            }
+            for k in 0..23 {
+                px(left + 0.2 + k as f32 * 0.5, 0.52, 0.08, 0.08, 0.06, rgb(200.0, 200.0, 212.0));
+            }
+        }
+        _ => {}
     }
 }
 
@@ -612,8 +788,12 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 ui_text(&format!("{} {}", i + 1, name), x + 104.0 + (i % 3) as f32 * 54.0, y + 92.0 + (i / 3) as f32 * 11.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
             }
         }
-        if button(fr, "go off air", x + 10.0, y + h - 34.0, 70.0, 16.0, false) {
+        if button(fr, "go off air", x + 10.0, y + h - 34.0, 64.0, 16.0, false) {
             net::send("offair");
+        }
+        if button(fr, &format!("look: {}", LOOKS[g.venue.look % 4]), x + 78.0, y + h - 34.0, 124.0, 16.0, false) {
+            g.venue.look = (g.venue.look + 1) % 4;
+            net::send(&format!("look {}", g.venue.look));
         }
     } else if let Some(o) = g.venue.on_air.clone() {
         say(&[&format!("dj {} is on. wait for the set to end.", o.name)]);
@@ -1892,7 +2072,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     g.venue.pulse = pulse;
     let rave = g.venue.now.clone();
     let center = vec3(CH_ORIGIN.x + CH_SIZE.0 / 2.0, 0.5, CH_ORIGIN.y + CH_SIZE.1 / 2.0);
-    let view = begin_room(g, center, 1.75, Color::from_rgba(10, 7, 20, 255));
+    let view = begin_room(g, center + vec3(0.0, 0.0, -1.2), 1.75, Color::from_rgba(10, 7, 20, 255));
     let o = vec3(CH_ORIGIN.x, 0.5, CH_ORIGIN.y);
     let booth = o + vec3(BOOTH.0, 0.0, BOOTH.1);
     let mut lamps = Vec::new();
@@ -1902,18 +2082,43 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         lamps.push((o + vec3(5.5 + a.cos() * 3.2, 0.9, 4.6 + (a * 0.8).sin() * 2.2), 0.7 + pulse * 0.9, vec3(c.r, c.g, c.b)));
     }
     lamps.push((booth + vec3(0.0, 1.2, 0.3), 0.9 + pulse * 0.8, vec3(1.0, 0.25, 0.95)));
-    let light = Light { dusk: 0.96, fire: booth + vec3(0.0, 1.5, 0.0), fire_strength: 0.15 + pulse * 0.35, tint: vec3(0.9, 0.3, 1.0), lamps };
+    let look = if g.venue.on_air.is_some() { g.venue.look % 4 } else { 0 };
+    let (dusk, tint) = match look {
+        1 => (0.72, vec3(1.0, 0.55, 0.25)),
+        2 => (0.82, vec3(0.55, 0.65, 1.0)),
+        3 => (0.97, vec3(1.0, 0.12, 0.2)),
+        _ => (0.96, vec3(0.9, 0.3, 1.0)),
+    };
+    if look == 3 {
+        for l in lamps.iter_mut() {
+            l.2 = vec3(1.0, 0.1 + 0.25 * l.2.z, 0.25 + 0.3 * l.2.z);
+        }
+    }
+    let light = Light { dusk, fire: booth + vec3(0.0, 1.5, 0.0), fire_strength: 0.15 + pulse * 0.35, tint, lamps };
     let mut b = Batch::new(center + vec3(0.0, 5.6, -1.8), light);
     for z in 0..CH_SIZE.1 as i32 {
         for x in 0..CH_SIZE.0 as i32 {
-            let c = if (x + z) % 2 == 0 { Color::from_rgba(96, 92, 108, 255) } else { Color::from_rgba(86, 82, 98, 255) };
+            let even = (x + z) % 2 == 0;
+            let c = match look {
+                1 => {
+                    let k = hash(x, z, 91);
+                    if k > 0.8 { Color::from_rgba(120, 96, 60, 255) } else if even { Color::from_rgba(70, 118, 62, 255) } else { Color::from_rgba(60, 104, 58, 255) }
+                }
+                2 => if x % 2 == 0 { Color::from_rgba(150, 112, 78, 255) } else { Color::from_rgba(136, 100, 70, 255) },
+                3 => if even { Color::from_rgba(22, 18, 24, 255) } else { Color::from_rgba(120, 18, 34, 255) },
+                _ => if even { Color::from_rgba(96, 92, 108, 255) } else { Color::from_rgba(86, 82, 98, 255) },
+            };
             b.top(o + vec3(x as f32 + 0.5, 0.0, z as f32 + 0.5), c);
         }
     }
-    let conc = Color::from_rgba(150, 146, 162, 255);
-    let conc_dark = Color::from_rgba(118, 114, 132, 255);
-    let conc_deep = Color::from_rgba(78, 74, 94, 255);
-    for level in 0..9 {
+    let (conc, conc_dark, conc_deep) = match look {
+        1 => (Color::from_rgba(122, 90, 60, 255), Color::from_rgba(102, 74, 50, 255), Color::from_rgba(46, 84, 50, 255)),
+        2 => (Color::from_rgba(196, 190, 180, 255), Color::from_rgba(170, 164, 156, 255), Color::from_rgba(96, 100, 116, 255)),
+        3 => (Color::from_rgba(40, 34, 44, 255), Color::from_rgba(26, 22, 30, 255), Color::from_rgba(110, 16, 30, 255)),
+        _ => (Color::from_rgba(150, 146, 162, 255), Color::from_rgba(118, 114, 132, 255), Color::from_rgba(78, 74, 94, 255)),
+    };
+    let open_back = look == 1 || look == 2;
+    for level in 0..if open_back { 1 } else { 9 } {
         let c = if level % 2 == 0 { conc } else { conc_dark };
         b.cube(o + vec3(CH_SIZE.0 / 2.0, 0.2 + level as f32 * 0.4, -0.15), vec3(CH_SIZE.0 + 0.6, 0.4, 0.3), c);
     }
@@ -1922,17 +2127,36 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         b.cube(o + vec3(-0.15, 0.2 + level as f32 * 0.4, CH_SIZE.1 / 2.0), vec3(0.3, 0.4, CH_SIZE.1), c);
         b.cube(o + vec3(CH_SIZE.0 + 0.15, 0.2 + level as f32 * 0.4, CH_SIZE.1 / 2.0), vec3(0.3, 0.4, CH_SIZE.1), c);
     }
-    b.cube(o + vec3(CH_SIZE.0 / 2.0, 3.7, -0.05), vec3(CH_SIZE.0 + 0.8, 0.3, 0.5), conc_deep);
+    if !open_back {
+        b.cube(o + vec3(CH_SIZE.0 / 2.0, 3.7, -0.05), vec3(CH_SIZE.0 + 0.8, 0.3, 0.5), conc_deep);
+    }
     for (x, z) in PILLARS {
         for level in 0..7 {
             let c = if level % 2 == 0 { conc } else { conc_dark };
             b.cube(o + vec3(x, 0.2 + level as f32 * 0.4, z), vec3(0.42, 0.4, 0.42), c);
         }
         b.cube(o + vec3(x, 2.9, z), vec3(0.6, 0.16, 0.6), conc_deep);
+        if look == 1 {
+            for k in 0..6 {
+                let a = k as f32 / 6.0 * std::f32::consts::TAU + x;
+                b.cube(o + vec3(x + a.cos() * 0.5, 2.95 - (k % 2) as f32 * 0.14, z + a.sin() * 0.5), vec3(0.5, 0.1, 0.5), Color::from_rgba(40, 110 + (k * 9) as u8, 56, 255));
+            }
+        }
+        if look == 3 {
+            b.cube(o + vec3(x, 1.4, z), vec3(0.46, 0.14, 0.46), Color::from_rgba(150, 20, 36, 255));
+            for k in 0..4 {
+                let a = k as f32 * std::f32::consts::FRAC_PI_2;
+                b.cube(o + vec3(x + a.cos() * 0.23, 1.4, z + a.sin() * 0.23), vec3(0.07, 0.07, 0.07), Color::from_rgba(200, 200, 210, 255));
+            }
+        }
     }
     b.unlit = true;
     let glow = 0.35 + 0.65 * pulse;
+    backdrop(&mut b, o, look, time, pulse);
     for (i, (wx, ww, wh)) in [(2.0f32, 0.8f32, 1.7f32), (5.5, 1.1, 2.1), (9.0, 0.8, 1.7)].iter().enumerate() {
+        if look != 0 {
+            break;
+        }
         let c = hsv((0.86 - i as f32 * 0.16 + (bar / 4) as f32 * 0.09).rem_euclid(1.0), 0.75, glow);
         lancet(&mut b, o.x + wx, o.y + 0.9, o.z + 0.02, *ww, *wh, c, 0.04);
         b.cube(o + vec3(*wx, 0.9 + wh * 0.5, 0.05), vec3(0.05, *wh, 0.02), Color::from_rgba(14, 10, 26, 255));
@@ -1940,7 +2164,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             b.cube(o + vec3(*wx, 0.9 + wh * k as f32 / 4.0, 0.05), vec3(*ww, 0.04, 0.02), Color::from_rgba(14, 10, 26, 255));
         }
     }
-    for k in 0..10 {
+    for k in 0..if look == 0 { 10 } else { 0 } {
         let a = k as f32 / 10.0 * std::f32::consts::TAU + time * 0.3;
         let c = hsv((0.8 + k as f32 * 0.03).fract(), 0.7, glow);
         b.cube(o + vec3(3.75 + a.cos() * 0.32, 2.6 + a.sin() * 0.32, 0.03), vec3(0.13, 0.13, 0.03), c);
@@ -2013,7 +2237,17 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for i in 0..beams {
         let k = i as f32 / (beams - 1) as f32 - 0.5;
         let yaw = k * 2.1 + (time * (0.7 + 0.2 * i as f32) + i as f32).sin() * 0.25;
-        let c = if i % 2 == 0 { Color::new(0.78, 1.0, 0.24, 0.3 + 0.4 * pulse) } else { Color::new(1.0, 0.24, 0.95, 0.3 + 0.4 * pulse) };
+        let al = 0.3 + 0.4 * pulse;
+        let c = match (look, i % 2 == 0) {
+            (1, true) => Color::new(1.0, 0.75, 0.2, al),
+            (1, false) => Color::new(0.3, 1.0, 0.45, al),
+            (2, true) => Color::new(1.0, 0.5, 0.3, al),
+            (2, false) => Color::new(0.4, 0.8, 1.0, al),
+            (3, true) => Color::new(1.0, 0.1, 0.2, al),
+            (3, false) => Color::new(1.0, 0.3, 0.7, al),
+            (_, true) => Color::new(0.78, 1.0, 0.24, al),
+            _ => Color::new(1.0, 0.24, 0.95, al),
+        };
         b.box_at(booth + vec3(0.0, 1.75, 0.2), yaw, vec3(0.0, 0.0, 4.6), vec3(0.03, 0.03, 9.2), c);
     }
     b.flush();
@@ -2038,18 +2272,23 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     };
     let w = (ui_measure(&line, 9.0) + 40.0).max(ui_measure(&r.title, 14.0) + 40.0).min(low_w() - 12.0);
     let x = (low_w() - w) / 2.0;
-    ui_rect(x, 5.0, w, 34.0, Color::new(0.2, 0.16, 0.4, 0.88));
-    ui_text(&r.title, (low_w() - ui_measure(&r.title, 14.0)) / 2.0, 19.0, 14.0, cream());
+    let slim = look != 0;
+    let hud_y = if slim { -17.0 } else { 0.0 };
+    ui_rect(x, 5.0, w, 34.0 + hud_y, Color::new(0.2, 0.16, 0.4, 0.88));
+    if !slim {
+        ui_text(&r.title, (low_w() - ui_measure(&r.title, 14.0)) / 2.0, 19.0, 14.0, cream());
+    }
     let shown = ui_ticker(&line, 9.0, w - 36.0, time);
-    ui_text(&shown, x + 8.0, 33.0, 9.0, if live { Color::from_rgba(255, 110, 200, 255) } else { Color::from_rgba(198, 255, 61, 255) });
+    ui_text(&shown, x + 8.0, 33.0 + hud_y, 9.0, if live { Color::from_rgba(255, 110, 200, 255) } else { Color::from_rgba(198, 255, 61, 255) });
     let beat_now = ((get_time() - g.venue.rave_start) * g.venue.bpm_now as f64 / 60.0).rem_euclid(4.0) as usize;
     for k in 0..4 {
-        ui_rect(x + w - 26.0 + k as f32 * 5.0, 28.0, 4.0, 4.0, if k == beat_now { Color::from_rgba(255, 214, 110, 255) } else { ink() });
+        ui_rect(x + w - 26.0 + k as f32 * 5.0, 28.0 + hud_y, 4.0, 4.0, if k == beat_now { Color::from_rgba(255, 214, 110, 255) } else { ink() });
     }
     let code = format!("code {}", r.code);
     let cw = ui_measure(&code, 9.0) + 10.0;
-    ui_rect((low_w() - cw) / 2.0, 42.0, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
-    ui_text(&code, (low_w() - cw) / 2.0 + 5.0, 51.0, 9.0, cream());
+    let (code_x, code_y) = if slim { (6.0, low_h() - 18.0) } else { ((low_w() - cw) / 2.0, 42.0) };
+    ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
+    ui_text(&code, code_x + 5.0, code_y + 9.0, 9.0, cream());
     place_label("st. bassilica", if at_decks { "E: the decks" } else { "wasd: move   1-6: sing over the set   esc or the door: leave" });
     if let Some(o) = &on_air {
         if o.audio && !net::can_listen() && !o.url.is_empty() && g.venue.overlay == Overlay::None {

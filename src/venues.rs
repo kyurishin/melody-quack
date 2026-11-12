@@ -100,6 +100,7 @@ pub(crate) struct VenueState {
     pub(crate) welcome: bool,
     pub(crate) dj_page: bool,
     pub(crate) post_tab: bool,
+    pub(crate) look: usize,
     pub(crate) field: u8,
     pub(crate) patreon: String,
     pub(crate) name: String,
@@ -397,6 +398,8 @@ fn sign(b: &mut Batch, left: f32, top: f32, z: f32, px: f32, time: f32, fade: f3
         }
     }
 }
+
+pub(crate) const LOOKS: [&str; 4] = ["gothic chapel", "jungle sunset", "san francisco view", "kinky party"];
 
 pub(crate) fn lancet(b: &mut Batch, x: f32, base: f32, z: f32, w: f32, h: f32, col: Color, depth: f32) {
     b.cube(vec3(x, base + h * 0.5, z), vec3(w, h, depth), col);
