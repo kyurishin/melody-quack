@@ -99,6 +99,8 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
     g.venue.talk = 0.0;
+    g.venue.peers.clear();
+    g.venue.joined = false;
     if venue == Venue::Chapel {
         g.venue.rave_start = get_time();
         g.venue.last_step = -1;
@@ -137,13 +139,155 @@ fn leave(g: &mut Game) {
         g.players[who].place_at(spot);
         g.players[who].facing = vec2(0.0, 1.0);
     }
+    if g.venue.joined {
+        net::send("leave");
+    }
+    g.venue.joined = false;
+    g.venue.peers.clear();
     g.venue.at = Venue::None;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
     g.audio.play_ch(3, &g.plink, 0.5);
 }
 
+fn rave_info(r: &Rave) -> String {
+    format!("{}|{}|{}|{}", r.sound, r.bpm, r.seed, r.title)
+}
+
+fn online(g: &mut Game, dt: f32) {
+    let st = net::state();
+    g.venue.net_retry -= dt;
+    if (st == 0 || st == -1) && g.venue.net_retry <= 0.0 {
+        g.venue.net_retry = 10.0;
+        if let Some(url) = net::server() {
+            net::open(&url);
+        }
+    }
+    if st != 2 {
+        g.venue.peers.clear();
+        g.venue.joined = false;
+        g.venue.announced = 0;
+    } else {
+        while g.venue.announced < g.venue.raves.len() {
+            let r = &g.venue.raves[g.venue.announced];
+            net::send(&format!("host {} {}", r.code, rave_info(r)));
+            g.venue.announced += 1;
+        }
+        if g.venue.at == Venue::Chapel && !g.venue.joined {
+            if let Some(r) = g.venue.now.clone() {
+                net::send(&format!("host {} {}", r.code, rave_info(&r)));
+                net::send(&format!("join {} {}", r.code, g.players[0].character));
+                g.venue.joined = true;
+            }
+        }
+    }
+    let mut timed_out = false;
+    if let Some((_, left)) = g.venue.find.as_mut() {
+        *left -= dt;
+        timed_out = *left <= 0.0;
+    }
+    if timed_out {
+        g.venue.find = None;
+        g.venue.door_msg = "can't reach the list right now. no code, no rave.".to_string();
+    }
+    while let Some(line) = net::recv() {
+        let parts: Vec<&str> = line.split(' ').collect();
+        match parts.first().copied().unwrap_or("") {
+            "room" if parts.len() >= 4 => {
+                let code = parts[1];
+                let elapsed = parts[2].parse::<f64>().unwrap_or(0.0) / 1000.0;
+                if g.venue.at == Venue::Chapel && g.venue.now.as_ref().map(|r| r.code == code).unwrap_or(false) {
+                    g.venue.rave_start = get_time() - elapsed;
+                    g.venue.last_step = -1;
+                } else if g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false) {
+                    let info = parts[3..].join(" ");
+                    let f: Vec<&str> = info.splitn(4, '|').collect();
+                    if f.len() == 4 {
+                        let rave = Rave {
+                            code: code.to_string(),
+                            title: f[3].chars().take(24).collect(),
+                            seed: f[2].parse().unwrap_or(1),
+                            sound: f[0].parse::<usize>().unwrap_or(0) % 3,
+                            bpm: f[1].parse::<f32>().unwrap_or(132.0).clamp(110.0, 160.0),
+                            expired: false,
+                        };
+                        g.venue.find = None;
+                        g.venue.learn(code);
+                        g.venue.now = Some(rave);
+                        enter(g, Venue::Chapel);
+                    }
+                }
+            }
+            "none" if parts.len() >= 2 => {
+                if g.venue.find.as_ref().map(|(c, _)| c == parts[1]).unwrap_or(false) {
+                    g.venue.find = None;
+                    g.venue.door_code.clear();
+                    g.venue.door_msg = "never heard of it. no code, no rave.".to_string();
+                    g.audio.play_ch(3, &g.tom, 0.6);
+                }
+            }
+            "peer" if parts.len() >= 8 => {
+                let nums: Vec<f32> = parts[3..8].iter().filter_map(|n| n.parse().ok()).collect();
+                if let (Ok(id), Ok(character), 5) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), nums.len()) {
+                    let to = vec2(nums[0].clamp(0.0, CH_SIZE.0), nums[1].clamp(0.0, CH_SIZE.1 + 0.5));
+                    let facing = vec2(nums[2], nums[3]);
+                    let facing = if facing.length() > 0.1 { facing.normalize() } else { vec2(0.0, -1.0) };
+                    let character = character % g.cast_list.len();
+                    match g.venue.peers.iter_mut().find(|p| p.id == id) {
+                        Some(p) => {
+                            p.to = to;
+                            p.facing = facing;
+                            p.walking = nums[4] > 0.5;
+                            p.character = character;
+                        }
+                        None => {
+                            if g.venue.peers.len() < 40 {
+                                g.venue.peers.push(Peer { id, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0 });
+                            }
+                        }
+                    }
+                }
+            }
+            "sing" if parts.len() >= 3 => {
+                if let (Ok(id), Ok(note)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>()) {
+                    if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id) {
+                        p.sing = 0.25;
+                        if note < 6 && g.venue.at == Venue::Chapel {
+                            g.audio.play_ch(1, &g.voices[p.character][note], 0.8);
+                        }
+                    }
+                }
+            }
+            "left" if parts.len() >= 2 => {
+                if let Ok(id) = parts[1].parse::<u32>() {
+                    g.venue.peers.retain(|p| p.id != id);
+                }
+            }
+            _ => {}
+        }
+    }
+    for p in g.venue.peers.iter_mut() {
+        let gap = p.to - p.pos;
+        if gap.length() > 3.0 {
+            p.pos = p.to;
+        } else {
+            p.pos += gap * (dt * 10.0).min(1.0);
+        }
+        p.sing = (p.sing - dt).max(0.0);
+    }
+    if g.venue.at == Venue::Chapel && g.venue.joined {
+        g.venue.net_send -= dt;
+        if g.venue.net_send <= 0.0 {
+            g.venue.net_send = 0.08;
+            let p = &g.players[0];
+            let l = p.pos - CH_ORIGIN;
+            net::send(&format!("at {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
+        }
+    }
+}
+
 pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
+    online(g, fr.dt);
     FLYER_COLOURS.with(|f| {
         let mut f = f.borrow_mut();
         f.clear();
@@ -276,6 +420,9 @@ fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f
                 g.audio.play_ch(who, &g.voices[voice][i], 1.0);
                 g.players[who].voice_timer = 0.25;
                 g.players[who].key_glow[i] = 1.0;
+                if who == 0 && g.venue.joined {
+                    net::send(&format!("sing {i}"));
+                }
             }
         }
     }
@@ -896,6 +1043,10 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
                     g.venue.door_msg = "that flyer's from last summer. that night's long over.".to_string();
                     g.venue.door_code.clear();
                     g.audio.play_ch(3, &g.tom, 0.6);
+                } else if net::state() == 2 {
+                    net::send(&format!("find {code}"));
+                    g.venue.find = Some((code, 4.0));
+                    g.venue.door_msg = "let me check the list...".to_string();
                 } else {
                     g.venue.door_msg = "never heard of it. no code, no rave.".to_string();
                     g.venue.door_code.clear();
@@ -1091,6 +1242,20 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for p in g.players.iter() {
         p.draw(&mut b, &g.world, time, pulse);
     }
+    for peer in g.venue.peers.iter() {
+        let mut friend = Player::new(peer.character, g.cast_list[peer.character].body, CH_ORIGIN + peer.pos);
+        friend.facing = peer.facing;
+        friend.yaw = peer.facing.x.atan2(peer.facing.y);
+        friend.walking = peer.walking;
+        friend.voice_timer = peer.sing;
+        friend.lift = if peer.walking { 0.0 } else { pulse * 0.05 };
+        friend.draw(&mut b, &g.world, time, pulse);
+        let was = b.unlit;
+        b.unlit = true;
+        let at = vec3(CH_ORIGIN.x + peer.pos.x, 1.9 + (time * 3.0 + peer.id as f32).sin() * 0.04, CH_ORIGIN.y + peer.pos.y);
+        b.box_at(at, time * 2.0, Vec3::ZERO, vec3(0.14, 0.14, 0.14), Color::from_rgba(61, 242, 255, 255));
+        b.unlit = was;
+    }
     b.unlit = true;
     let beams = if drop { 9 } else { 5 };
     for i in 0..beams {
@@ -1125,4 +1290,14 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect((low_w() - cw) / 2.0, 42.0, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_text(&code, (low_w() - cw) / 2.0 + 5.0, 51.0, 9.0, cream());
     place_label("st. bassilica", "wasd: move   1-6: sing over the set   esc or the door: leave");
+    let status = match net::state() {
+        2 if g.venue.joined => format!("online - {} here", g.venue.peers.len() + 1),
+        2 => "online".to_string(),
+        1 => "connecting...".to_string(),
+        _ => "offline".to_string(),
+    };
+    let sw = ui_measure(&status, 9.0) + 18.0;
+    ui_rect(low_w() - sw - 6.0, 6.0, sw, 14.0, Color::new(0.14, 0.1, 0.28, 0.85));
+    ui_rect(low_w() - sw, 11.0, 4.0, 4.0, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
+    ui_text(&status, low_w() - sw + 8.0, 16.5, 9.0, cream());
 }

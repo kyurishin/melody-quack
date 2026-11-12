@@ -8,5 +8,6 @@ window.MELODY_SETS = [
 
 window.MELODY_LIVE = {
   topic: "melody-quack-live-b3c29ad39c3a",
-  listen: ""
+  listen: "",
+  server: ""
 };

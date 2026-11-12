@@ -1058,6 +1058,42 @@
           importObject.env.touch_mode = function () {
             try { return window.matchMedia("(hover: none) and (pointer: coarse)").matches ? 1 : 0; } catch (e) { return 0; }
           };
+          var net = { ws: null, state: 0, queue: [], now: null };
+          importObject.env.net_open = function (p, l) {
+            try {
+              net.state = 1;
+              net.queue = [];
+              var ws = new WebSocket(text(p, l));
+              net.ws = ws;
+              ws.onopen = function () { if (net.ws === ws) net.state = 2; };
+              ws.onmessage = function (e) { if (typeof e.data === "string" && net.queue.length < 500) net.queue.push(e.data); };
+              ws.onclose = ws.onerror = function () { if (net.ws === ws) net.state = -1; };
+            } catch (e) {
+              net.state = -1;
+            }
+          };
+          importObject.env.net_send = function (p, l) {
+            if (net.ws && net.state === 2) {
+              try { net.ws.send(text(p, l)); } catch (e) {}
+            }
+          };
+          importObject.env.net_state = function () { return net.state; };
+          importObject.env.net_recv_len = function () {
+            if (!net.queue.length) return -1;
+            net.now = bytesOf(net.queue.shift());
+            return net.now.length;
+          };
+          importObject.env.net_recv_get = function (out) {
+            new Uint8Array(wasm_memory.buffer, out, net.now.length).set(net.now);
+          };
+          importObject.env.net_server_len = function () {
+            var s = (window.MELODY_LIVE && window.MELODY_LIVE.server) || "";
+            return s ? bytesOf(s).length : -1;
+          };
+          importObject.env.net_server_get = function (out) {
+            var bytes = bytesOf((window.MELODY_LIVE && window.MELODY_LIVE.server) || "");
+            new Uint8Array(wasm_memory.buffer, out, bytes.length).set(bytes);
+          };
           importObject.env.radio_bpm = function () {
             return +window.melodyBpm || 0;
           };

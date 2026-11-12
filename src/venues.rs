@@ -43,8 +43,24 @@ pub(crate) struct Rave {
     pub(crate) expired: bool,
 }
 
+pub(crate) struct Peer {
+    pub(crate) id: u32,
+    pub(crate) character: usize,
+    pub(crate) pos: Vec2,
+    pub(crate) to: Vec2,
+    pub(crate) facing: Vec2,
+    pub(crate) walking: bool,
+    pub(crate) sing: f32,
+}
+
 #[derive(Default)]
 pub(crate) struct VenueState {
+    pub(crate) peers: Vec<Peer>,
+    pub(crate) net_retry: f32,
+    pub(crate) net_send: f32,
+    pub(crate) joined: bool,
+    pub(crate) announced: usize,
+    pub(crate) find: Option<(String, f32)>,
     pub(crate) at: Venue,
     pub(crate) overlay: Overlay,
     pub(crate) raves: Vec<Rave>,

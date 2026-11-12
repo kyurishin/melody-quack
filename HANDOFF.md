@@ -169,5 +169,12 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - **Venues (`venues.rs`, `steps/venues.rs`):** the PC bang (tiles `PCBANG`) and St. Bassilica (tiles `CHAPEL`) are stamped onto the map by `venues::stamp`, also after loading an old save. Interiors sit at `PC_ORIGIN` and `CH_ORIGIN`, far off the map like the home. `VenueState` is `g.venue`; it is not saved.
 - **PC bang:** sit at a computer (E) for the Quack 95 desktop: quacknet (a hidden `.` link opens the underground flyer page), rave.exe (books a rave, gives a code and a flyer), readme, and a terminal with a small capture the flag (`ls -a`, `su goose` with the tempo 132 as password, `rot13`) that reveals the secret rave's code.
 - **Chapel:** the goose at the door takes a code typed in or picked from codes already seen; old flyers' codes are refused. Inside, `rave_tick` sequences techno from the existing drum, bass, bell, marimba and piano sounds, seeded by the rave. If the radio reports a live track, the generated set stays silent and the panel shows the live title.
-- **Not done:** meeting other players online in the chapel. The game has no networking yet; raves and codes live in one running game.
 - **Icons:** the old cat icon was removed on request; the window, page and manifest have no icon until a new file is added.
+
+## Online play
+
+- **`server/`** is its own Cargo package (not part of the game's build): a websocket relay with rooms keyed by rave code. Text lines only. Client to server: `host <code> <sound|bpm|seed|title>`, `find <code>`, `join <code> <character>`, `at <x> <z> <fx> <fz> <walking>`, `sing <note>`, `leave`. Server to client: `room <code> <age ms> <info>`, `none <code>`, `peer <id> <character> <x> <z> <fx> <fz> <walking>`, `sing <id> <note>`, `left <id>`. Empty rooms are dropped after six hours.
+- **`net` module pair:** `src/native/net.rs` (tungstenite on a thread) and `src/web/net.rs`. Web imports added to the plugin in `web/index.html`: `net_open`, `net_send`, `net_state`, `net_recv_len/get`, `net_server_len/get`. The address comes from `MELODY_LIVE.server` in `web/sets.js`, or `~/.melody-quack/server.txt` / `MELODY_QUACK_SERVER` on desktop.
+- **In the game:** `online()` in `steps/venues.rs` runs every frame: connects and retries every ten seconds, announces hosted raves, answers the goose's lookups, keeps `g.venue.peers`, and sends player one's position twelve times a second while in the chapel. The room's age from the server sets `rave_start`, which is what keeps the set in time for everyone.
+- **Limits:** only the chapel is shared; the island, the PC bang and the home are not. Only player one is sent. There are no names or chat, and no accounts: anyone with a code can come in.
+

@@ -17,6 +17,14 @@ mod audio;
 #[path = "web/audio.rs"]
 mod audio;
 
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "native/net.rs"]
+mod net;
+
+#[cfg(target_arch = "wasm32")]
+#[path = "web/net.rs"]
+mod net;
+
 mod util;
 mod ui;
 mod sound;

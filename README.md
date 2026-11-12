@@ -469,3 +469,17 @@ Run the source-order regression checks with `python3 -m unittest discover -s tes
 - **St. Bassilica:** the concrete chapel at the end of the forest path. The board outside carries flyers (E to read, A/D to flip); old torn ones have codes that no longer work.
 - **The goose** at the door wants a code. Type it, or click one you have already seen.
 - **Inside:** a generated techno set seeded by your rave, a duck on the decks and a dancing crowd. WASD to move, 1-6 to sing over the set, Esc or the door to leave. When the radio is playing a live set, the chapel shows that instead of its own.
+
+## Raving together online
+
+Friends can meet in the same chapel rave over the internet. It needs one small server that everyone points at.
+
+- **Run the server:** `cd server && cargo run --release` (port 7777, or `--port N` / the `PORT` variable). `server/Dockerfile` builds it for any host that runs containers. It only relays messages between players in the same rave; it keeps nothing on disk.
+- **Point the game at it:**
+  - Browser: set `server` in `web/sets.js`, for example `server: "wss://quack.example.com"`. A page served over https needs a `wss://` address.
+  - Desktop: put the address in `~/.melody-quack/server.txt`, or set `MELODY_QUACK_SERVER`.
+- **Host:** book a rave with rave.exe as usual. While you are connected it is announced to the server, so its code works for everyone.
+- **Join:** give the goose a friend's code. He checks the list.
+- **Inside:** friends carry a small turquoise marker above their heads, so you can tell them from the crowd. You see each other move and hear each other sing, and the set is synced so everyone hears the same bar. The corner of the screen shows how many are here.
+- With no server set, or when it cannot be reached, everything works offline as before.
+
