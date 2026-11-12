@@ -1,0 +1,24 @@
+//! One frame of the game, step by step. `main` calls these in order.
+
+pub(crate) mod input;
+pub(crate) mod screens;
+pub(crate) mod menus;
+pub(crate) mod radio_step;
+pub(crate) mod saving;
+pub(crate) mod audio_step;
+pub(crate) mod picker;
+pub(crate) mod movement;
+pub(crate) mod indoors;
+pub(crate) mod friend;
+pub(crate) mod sampler_step;
+pub(crate) mod arcade;
+pub(crate) mod fishing_step;
+pub(crate) mod camp_step;
+pub(crate) mod day;
+pub(crate) mod notes;
+pub(crate) mod world_step;
+pub(crate) mod draw_scene;
+pub(crate) mod hud;
+pub(crate) mod popups;
+pub(crate) mod shop;
+pub(crate) mod overlays;
