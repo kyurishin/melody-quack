@@ -178,3 +178,11 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - **In the game:** `online()` in `steps/venues.rs` runs every frame: connects and retries every ten seconds, announces hosted raves, answers the goose's lookups, keeps `g.venue.peers`, and sends player one's position twelve times a second while in the chapel. The room's age from the server sets `rave_start`, which is what keeps the set in time for everyone.
 - **Limits:** only the chapel is shared; the island, the PC bang and the home are not. Only player one is sent. There are no names or chat, and no accounts: anyone with a code can come in.
 
+## The name, the post and the timed list
+
+- **Name:** `g.venue.name`, asked by `name_screen` in `steps/venues.rs` before the character picker whenever it is empty. Saved as a new `name <text>` line; older saves load and are asked once.
+- **Server event (`Event` in `server/src/main.rs`):** one scheduled secret rave at a time. `mark` is the start minus 30 minutes. `sit` records one attempt per token within 10 s of the mark; `settle` ranks attempts by absolute offset and keeps the best 30; `claim` gives the code to those 30 at once and to up to 70 others from the mark plus five minutes. `join` and `find` on the secret code answer `early` before the start, and any room answers `full` at 100 players. The rules are unit tested with a fake clock (`cargo test` in `server/`).
+- **Extra messages:** client `hello <token>`, `sit`, `claim`, `join <code> <players> <ch0> <ch1> <name>`, `at <slot> ...`, `sing <slot> <note>`; server `event <ms to start> <phase> <mine> <rank> <general left> <info>` twice a second, `sat <offset ms>`, `code <code>`, `nocode early|list|full <ms>`, `early <code> <ms>`, `full <code>`, `who <id> <players> <ch0> <ch1> <name>`, `peer <id> <slot> ...`, `sing <id> <slot> <note>`.
+- **In the game:** `g.venue.tonight` holds the latest event; `mail_icon` draws the envelope (called at the end of a normal frame and from the venue HUDs), `mail` is the announcement overlay. The token is random per launch, so a place on the list does not survive restarting the game.
+- **Timing is judged on the server** when the `sit` message arrives, so a slow connection counts against the player.
+

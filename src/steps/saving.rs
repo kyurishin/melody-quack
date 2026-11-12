@@ -40,6 +40,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             mush: g.inv.mush,
             shroomdex: g.shroom_counts.clone(),
             stored: g.stored.iter().map(|i| i.index()).collect(),
+            name: g.venue.name.clone(),
             seq: g.sampler.grid.map(|row| row.iter().enumerate().fold(0u16, |m, (k, on)| if *on { m | (1 << k) } else { m })),
             quests: if g.quests.day == i64::MIN { None } else { Some((g.quests.day, g.quests.list.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
         };

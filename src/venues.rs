@@ -29,6 +29,7 @@ pub(crate) enum Overlay {
     None,
     Flyer(usize),
     Door,
+    Mail,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -43,8 +44,26 @@ pub(crate) struct Rave {
     pub(crate) expired: bool,
 }
 
+pub(crate) struct Friend {
+    pub(crate) id: u32,
+    pub(crate) players: u32,
+    pub(crate) characters: [usize; 2],
+    pub(crate) name: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct Tonight {
+    pub(crate) starts: f64,
+    pub(crate) phase: u8,
+    pub(crate) mine: u8,
+    pub(crate) rank: usize,
+    pub(crate) left: usize,
+    pub(crate) info: String,
+}
+
 pub(crate) struct Peer {
     pub(crate) id: u32,
+    pub(crate) slot: usize,
     pub(crate) character: usize,
     pub(crate) pos: Vec2,
     pub(crate) to: Vec2,
@@ -55,6 +74,16 @@ pub(crate) struct Peer {
 
 #[derive(Default)]
 pub(crate) struct VenueState {
+    pub(crate) name: String,
+    pub(crate) name_draft: String,
+    pub(crate) token: u64,
+    pub(crate) hello: bool,
+    pub(crate) friends: Vec<Friend>,
+    pub(crate) tonight: Option<Tonight>,
+    pub(crate) mail_seen: (String, u8, u8),
+    pub(crate) sat: Option<(String, f32)>,
+    pub(crate) ask: bool,
+    pub(crate) live_list: bool,
     pub(crate) peers: Vec<Peer>,
     pub(crate) net_retry: f32,
     pub(crate) net_send: f32,
@@ -185,7 +214,10 @@ impl VenueState {
                 say("03:13 denied everything.");
             }
             ("cat", ".rave") => {
-                if user == "goose" {
+                if user == "goose" && self.live_list {
+                    say("asking the goose's list...");
+                    self.ask = true;
+                } else if user == "goose" {
                     let r = self.secret.clone().unwrap();
                     say(&format!("tonight: {}", r.title));
                     say(&format!("code, scrambled: {}", rot13(&r.code)));
@@ -225,8 +257,8 @@ impl VenueState {
         won
     }
 
-    pub(crate) fn new() -> VenueState {
-        let mut v = VenueState { pc_bpm: 132.0, pc_sound: 1, rng: 0x51ab_1e55, ..Default::default() };
+    pub(crate) fn new(name: String) -> VenueState {
+        let mut v = VenueState { pc_bpm: 132.0, pc_sound: 1, rng: 0x51ab_1e55, name, ..Default::default() };
         let titles = ["acid mass", "bass vespers", "feather fever", "pond life", "midnight moult", "duckstep"];
         for (i, t) in titles.iter().enumerate() {
             let code = make_code(&mut v.rng);
@@ -238,6 +270,7 @@ impl VenueState {
         let seed = next(&mut v.rng);
         v.secret = Some(Rave { code, title: "the long waddle".to_string(), seed, sound: 1, bpm: 132.0, expired: false });
         v.term = vec!["quack 95 terminal. type help.".to_string()];
+        v.token = ((next(&mut v.rng) as u64) << 32) | next(&mut v.rng) as u64 | 1;
         v
     }
 

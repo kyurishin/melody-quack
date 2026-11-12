@@ -301,7 +301,9 @@ async fn main() {
     let live_next: Vec<String> = Vec::new();
     let radio_bpm = 0.0_f32;
     let fresh_confirm = 0.0_f32;
+    let mut saved_name = String::new();
     if let Some(saved) = store::read().and_then(|t| decode_progress(&t, cast_list.len())) {
+        saved_name = saved.name.clone();
         if saved.tiles.len() == world.tiles.len() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
@@ -365,7 +367,7 @@ async fn main() {
 
     venues::stamp(&mut world);
     let mut g = Game {
-        venue: venues::VenueState::new(),
+        venue: venues::VenueState::new(saved_name),
         audio,
         cast_list,
         voices,
@@ -586,6 +588,7 @@ async fn main() {
         steps::popups::draw_popups(&mut g, &mut fr);
         steps::shop::draw_shop(&mut g, &mut fr);
         steps::overlays::draw_overlays(&mut g, &mut fr);
+        steps::venues::mail_icon(&mut g, &mut fr);
         next_frame().await
     }
 }

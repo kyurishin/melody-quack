@@ -483,3 +483,15 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 - **Inside:** friends carry a small turquoise marker above their heads, so you can tell them from the crowd. You see each other move and hear each other sing, and the set is synced so everyone hears the same bar. The corner of the screen shows how many are here.
 - With no server set, or when it cannot be reached, everything works offline as before.
 
+## Your name, the post and the secret rave
+
+- **Your name:** the game asks for it once, before anything else. Friends see it above your head in the chapel; a second player on the same keyboard shows as "name +1". Both players are sent to friends.
+- **The envelope:** click it for the goose's announcement about tonight's secret rave, with a countdown to the millisecond. A red 1 means there is news.
+- **The first 30:** the goose writes the code down exactly 30 minutes before doors. Sit down at a PC bang computer as close to that moment as you can; a banner in the PC bang counts down to it. You get one attempt, it has to be within ten seconds either side, and the game tells you how far off you were. The 30 closest are on his list.
+- **The other 70:** five minutes later the terminal gives the code to anyone, until 70 more have it.
+- **Getting the code:** in the terminal, `su goose` (the password is on the underground page), then `cat .rave`, then `rot13` what it gives you.
+- **Doors:** the goose lets nobody in before the start time, and the chapel holds 100 players at most, both of you counted if you are two.
+- **Offline:** with no server there is no schedule; the terminal gives you a secret rave of your own, as before.
+
+The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
+

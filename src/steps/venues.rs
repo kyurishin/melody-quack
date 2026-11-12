@@ -100,6 +100,7 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.pc_open = false;
     g.venue.talk = 0.0;
     g.venue.peers.clear();
+    g.venue.friends.clear();
     g.venue.joined = false;
     if venue == Venue::Chapel {
         g.venue.rave_start = get_time();
@@ -144,6 +145,7 @@ fn leave(g: &mut Game) {
     }
     g.venue.joined = false;
     g.venue.peers.clear();
+    g.venue.friends.clear();
     g.venue.at = Venue::None;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
@@ -152,6 +154,35 @@ fn leave(g: &mut Game) {
 
 fn rave_info(r: &Rave) -> String {
     format!("{}|{}|{}|{}", r.sound, r.bpm, r.seed, r.title)
+}
+
+fn rave_from(code: &str, info: &str) -> Option<Rave> {
+    let f: Vec<&str> = info.splitn(4, '|').collect();
+    if f.len() != 4 {
+        return None;
+    }
+    Some(Rave {
+        code: code.to_string(),
+        title: f[3].chars().take(24).collect(),
+        seed: f[2].parse().unwrap_or(1),
+        sound: f[0].parse::<usize>().unwrap_or(0) % 3,
+        bpm: f[1].parse::<f32>().unwrap_or(132.0).clamp(110.0, 160.0),
+        expired: false,
+    })
+}
+
+fn clock(ms: f64) -> String {
+    let total = ms.abs() as i64;
+    let (h, m, s, k) = (total / 3_600_000, total / 60_000 % 60, total / 1000 % 60, total % 1000);
+    if h > 0 { format!("{h}:{m:02}:{s:02}.{k:03}") } else { format!("{m:02}:{s:02}.{k:03}") }
+}
+
+fn to_start(g: &Game) -> Option<f64> {
+    g.venue.tonight.as_ref().map(|t| (t.starts - get_time()) * 1000.0)
+}
+
+fn here(g: &Game) -> u32 {
+    1 + g.two_player as u32 + g.venue.friends.iter().map(|f| f.players).sum::<u32>()
 }
 
 fn online(g: &mut Game, dt: f32) {
@@ -165,9 +196,16 @@ fn online(g: &mut Game, dt: f32) {
     }
     if st != 2 {
         g.venue.peers.clear();
+        g.venue.friends.clear();
         g.venue.joined = false;
         g.venue.announced = 0;
+        g.venue.hello = false;
+        g.venue.tonight = None;
     } else {
+        if !g.venue.hello {
+            net::send(&format!("hello {}", g.venue.token));
+            g.venue.hello = true;
+        }
         while g.venue.announced < g.venue.raves.len() {
             let r = &g.venue.raves[g.venue.announced];
             net::send(&format!("host {} {}", r.code, rave_info(r)));
@@ -176,10 +214,21 @@ fn online(g: &mut Game, dt: f32) {
         if g.venue.at == Venue::Chapel && !g.venue.joined {
             if let Some(r) = g.venue.now.clone() {
                 net::send(&format!("host {} {}", r.code, rave_info(&r)));
-                net::send(&format!("join {} {}", r.code, g.players[0].character));
+                net::send(&format!("join {} {} {} {} {}", r.code, 1 + g.two_player as u32, g.players[0].character, g.players[1].character, g.venue.name));
                 g.venue.joined = true;
             }
         }
+        if g.venue.ask {
+            net::send("claim");
+        }
+    }
+    g.venue.ask = false;
+    g.venue.live_list = st == 2 && g.venue.tonight.is_some();
+    if let Some((_, left)) = g.venue.sat.as_mut() {
+        *left -= dt;
+    }
+    if g.venue.sat.as_ref().map(|s| s.1 <= 0.0).unwrap_or(false) {
+        g.venue.sat = None;
     }
     let mut timed_out = false;
     if let Some((_, left)) = g.venue.find.as_mut() {
@@ -192,25 +241,89 @@ fn online(g: &mut Game, dt: f32) {
     }
     while let Some(line) = net::recv() {
         let parts: Vec<&str> = line.split(' ').collect();
+        let finding = |g: &Game, code: &str| g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false);
         match parts.first().copied().unwrap_or("") {
+            "event" if parts.len() >= 7 => {
+                let ms = parts[1].parse::<f64>().unwrap_or(0.0);
+                let mut starts = get_time() + ms / 1000.0;
+                if let Some(old) = &g.venue.tonight {
+                    if (old.starts - starts).abs() < 0.25 {
+                        starts = old.starts;
+                    }
+                }
+                g.venue.tonight = Some(Tonight {
+                    starts,
+                    phase: parts[2].parse().unwrap_or(0),
+                    mine: parts[3].parse().unwrap_or(0),
+                    rank: parts[4].parse().unwrap_or(0),
+                    left: parts[5].parse().unwrap_or(0),
+                    info: parts[6..].join(" "),
+                });
+            }
+            "sat" if parts.len() >= 2 => {
+                let counting = g.venue.tonight.as_ref().map(|t| t.mine <= 1).unwrap_or(true);
+                if let (Ok(off), true) = (parts[1].parse::<f64>(), counting) {
+                    let text = if off == 0.0 {
+                        "you sat down exactly on the dot. the goose is counting...".to_string()
+                    } else {
+                        format!("you sat down {:.3} s {}. the goose is counting...", off.abs() / 1000.0, if off < 0.0 { "early" } else { "late" })
+                    };
+                    g.venue.sat = Some((text, 9.0));
+                    g.audio.play_ch(3, &g.bells[3], 0.5);
+                }
+            }
+            "code" if parts.len() >= 2 => {
+                let info = g.venue.tonight.as_ref().map(|t| t.info.clone()).unwrap_or_default();
+                if let Some(r) = rave_from(parts[1], &info) {
+                    g.venue.term.push(format!("tonight: {}", r.title));
+                    g.venue.term.push(format!("code, scrambled: {}", rot13(&r.code)));
+                    g.venue.term.push("every letter moved 13 along. rot13 it back.".to_string());
+                    g.venue.secret = Some(r);
+                }
+            }
+            "nocode" if parts.len() >= 2 => {
+                let ms = parts.get(2).and_then(|n| n.parse::<f64>().ok()).unwrap_or(0.0);
+                match parts[1] {
+                    "early" => {
+                        g.venue.term.push("the goose hasn't written tonight's code yet.".to_string());
+                        g.venue.term.push("check your mail for when he does.".to_string());
+                    }
+                    "list" => {
+                        g.venue.term.push("the first 30 have it. you weren't one of them.".to_string());
+                        g.venue.term.push(format!("open to everyone else in {}.", clock(ms)));
+                    }
+                    _ => g.venue.term.push("the list is full. a hundred is a hundred.".to_string()),
+                }
+            }
+            "early" if parts.len() >= 3 => {
+                if finding(g, parts[1]) {
+                    let ms = parts[2].parse::<f64>().unwrap_or(0.0);
+                    g.venue.find = None;
+                    g.venue.door_code.clear();
+                    g.venue.door_msg = format!("right code. doors open in {}. come back then.", clock(ms));
+                }
+            }
+            "full" if parts.len() >= 2 => {
+                let inside = g.venue.at == Venue::Chapel && g.venue.now.as_ref().map(|r| r.code == parts[1]).unwrap_or(false);
+                if inside {
+                    g.venue.joined = false;
+                    leave(g);
+                }
+                if inside || finding(g, parts[1]) {
+                    g.venue.find = None;
+                    g.venue.overlay = Overlay::Door;
+                    g.venue.door_code.clear();
+                    g.venue.door_msg = "we're full. a hundred in. one out, one in.".to_string();
+                }
+            }
             "room" if parts.len() >= 4 => {
                 let code = parts[1];
                 let elapsed = parts[2].parse::<f64>().unwrap_or(0.0) / 1000.0;
                 if g.venue.at == Venue::Chapel && g.venue.now.as_ref().map(|r| r.code == code).unwrap_or(false) {
                     g.venue.rave_start = get_time() - elapsed;
                     g.venue.last_step = -1;
-                } else if g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false) {
-                    let info = parts[3..].join(" ");
-                    let f: Vec<&str> = info.splitn(4, '|').collect();
-                    if f.len() == 4 {
-                        let rave = Rave {
-                            code: code.to_string(),
-                            title: f[3].chars().take(24).collect(),
-                            seed: f[2].parse().unwrap_or(1),
-                            sound: f[0].parse::<usize>().unwrap_or(0) % 3,
-                            bpm: f[1].parse::<f32>().unwrap_or(132.0).clamp(110.0, 160.0),
-                            expired: false,
-                        };
+                } else if finding(g, code) {
+                    if let Some(rave) = rave_from(code, &parts[3..].join(" ")) {
                         g.venue.find = None;
                         g.venue.learn(code);
                         g.venue.now = Some(rave);
@@ -219,21 +332,37 @@ fn online(g: &mut Game, dt: f32) {
                 }
             }
             "none" if parts.len() >= 2 => {
-                if g.venue.find.as_ref().map(|(c, _)| c == parts[1]).unwrap_or(false) {
+                if finding(g, parts[1]) {
                     g.venue.find = None;
                     g.venue.door_code.clear();
                     g.venue.door_msg = "never heard of it. no code, no rave.".to_string();
                     g.audio.play_ch(3, &g.tom, 0.6);
                 }
             }
+            "who" if parts.len() >= 6 => {
+                if let Ok(id) = parts[1].parse::<u32>() {
+                    let n = g.cast_list.len();
+                    let friend = Friend {
+                        id,
+                        players: parts[2].parse::<u32>().unwrap_or(1).clamp(1, 2),
+                        characters: [parts[3].parse::<usize>().unwrap_or(0) % n, parts[4].parse::<usize>().unwrap_or(0) % n],
+                        name: parts[5..].join(" ").chars().take(12).collect(),
+                    };
+                    g.venue.friends.retain(|f| f.id != id);
+                    if g.venue.friends.len() < 100 {
+                        g.venue.friends.push(friend);
+                    }
+                }
+            }
             "peer" if parts.len() >= 8 => {
                 let nums: Vec<f32> = parts[3..8].iter().filter_map(|n| n.parse().ok()).collect();
-                if let (Ok(id), Ok(character), 5) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), nums.len()) {
+                if let (Ok(id), Ok(slot), 5) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), nums.len()) {
+                    let slot = slot.min(1);
                     let to = vec2(nums[0].clamp(0.0, CH_SIZE.0), nums[1].clamp(0.0, CH_SIZE.1 + 0.5));
                     let facing = vec2(nums[2], nums[3]);
                     let facing = if facing.length() > 0.1 { facing.normalize() } else { vec2(0.0, -1.0) };
-                    let character = character % g.cast_list.len();
-                    match g.venue.peers.iter_mut().find(|p| p.id == id) {
+                    let character = g.venue.friends.iter().find(|f| f.id == id).map(|f| f.characters[slot]).unwrap_or(0);
+                    match g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot) {
                         Some(p) => {
                             p.to = to;
                             p.facing = facing;
@@ -241,16 +370,16 @@ fn online(g: &mut Game, dt: f32) {
                             p.character = character;
                         }
                         None => {
-                            if g.venue.peers.len() < 40 {
-                                g.venue.peers.push(Peer { id, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0 });
+                            if g.venue.peers.len() < 100 {
+                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0 });
                             }
                         }
                     }
                 }
             }
-            "sing" if parts.len() >= 3 => {
-                if let (Ok(id), Ok(note)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>()) {
-                    if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id) {
+            "sing" if parts.len() >= 4 => {
+                if let (Ok(id), Ok(slot), Ok(note)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), parts[3].parse::<usize>()) {
+                    if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot.min(1)) {
                         p.sing = 0.25;
                         if note < 6 && g.venue.at == Venue::Chapel {
                             g.audio.play_ch(1, &g.voices[p.character][note], 0.8);
@@ -261,6 +390,7 @@ fn online(g: &mut Game, dt: f32) {
             "left" if parts.len() >= 2 => {
                 if let Ok(id) = parts[1].parse::<u32>() {
                     g.venue.peers.retain(|p| p.id != id);
+                    g.venue.friends.retain(|f| f.id != id);
                 }
             }
             _ => {}
@@ -279,15 +409,185 @@ fn online(g: &mut Game, dt: f32) {
         g.venue.net_send -= dt;
         if g.venue.net_send <= 0.0 {
             g.venue.net_send = 0.08;
-            let p = &g.players[0];
-            let l = p.pos - CH_ORIGIN;
-            net::send(&format!("at {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
+            for slot in 0..(1 + g.two_player as usize) {
+                let p = &g.players[slot];
+                let l = p.pos - CH_ORIGIN;
+                net::send(&format!("at {slot} {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
+            }
         }
+    }
+}
+
+fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
+    if radio::touch_ui() && !g.two_player {
+        ((low_w() / 2.0 - 11.0).round(), 20.0, 22.0, 15.0)
+    } else if g.two_player && g.venue.at == Venue::None {
+        (6.0, 40.0, 22.0, 15.0)
+    } else if g.venue.at == Venue::None {
+        (6.0, 22.0, 22.0, 15.0)
+    } else {
+        (6.0, 26.0, 22.0, 15.0)
+    }
+}
+
+fn mail_visible(g: &Game) -> bool {
+    !g.venue.name.is_empty() && !g.picking && !g.show_help && !g.shop_open && !g.sampler.open && !g.venue.pc_open && g.venue.overlay == Overlay::None
+}
+
+fn mail_key(g: &Game) -> (String, u8, u8) {
+    g.venue.tonight.as_ref().map(|t| (t.info.clone(), t.phase, t.mine)).unwrap_or_default()
+}
+
+pub(crate) fn mail_icon(g: &mut Game, _fr: &mut Frame) {
+    if !mail_visible(g) {
+        return;
+    }
+    let (x, y, w, h) = mail_rect(g);
+    let paper = Color::from_rgba(255, 204, 72, 255);
+    let fold = Color::from_rgba(240, 160, 60, 255);
+    ui_rect(x, y, w, h, BLACK);
+    ui_rect(x + 1.0, y + 1.0, w - 2.0, h - 2.0, paper);
+    ui_rect(x + 1.0, y + h - 2.0, w - 2.0, 1.0, fold);
+    let mid = (w / 2.0).floor();
+    for k in 0..(mid as i32 - 1) {
+        let fy = (k as f32 * 0.72).floor();
+        ui_rect(x + 1.0 + k as f32, y + 1.0 + fy, 1.0, 1.0, BLACK);
+        ui_rect(x + w - 2.0 - k as f32, y + 1.0 + fy, 1.0, 1.0, BLACK);
+        if k < 6 {
+            ui_rect(x + 1.0 + k as f32, y + h - 2.0 - (k as f32 * 0.8).floor(), 1.0, 1.0, BLACK);
+            ui_rect(x + w - 2.0 - k as f32, y + h - 2.0 - (k as f32 * 0.8).floor(), 1.0, 1.0, BLACK);
+        }
+    }
+    ui_rect(x + mid - 2.0, y + 8.0, 4.0, 1.0, BLACK);
+    if g.venue.tonight.is_some() && g.venue.mail_seen != mail_key(g) {
+        let (bx, by) = (x + w - 6.0, y - 5.0);
+        ui_rect(bx + 1.0, by, 7.0, 9.0, BLACK);
+        ui_rect(bx, by + 1.0, 9.0, 7.0, BLACK);
+        ui_rect(bx + 1.0, by + 1.0, 7.0, 7.0, Color::from_rgba(226, 54, 54, 255));
+        ui_rect(bx + 4.0, by + 2.0, 1.0, 5.0, WHITE);
+        ui_rect(bx + 3.0, by + 3.0, 1.0, 1.0, WHITE);
+    }
+}
+
+fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (w, h) = (268.0f32.min(low_w() - 12.0), 150.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, cream());
+    ui_rect(x, y, w, 3.0, Color::from_rgba(255, 204, 72, 255));
+    let mut lines: Vec<(String, f32, Color)> = Vec::new();
+    let grey = Color::from_rgba(110, 100, 130, 255);
+    match (g.venue.tonight.clone(), to_start(g)) {
+        (Some(t), Some(ms)) => {
+            let title = t.info.splitn(4, '|').nth(3).unwrap_or("tonight").to_string();
+            let mark = ms - 30.0 * 60_000.0;
+            lines.push(("from: the goose".to_string(), 8.0, grey));
+            lines.push((title, 16.0, ink()));
+            lines.push(("st. bassilica. a hundred in, no more.".to_string(), 9.0, ink()));
+            if ms > 0.0 {
+                lines.push((format!("doors in {}", clock(ms)), 14.0, Color::from_rgba(200, 60, 90, 255)));
+            } else {
+                lines.push(("doors are open".to_string(), 14.0, Color::from_rgba(40, 150, 90, 255)));
+            }
+            let body: Vec<String> = match (t.phase, t.mine) {
+                (_, 2) => vec![format!("you're number {} on my list of 30.", t.rank), "the terminal at the pc bang will give you the code.".to_string()],
+                (_, 3) => vec!["you have a place. the code is yours.".to_string(), "bring it to the door when it opens.".to_string()],
+                (0, _) | (1, 0) => vec![
+                    "i write the code down exactly 30 minutes before doors.".to_string(),
+                    "the 30 who sit down at a pc bang computer closest to".to_string(),
+                    "that moment get the first go at it.".to_string(),
+                    if mark >= 0.0 { format!("sit down in {}", clock(mark)) } else { format!("now. {} gone.", clock(mark)) },
+                ],
+                (1, _) => vec!["i saw you sit down. counting...".to_string()],
+                (2, _) => vec!["the first 30 are on the list. you aren't.".to_string(), format!("the terminal opens to everyone else in {}.", clock(mark + 5.0 * 60_000.0)), "70 more places.".to_string()],
+                _ => vec![format!("the terminal is open to everyone: {} of 70 places left.", t.left), "pc bang, terminal, find the code.".to_string()],
+            };
+            for b in body {
+                lines.push((b, 9.0, ink()));
+            }
+        }
+        _ => {
+            lines.push(("no post today".to_string(), 16.0, ink()));
+            lines.push(("the goose's list can't be reached from here.".to_string(), 9.0, ink()));
+            lines.push(("tonight's secret is yours alone: the terminal".to_string(), 9.0, ink()));
+            lines.push(("at the pc bang still has it.".to_string(), 9.0, ink()));
+        }
+    }
+    let mut ty = y + 16.0;
+    for (text, size, col) in lines {
+        ty += size * 0.35;
+        ui_text(&text, x + 12.0, ty, size, col);
+        ty += size * 0.75 + 4.0;
+    }
+    let foot = "esc or click outside to close";
+    ui_text(foot, x + (w - ui_measure(foot, 8.0)) / 2.0, y + h - 6.0, 8.0, grey);
+    if fresh {
+        return;
+    }
+    if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::E) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+fn name_screen(g: &mut Game, fr: &mut Frame) {
+    set_default_camera();
+    clear_background(Color::from_rgba(36, 26, 71, 255));
+    let cx = low_w() / 2.0;
+    let title = "melody quack";
+    ui_text(title, cx - ui_measure(title, 26.0) / 2.0 + 2.0, low_h() * 0.3 + 2.0, 26.0, BLACK);
+    ui_text(title, cx - ui_measure(title, 26.0) / 2.0, low_h() * 0.3, 26.0, Color::from_rgba(255, 214, 110, 255));
+    let ask = "what's your name?";
+    ui_text(ask, cx - ui_measure(ask, 12.0) / 2.0, low_h() * 0.3 + 34.0, 12.0, cream());
+    let (w, h) = (170.0, 24.0);
+    let (x, y) = ((cx - w / 2.0).round(), (low_h() * 0.3 + 44.0).round());
+    ui_rect(x + 3.0, y + 3.0, w, h, BLACK);
+    ui_rect(x, y, w, h, ink());
+    ui_rect(x + 2.0, y + 2.0, w - 4.0, h - 4.0, cream());
+    while let Some(ch) = get_char_pressed() {
+        if (ch.is_alphanumeric() || ch == ' ' || ch == '-' || ch == '_') && g.venue.name_draft.chars().count() < 12 {
+            g.venue.name_draft.push(ch.to_ascii_lowercase());
+        }
+    }
+    if is_key_pressed(KeyCode::Backspace) {
+        g.venue.name_draft.pop();
+    }
+    if fr.click && hit(fr, x, y, w, h) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text("what's your name?", &g.venue.name_draft) {
+            g.venue.name_draft = text.chars().filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_').take(12).collect::<String>().to_lowercase();
+        }
+    }
+    ui_text(&g.venue.name_draft, x + 8.0, y + 16.5, 14.0, ink());
+    if (fr.time * 2.0).fract() < 0.6 {
+        ui_rect(x + 9.0 + ui_measure(&g.venue.name_draft, 14.0), y + 5.0, 2.0, h - 10.0, ink());
+    }
+    let ready = !g.venue.name_draft.trim().is_empty();
+    let hint = if ready { "enter to start" } else { "friends see it above your head when you rave together" };
+    let hy = y + h + 16.0;
+    let bw = ui_measure(hint, 10.0) + 16.0;
+    if ready {
+        ui_rect(cx - bw / 2.0, hy - 11.0, bw, 16.0, Color::from_rgba(255, 214, 110, 255));
+    }
+    ui_text(hint, cx - ui_measure(hint, 10.0) / 2.0, hy, 10.0, if ready { ink() } else { Color::new(1.0, 0.97, 0.88, 0.7) });
+    let tapped = ready && fr.click && hit(fr, cx - bw / 2.0, hy - 11.0, bw, 16.0);
+    if ready && (is_key_pressed(KeyCode::Enter) || tapped) {
+        g.venue.name = g.venue.name_draft.trim().to_string();
+        g.audio.play_ch(3, &g.bells[2], 0.5);
+        g.audio.play_ch(3, &g.bells[4], 0.4);
+        fr.click = false;
     }
 }
 
 pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     online(g, fr.dt);
+    if g.venue.name.is_empty() {
+        if is_quit_requested() {
+            return false;
+        }
+        name_screen(g, fr);
+        return true;
+    }
     FLYER_COLOURS.with(|f| {
         let mut f = f.borrow_mut();
         f.clear();
@@ -302,6 +602,16 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         return false;
     }
     let mut fresh = false;
+    if mail_visible(g) && fr.click {
+        let (mx, my, mw, mh) = mail_rect(g);
+        if hit(fr, mx - 2.0, my - 6.0, mw + 8.0, mh + 8.0) {
+            g.venue.overlay = Overlay::Mail;
+            g.venue.mail_seen = mail_key(g);
+            g.audio.play_ch(3, &g.plink, 0.4);
+            fr.click = false;
+            fresh = true;
+        }
+    }
     if g.venue.at == Venue::None && g.venue.overlay == Overlay::None {
         if !can_use(g) || !is_key_pressed(KeyCode::E) {
             return false;
@@ -333,12 +643,13 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     match g.venue.overlay {
         Overlay::Flyer(i) => flyer_view(g, fr, i, fresh),
         Overlay::Door => door_talk(g, fr, fresh),
+        Overlay::Mail => mail(g, fr, fresh),
         Overlay::None => {}
     }
     true
 }
 
-fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) {
+fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) -> Mat4 {
     if low_w() as u32 != g.view_w || low_h() as u32 != g.view_h {
         g.view_w = low_w() as u32;
         g.view_h = low_h() as u32;
@@ -368,6 +679,18 @@ fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) {
         viewport: Some((0, 0, width as i32, height as i32)),
         ..Default::default()
     });
+    Mat4::perspective_rh_gl(fovy, aspect, 0.01, 10000.0) * Mat4::look_at_rh(eye, look_at, Vec3::Y)
+}
+
+fn name_tag(view: Mat4, at: Vec3, text: &str, colour: Color) {
+    let p = view.project_point3(at);
+    if p.z < -1.0 || p.z > 1.0 {
+        return;
+    }
+    let (x, y) = ((p.x + 1.0) * 0.5 * low_w(), (1.0 - p.y) * 0.5 * low_h());
+    let w = ui_measure(text, 8.0);
+    ui_rect(x - w / 2.0 - 2.0, y - 8.0, w + 4.0, 10.0, Color::new(0.14, 0.1, 0.28, 0.75));
+    ui_text(text, x - w / 2.0, y, 8.0, colour);
 }
 
 fn blit(g: &Game) {
@@ -420,8 +743,8 @@ fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f
                 g.audio.play_ch(who, &g.voices[voice][i], 1.0);
                 g.players[who].voice_timer = 0.25;
                 g.players[who].key_glow[i] = 1.0;
-                if who == 0 && g.venue.joined {
-                    net::send(&format!("sing {i}"));
+                if g.venue.joined {
+                    net::send(&format!("sing {who} {i}"));
                 }
             }
         }
@@ -461,6 +784,9 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 g.players[0].facing = vec2(0.0, -1.0);
                 g.players[0].seated = true;
                 g.venue.pc_open = true;
+                if net::state() == 2 {
+                    net::send("sit");
+                }
                 g.venue.pc_boot = 0.0;
                 g.venue.pc_app = 0;
                 g.audio.play_ch(3, &g.bells[2], 0.5);
@@ -567,6 +893,16 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
         "walk out of the door or press esc to leave   1-6: sing"
     };
     place_label("pc bang  24h", hint);
+    mail_icon(g, fr);
+    if let (Some(t), Some(ms)) = (g.venue.tonight.clone(), to_start(g)) {
+        let mark = ms - 30.0 * 60_000.0;
+        if t.phase <= 1 && t.mine == 0 && mark < 10.0 * 60_000.0 {
+            let line = if mark >= 0.0 { format!("the goose writes the code in {}. sit down on the dot.", clock(mark)) } else { format!("now! {} gone. sit down.", clock(mark)) };
+            let w = ui_measure(&line, 10.0) + 14.0;
+            ui_rect((low_w() - w) / 2.0, 26.0, w, 15.0, Color::new(0.78, 0.2, 0.3, 0.9));
+            ui_text(&line, (low_w() - w) / 2.0 + 7.0, 36.5, 10.0, WHITE);
+        }
+    }
     if g.venue.talk > 0.0 {
         let lines = if g.venue.raves.is_empty() {
             ["mr. kim: first hour's free. the snacks are not.", "the kids use rave.exe on those machines, get a code,", "and go to the old chapel in the forest. i don't ask."]
@@ -712,6 +1048,11 @@ fn desktop(g: &mut Game, fr: &mut Frame) {
     while y < sy + sh {
         ui_rect(sx, y, sw, 0.5, Color::new(0.0, 0.0, 0.0, 0.1));
         y += 2.0;
+    }
+    if let Some((text, _)) = &g.venue.sat {
+        let w = ui_measure(text, 9.0) + 12.0;
+        ui_rect((low_w() - w) / 2.0, my - 1.0, w, 13.0, Color::from_rgba(255, 204, 72, 255));
+        ui_text(text, (low_w() - w) / 2.0 + 6.0, my + 8.5, 9.0, ink());
     }
     let t = "esc: close a window, or stand up";
     ui_text(t, (low_w() - ui_measure(t, 9.0)) / 2.0, (my + mh + 12.0).min(low_h() - 3.0), 9.0, Color::new(1.0, 0.97, 0.88, 0.7));
@@ -1147,7 +1488,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     g.venue.pulse = pulse;
     let rave = g.venue.now.clone();
     let center = vec3(CH_ORIGIN.x + CH_SIZE.0 / 2.0, 0.5, CH_ORIGIN.y + CH_SIZE.1 / 2.0);
-    begin_room(g, center, 1.75, Color::from_rgba(10, 7, 20, 255));
+    let view = begin_room(g, center, 1.75, Color::from_rgba(10, 7, 20, 255));
     let o = vec3(CH_ORIGIN.x, 0.5, CH_ORIGIN.y);
     let booth = o + vec3(BOOTH.0, 0.0, BOOTH.1);
     let mut lamps = Vec::new();
@@ -1242,6 +1583,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for p in g.players.iter() {
         p.draw(&mut b, &g.world, time, pulse);
     }
+    let mut tags: Vec<(Vec3, String, Color)> = Vec::new();
     for peer in g.venue.peers.iter() {
         let mut friend = Player::new(peer.character, g.cast_list[peer.character].body, CH_ORIGIN + peer.pos);
         friend.facing = peer.facing;
@@ -1250,11 +1592,15 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         friend.voice_timer = peer.sing;
         friend.lift = if peer.walking { 0.0 } else { pulse * 0.05 };
         friend.draw(&mut b, &g.world, time, pulse);
-        let was = b.unlit;
-        b.unlit = true;
-        let at = vec3(CH_ORIGIN.x + peer.pos.x, 1.9 + (time * 3.0 + peer.id as f32).sin() * 0.04, CH_ORIGIN.y + peer.pos.y);
-        b.box_at(at, time * 2.0, Vec3::ZERO, vec3(0.14, 0.14, 0.14), Color::from_rgba(61, 242, 255, 255));
-        b.unlit = was;
+        let name = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.name.clone()).unwrap_or_default();
+        let name = if peer.slot == 1 { format!("{name} +1") } else { name };
+        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, Color::from_rgba(61, 242, 255, 255)));
+    }
+    if net::state() == 2 {
+        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), g.venue.name.clone(), Color::from_rgba(255, 214, 110, 255)));
+        if g.two_player {
+            tags.push((vec3(g.players[1].pos.x, 1.75, g.players[1].pos.y), format!("{} +1", g.venue.name), Color::from_rgba(255, 214, 110, 255)));
+        }
     }
     b.unlit = true;
     let beams = if drop { 9 } else { 5 };
@@ -1266,6 +1612,9 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     b.flush();
     blit(g);
+    for (at, text, colour) in tags.iter() {
+        name_tag(view, *at, text, *colour);
+    }
     if drop && pulse > 0.85 {
         ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(1.0, 1.0, 1.0, 0.06));
     }
@@ -1291,7 +1640,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_text(&code, (low_w() - cw) / 2.0 + 5.0, 51.0, 9.0, cream());
     place_label("st. bassilica", "wasd: move   1-6: sing over the set   esc or the door: leave");
     let status = match net::state() {
-        2 if g.venue.joined => format!("online - {} here", g.venue.peers.len() + 1),
+        2 if g.venue.joined => format!("online - {} of 100 here", here(g)),
         2 => "online".to_string(),
         1 => "connecting...".to_string(),
         _ => "offline".to_string(),
@@ -1300,4 +1649,5 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect(low_w() - sw - 6.0, 6.0, sw, 14.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_rect(low_w() - sw, 11.0, 4.0, 4.0, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
     ui_text(&status, low_w() - sw + 8.0, 16.5, 9.0, cream());
+    mail_icon(g, fr);
 }
