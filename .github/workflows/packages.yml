@@ -1,0 +1,89 @@
+name: Packages
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build universal binary
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+      - run: packaging/macos/make-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: melody-quack-macos
+          path: dist/*.dmg
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev pkg-config
+      - run: cargo build --release --locked
+      - name: Fetch appimagetool
+        run: |
+          curl -sSfL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+      - name: Package
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: APPIMAGETOOL="$PWD/appimagetool" packaging/linux/make-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: melody-quack-linux
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm git rust alsa-lib libx11 libxi libglvnd
+      - uses: actions/checkout@v4
+      - name: Build the package
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          useradd -m builder
+          mkdir -p /build
+          git config --global --add safe.directory "$PWD"
+          git archive --format=tar.gz --prefix="melody-quack-$VERSION/" -o "/build/melody-quack-$VERSION.tar.gz" HEAD
+          sed "s/^pkgver=.*/pkgver=$VERSION/" packaging/arch/PKGBUILD > /build/PKGBUILD
+          chown -R builder /build
+          cd /build
+          sudo -u builder makepkg --noconfirm
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp /build/*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: melody-quack-arch
+          path: dist/*.pkg.tar.zst
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, linux, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

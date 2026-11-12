@@ -1,0 +1,24 @@
+pkgname=melody-quack
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="A cosy voxel music game: animal voices are notes, and there is a rave in the chapel"
+arch=('x86_64' 'aarch64')
+url="https://github.com/kyurishin/melody-quack"
+license=('custom')
+depends=('alsa-lib' 'libx11' 'libxi' 'libglvnd' 'gcc-libs')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/$pkgname-$pkgver"
+  export CARGO_TARGET_DIR=target
+  cargo build --release --locked
+}
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  install -Dm755 target/release/melody-quack "$pkgdir/usr/bin/melody-quack"
+  install -Dm644 packaging/linux/melody-quack.desktop "$pkgdir/usr/share/applications/melody-quack.desktop"
+  install -Dm644 packaging/linux/melody-quack.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/melody-quack.png"
+}

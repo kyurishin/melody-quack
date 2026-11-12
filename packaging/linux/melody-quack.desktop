@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Melody Quack
+Comment=Animal voices are notes. Jam by the campfire, fish on the beat, rave in the chapel.
+Exec=melody-quack
+Icon=melody-quack
+Terminal=false
+Categories=Game;Music;
