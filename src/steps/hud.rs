@@ -412,11 +412,11 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
             }
         }
         let bag_hint = if !g.inside {
-            if fr.touch_ui { "bag to close" } else { "M to close" }
+            if fr.touch_ui { "bag to close" } else { "M or esc: close" }
         } else if g.bag_clear_armed > 0.0 {
             "X again: pack ALL furniture away"
         } else if g.bag_owner == 0 {
-            "W/S choose  E take out  X pack all  M close"
+            "W/S choose  E take out  X pack all  esc: close"
         } else {
             "I/K choose  O take out  U pack all  Bksp close"
         };

@@ -946,11 +946,11 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             }
             let m = g.venue.mix;
             let mut changed = false;
-            if button(fr, if m.0 { "beat: on" } else { "beat: off" }, x + 10.0, y + 64.0, 58.0, 14.0, m.0) || is_key_pressed(KeyCode::B) {
+            if button(fr, if m.0 { "beat: on" } else { "beat: off" }, x + 10.0, y + 64.0, 58.0, 14.0, m.0) {
                 g.venue.mix.0 = !m.0;
                 changed = true;
             }
-            if button(fr, if m.1 { "melody: on" } else { "melody: off" }, x + 72.0, y + 64.0, 66.0, 14.0, m.1) || is_key_pressed(KeyCode::M) {
+            if button(fr, if m.1 { "melody: on" } else { "melody: off" }, x + 72.0, y + 64.0, 66.0, 14.0, m.1) {
                 g.venue.mix.1 = !m.1;
                 changed = true;
             }
@@ -1188,8 +1188,12 @@ fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     }
 }
 
+pub(crate) fn typing(g: &Game) -> bool {
+    g.venue.name.is_empty() || g.venue.welcome || g.venue.chat_open || g.venue.pc_open || matches!(g.venue.overlay, Overlay::Door | Overlay::Decks | Overlay::Account) || g.dex_open
+}
+
 fn mail_visible(g: &Game) -> bool {
-    !g.venue.name.is_empty() && !g.picking && !g.show_help && !g.shop_open && !g.sampler.open && !g.venue.pc_open && g.venue.overlay == Overlay::None
+    !g.paused && !g.dex_open && !g.shelf_open && !g.show_inventory && !g.venue.chat_open && !g.venue.name.is_empty() && !g.picking && !g.show_help && !g.shop_open && !g.sampler.open && !g.venue.pc_open && g.venue.overlay == Overlay::None
 }
 
 fn mail_key(g: &Game) -> (String, u8, u8) {
@@ -2515,8 +2519,11 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if is_key_pressed(KeyCode::Enter) {
         submit = Some(g.venue.door_code.clone());
     }
-    if is_key_pressed(KeyCode::Escape) {
+    let close_hit = button(fr, "close", x + w - 52.0, y + h - 22.0, 44.0, 14.0, false);
+    ui_text("enter: go in   esc: close", x + 12.0, y + h - 6.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
+    if is_key_pressed(KeyCode::Escape) || close_hit || (fr.click && !hit(fr, x, y, w, h)) {
         g.venue.overlay = Overlay::None;
+        fr.click = false;
         return;
     }
     if let Some(text) = submit {

@@ -6,6 +6,12 @@ use macroquad::prelude::*;
 pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
     fr.just_paused = false;
     fr.help_closed = false;
+    if g.back_to_pause && !g.dex_open && g.venue.overlay == venues::Overlay::None {
+        g.back_to_pause = false;
+        g.paused = true;
+        fr.just_paused = true;
+        return;
+    }
     if g.show_help && !g.paused {
         let (hx, hy, hw, hh) = help_box();
         let tab_hit = (0..3).find(|k| fr.click && fr.uy > hy + 20.0 && fr.uy < hy + 36.0 && fr.ux > hx + 10.0 + *k as f32 * (hw - 20.0) / 3.0 && fr.ux < hx + 10.0 + (*k + 1) as f32 * (hw - 20.0) / 3.0);
@@ -33,6 +39,23 @@ pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
     if (g.ddr.on[0] || g.ddr.on[1]) && !g.paused && is_key_pressed(KeyCode::Escape) {
         g.ddr.on = [false; 2];
         fr.help_closed = true;
+    }
+    if !g.paused && !fr.help_closed && is_key_pressed(KeyCode::Escape) {
+        let mut closed = true;
+        if g.emoji_choose[0].is_some() || g.emoji_choose[1].is_some() {
+            g.emoji_choose = [None, None];
+        } else if g.shop_open {
+            g.shop_open = false;
+        } else if g.dj[0] {
+            g.dj[0] = false;
+        } else if g.show_inventory {
+            g.show_inventory = false;
+        } else {
+            closed = false;
+        }
+        if closed {
+            fr.help_closed = true;
+        }
     }
     if !g.paused && !g.picking && !fr.help_closed {
         let tap_ok = if radio::touch_ui() && !g.two_player {
@@ -116,7 +139,7 @@ pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
 }
 
 pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
-    fr.bag_keys = [is_key_pressed(KeyCode::M) || is_key_pressed(KeyCode::Enter), g.two_player && is_key_pressed(KeyCode::Backspace)];
+    fr.bag_keys = [is_key_pressed(KeyCode::M), g.two_player && is_key_pressed(KeyCode::Backspace)];
     for who in 0..2 {
         if !fr.bag_keys[who] || g.picking {
             continue;

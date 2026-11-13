@@ -77,7 +77,7 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
                 let c = Color::from_rgba(book.cover.0, book.cover.1, book.cover.2, 255);
                 ui_text("the bookshelf", 10.0, 18.0, 12.0, Color::new(1.0, 1.0, 1.0, 0.7));
                 ui_text(book.title, (low_w() - ui_measure(book.title, 18.0)) / 2.0, low_h() - 30.0, 18.0, c);
-                let hint = if touch { "tap a side to choose, the middle to open" } else { "A/D choose   E open   X leave" };
+                let hint = if touch { "tap a side to choose, the middle to open" } else { "A/D choose   E open   esc: close" };
                 ui_text(hint, (low_w() - ui_measure(hint, 10.0)) / 2.0, low_h() - 12.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.7));
             }
             Some(b) => {
@@ -85,7 +85,7 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
                 ui_text(book.title, 10.0, 18.0, 12.0, Color::from_rgba(book.cover.0, book.cover.1, book.cover.2, 255));
                 let at = format!("pages {}-{} of {}", g.book_spread * 2 + 1, g.book_spread * 2 + 2, book.pages.len());
                 ui_text(&at, (low_w() - ui_measure(&at, 10.0)) / 2.0, low_h() - 24.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.8));
-                let hint = if touch { "tap left or right to turn the page" } else { "A/D turn the page   X back to the shelf" };
+                let hint = if touch { "tap left or right to turn the page" } else { "A/D turn the page   esc: back to the shelf" };
                 ui_text(hint, (low_w() - ui_measure(hint, 10.0)) / 2.0, low_h() - 10.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));
             }
         }
@@ -340,6 +340,7 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         let on_dex = fr.ux > dex_x && fr.ux < dex_x + dex_w && fr.uy > btn_y && fr.uy < btn_y + btn_h;
         if !fr.just_paused && ((fr.click && on_dex) || is_key_pressed(KeyCode::F)) {
             g.paused = false;
+            g.back_to_pause = true;
             g.dex_open = true;
             g.dex_from_shop = false;
             g.dex_query.clear();
@@ -469,6 +470,7 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             g.paused = false;
             g.restart_confirm = 0.0;
             g.venue.overlay = venues::Overlay::Account;
+            g.back_to_pause = true;
             fr.click = false;
         }
         let hint = if radio::touch_ui() { "tap outside to play" } else { "click outside or esc to play" };

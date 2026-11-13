@@ -55,7 +55,7 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
             ui_text(&name, x + 80.0, y, 12.0, col);
             y += 14.0;
         }
-        ui_text("W/S row   A/D change   E start", x + 12.0, y + 6.0, 11.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        ui_text("W/S row   A/D change   E or esc: done", x + 12.0, y + 6.0, 11.0, Color::new(1.0, 1.0, 1.0, 0.7));
     }
 
     if g.sleep_fade > 0.0 {
@@ -114,7 +114,7 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         let hint = if g.sampler.recording.is_some() {
             "recording - make a sound into your mic"
         } else if g.sampler.owner == 0 {
-            "arrows/WASD move  E step on/off  Space record your sound  X close"
+            "WASD move  E step on/off  Space record  esc: close"
         } else {
             "IJKL move  O step on/off  Space record your sound  U close"
         };
@@ -161,6 +161,8 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         }
         let source = if fr.time - g.ddr.last_mic < 3.0 { "arrows from the music on your mic" } else if g.microphone.is_some() { "listening... arrows follow the game beat for now" } else { "no mic - arrows follow the game beat and your loop" };
         ui_text(source, (low_w() - ui_measure(source, 9.0)) / 2.0, low_h() - 30.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        let stop = if g.two_player { "X / U: finish with a score   esc: stop" } else { "X: finish with a score   esc: stop" };
+        ui_text(stop, (low_w() - ui_measure(stop, 9.0)) / 2.0, low_h() - 19.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.55));
     }
     if g.show_help {
         let pages: [(&str, &[(&str, &str)]); 3] = [
@@ -171,8 +173,8 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
                 ("Z", "emoji  (player 2: .)"),
                 ("P", "1 or 2 players"),
                 ("V", "choose characters"),
-                ("Esc", "pause, mixer, fishdex"),
-                ("H / Esc", "close this help"),
+                ("Esc", "close what's open, or pause"),
+                ("H", "this help"),
             ]),
             ("music", &[
                 ("1 - 6", "sing  (player 2: 7 8 9 0 - =)"),

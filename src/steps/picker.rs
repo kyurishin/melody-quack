@@ -30,7 +30,7 @@ pub(crate) fn character_picker(g: &mut Game, fr: &mut Frame) {
             g.players[g.pick_row].voice_timer = 0.4;
             g.audio.play_ch(g.pick_row, &g.voices[idx][2], 0.7);
         }
-        if is_key_pressed(KeyCode::E) || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Space) {
+        if is_key_pressed(KeyCode::E) || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Escape) {
             g.picking = false;
             fr.picker_closed = true;
         }

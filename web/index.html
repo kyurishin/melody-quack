@@ -708,6 +708,7 @@
             <div class="minis">
               <button class="pad-button mini" data-key="Tab">mode</button>
               <button class="pad-button mini" data-key="KeyZ" aria-label="send a pixel emoji">emoji</button>
+              <button class="pad-button mini" data-key="Escape" aria-label="close what is open, or pause">back</button>
               <button class="pad-button mini more-toggle" id="more-controls" type="button" aria-expanded="false" aria-controls="left-advanced right-advanced">more</button>
             </div>
             <div class="advanced-controls" id="left-advanced">
@@ -718,7 +719,7 @@
               <div class="minis">
                 <button class="pad-button mini" data-key="KeyV">who</button>
                 <button class="pad-button mini" data-key="KeyH">help</button>
-                <button class="pad-button mini" data-key="Enter">bag</button>
+                <button class="pad-button mini" data-key="KeyM">bag</button>
               </div>
             </div>
           </div>
@@ -802,10 +803,10 @@
       <span class="group"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
       <span class="group"><kbd class="note" style="--k:#ff8062">1</kbd><kbd class="note" style="--k:#ffa8cc">2</kbd><kbd class="note" style="--k:#74acff">3</kbd><kbd class="note" style="--k:#8cdea8">4</kbd><kbd class="note" style="--k:#bae6ff">5</kbd><kbd class="note" style="--k:#ffd66e">6</kbd> sing</span>
       <span class="group"><kbd>E</kbd> act</span>
-      <span class="group"><kbd>V</kbd> characters</span>
-      <span class="group"><kbd>P</kbd> 2 players</span>
-      <span class="group"><kbd>T</kbd> record a jam</span>
+      <span class="group"><kbd>M</kbd> bag</span>
+      <span class="group"><kbd>Esc</kbd> close or pause</span>
       <span class="group"><kbd>H</kbd> help</span>
+      <button class="chip" type="button" id="all-keys">all controls</button>
       <span class="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>saves by itself</span>
     </footer>
   </div>
@@ -850,7 +851,9 @@
             <dt><kbd>Tab</kbd></dt><dd>change mode</dd>
             <dt><kbd>X</kbd></dt><dd>tool</dd>
             <dt><kbd>Z</kbd></dt><dd>send a pixel emoji</dd>
-            <dt><kbd>&crarr;</kbd></dt><dd>your bag</dd>
+            <dt><kbd>M</kbd></dt><dd>your bag</dd>
+            <dt><kbd>Esc</kbd></dt><dd>close whatever is open; with nothing open, pause</dd>
+            <dt><kbd>&crarr;</kbd></dt><dd>chat in the chapel, confirm when typing</dd>
           </dl>
         </section>
         <section>
@@ -874,7 +877,8 @@
         <section>
           <h3>more</h3>
           <dl>
-            <dt><kbd>H</kbd></dt><dd>in-game help</dd>
+            <dt><kbd>H</kbd></dt><dd>in-game help, every key</dd>
+            <dt><kbd>Esc</kbd> <kbd>C</kbd></dt><dd>in the pause menu: send the companion to rest</dd>
           </dl>
         </section>
       </div>
@@ -1610,6 +1614,7 @@
       }
       document.querySelectorAll(".pad-button").forEach(function (button) {
         var code = button.dataset.key;
+        if (!code) return;
         var held = false;
         function release() {
           if (!held) return;
@@ -1779,6 +1784,11 @@
     })();
   </script>
   <script>
+    (function () {
+      var all = document.getElementById("all-keys");
+      var open = document.getElementById("open-keys");
+      if (all && open) all.addEventListener("click", function () { open.click(); });
+    })();
     (function () {
       var stage = document.querySelector(".stage");
       if (!stage || !("IntersectionObserver" in window)) return;

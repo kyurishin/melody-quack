@@ -4,6 +4,11 @@ use crate::*;
 use macroquad::prelude::*;
 
 pub(crate) fn read_movement(g: &mut Game, fr: &mut Frame) {
+    if g.show_help {
+        fr.p1_dir = Vec2::ZERO;
+        fr.p2_dir = Vec2::ZERO;
+        return;
+    }
     fr.p1_dir = if g.two_player {
         direction(&[KeyCode::W], &[KeyCode::S], &[KeyCode::A], &[KeyCode::D])
     } else {

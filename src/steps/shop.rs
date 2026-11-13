@@ -88,9 +88,9 @@ pub(crate) fn draw_shop(g: &mut Game, _fr: &mut Frame) {
         let help = if g.shop_owner == 1 {
             if g.shop_tab == 0 { "I/K tabs - J/L browse - O buy - U close" } else { "I/K tabs - J/L choose - O play - U close" }
         } else if g.shop_tab == 0 {
-            "W/S tabs - A/D browse - E buy - X close"
+            "W/S tabs - A/D browse - E buy - esc: close"
         } else {
-            "W/S tabs - A/D choose - E play - X close"
+            "W/S tabs - A/D choose - E play - esc: close"
         };
         ui_text(help, x + (w - ui_measure(help, 10.0)) / 2.0, y + h - 6.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));
     }

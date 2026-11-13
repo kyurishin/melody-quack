@@ -12,7 +12,7 @@ pub(crate) fn draw_popups(g: &mut Game, fr: &mut Frame) {
         let title = format!("{}  {:.0} bpm  {}{}", if g.dj[0] && g.dj[1] { "b2b" } else { "on the decks" }, g.looper.bpm, if g.looper.beat { style } else { "beat off" }, if g.looper.recording { "  rec" } else { "" });
         let area = if g.two_player { fr.half } else { low_w() };
         let left = if g.two_player && who == 1 { fr.half } else { 0.0 };
-        let hint = if who == 0 { "W/S tempo  A/D style  R rec  X out" } else { "7 8 9 0 - = pads  O out" };
+        let hint = if who == 0 { "W/S tempo  A/D style  R rec  esc: out" } else { "7 8 9 0 - = pads  O out" };
         let track = if g.now_playing.is_empty() { String::new() } else { format!("now playing: {now_playing}", now_playing = g.now_playing) };
         let two_decks = g.live_decks.len() >= 2;
         let widest = ui_measure(&title, 12.0).max(ui_measure(hint, 9.0)).max(ui_measure(&track, 10.0));

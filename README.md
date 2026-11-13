@@ -495,6 +495,15 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## The controls, in one rule
+
+- **Esc closes whatever is open**: the bag, help, the shop, the fishdex, the bookshelf, the sampler, the DJ booth, the arcade, the character picker, the post, flyers, the door, the decks, the account panel, a PC window, the chat. With nothing open, Esc pauses (or leaves the PC bang and the chapel).
+- **Clicking outside a panel closes it** too, and the panels in the PC bang and chapel have a close button.
+- **E does things** (act, sit, choose, confirm). **M is always the bag.** **Enter** is for typing: chat, the door code, the terminal, your name.
+- Typing never sets off game keys (no emoji when you type a z).
+- The fishdex and the account panel, opened from the pause menu, go back to the pause menu when closed.
+- Every panel's hint ends with how to close it. The web page's footer shows the main keys and an "all controls" button; H in the game lists every key.
+
 ## Playing without the companion
 
 Pause (Esc) and press C, or click the companion button, to send the dog (or whichever friend you picked) to rest. It disappears, stops fetching sticks, fishing and answering your tunes, and you fetch your own sticks for the fire. Playing on your own by the fire still earns stars. Press C again to bring it back. The choice is saved.

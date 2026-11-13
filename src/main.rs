@@ -540,6 +540,7 @@ async fn main() {
         paused,
         restart_now,
         companion: saved_companion,
+        back_to_pause: false,
         restart_confirm,
         mix,
         mix_drag,

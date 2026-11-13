@@ -241,3 +241,10 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 
 - `Game.companion` (save line `companion 0` when off). In solo play with it off, `friend_and_deliveries` keeps the friend unseated, empty-handed and parked on the player, `Game::shown_players` leaves it out of every drawing (world, home, venues), `session_and_playback` counts sitting by the fire and playing as a jam, and the hints that mention the friend change. Two-player mode ignores the setting. Toggle: the pause menu's bottom-left button, or C while paused.
 - Tested: toggle, hiding, saving. Not tested in play: a star earned alone (needs a lit fire; the test save's fire had burnt out in real time).
+
+## One control scheme
+
+- `menus::help_and_escape` now closes, on Esc, the emoji strip, the shop, the home DJ booth and the bag before it would pause (those Esc handlers used to be shadowed by the pause). The picker accepts Esc. Help blocks movement (`read_movement`). `back_to_pause` returns to pause after the fishdex or account panel opened from it.
+- The bag is M only (Enter removed; the touch bag button sends KeyM). The decks lost their B/M letter shortcuts. `venues::typing` stops the emoji keys while any text box is active. `mail_visible` checks pause, dex, shelf, bag and chat. The door panel closes on Esc, a close button or a click outside.
+- Hints now say "esc: close" consistently. Web: footer shows the main keys plus "all controls"; the controls dialog lists M, Esc, Enter; touch pad has a "back" (Escape) button; pad buttons without a data-key no longer send events.
+- Tested on desktop with a scripted run: bag/Esc, dex back to pause, help freezing movement, picker Esc, door close by click outside, typing z in chat.

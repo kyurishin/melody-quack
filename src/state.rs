@@ -148,6 +148,7 @@ pub(crate) struct Game {
     pub(crate) paused: bool,
     pub(crate) restart_now: bool,
     pub(crate) companion: bool,
+    pub(crate) back_to_pause: bool,
     pub(crate) restart_confirm: f32,
     pub(crate) mix: [f32; 5],
     pub(crate) mix_drag: Option<usize>,

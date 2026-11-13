@@ -26,7 +26,7 @@ pub(crate) fn begin_frame(g: &mut Game, fr: &mut Frame) {
             continue;
         }
         let pressed = if who == 0 { is_key_pressed(KeyCode::Z) || is_key_pressed(KeyCode::GraveAccent) || is_key_pressed(KeyCode::Apostrophe) } else { is_key_pressed(KeyCode::Period) || is_key_pressed(KeyCode::Slash) };
-        if pressed && !g.dex_open {
+        if pressed && !g.dex_open && !steps::venues::typing(g) {
             g.emoji_choose[who] = Some(match g.emoji_choose[who] {
                 None => (g.emoji_last[who], 0.0),
                 Some((id, _)) => ((id + 1) % emoji::COUNT, 0.0),
