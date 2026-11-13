@@ -1,4 +1,4 @@
-app = "melody-quack-rave"
+app = "willow-coral-204"
 primary_region = "ams"
 
 [build]
@@ -9,7 +9,7 @@ primary_region = "ams"
   MQ_ACCOUNTS = "/data/accounts"
   MQ_DJS = "/data/djs.txt"
   MQ_CREDITS = "/data/credits.txt"
-  MQ_PUBLIC_URL = "https://melody-quack-rave.fly.dev"
+  MQ_PUBLIC_URL = "https://willow-coral-204.fly.dev"
 
 [[mounts]]
   source = "mq_data"
