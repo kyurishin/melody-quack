@@ -314,20 +314,23 @@ async fn main() {
     let mut saved_name = String::new();
     let mut saved_dj = (String::new(), false);
     let mut saved_tour = 0u8;
-    let mut fresh_key: Option<String> = None;
+    let mut fresh_key: Option<(String, String)> = None;
+    let mut saved_session = String::new();
     let loaded = store::read().and_then(|t| decode_progress(&t, cast_list.len())).filter(|s| {
         if s.fresh {
-            fresh_key = Some(s.dj_key.clone());
+            fresh_key = Some((s.dj_key.clone(), s.session.clone()));
         }
         !s.fresh
     });
-    if let Some(key) = fresh_key {
+    if let Some((key, session)) = fresh_key {
         saved_dj = (key, false);
+        saved_session = session;
     }
     if let Some(saved) = loaded {
         saved_name = saved.name.clone();
         saved_dj = (saved.dj_key.clone(), saved.welcome);
         saved_tour = saved.tour;
+        saved_session = saved.session.clone();
         if saved.tiles.len() == world.tiles.len() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
@@ -547,6 +550,7 @@ async fn main() {
         fresh_confirm,
     };
     g.venue.tour = saved_tour;
+    g.venue.session = saved_session;
     loop {
         let mut fr = Frame::default();
         steps::input::begin_frame(&mut g, &mut fr);

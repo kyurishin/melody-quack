@@ -11,6 +11,9 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
         if !g.venue.dj_key.is_empty() {
             fresh += &format!("djkey {}\n", g.venue.dj_key);
         }
+        if !g.venue.session.is_empty() {
+            fresh += &format!("account {}\n", g.venue.session);
+        }
         store::write(&fresh);
         return;
     }
@@ -53,9 +56,17 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             welcome: false,
             tour: if g.venue.tour >= 6 { 6 } else { 0 },
             fresh: false,
+            session: g.venue.session.clone(),
             seq: g.sampler.grid.map(|row| row.iter().enumerate().fold(0u16, |m, (k, on)| if *on { m | (1 << k) } else { m })),
             quests: if g.quests.day == i64::MIN { None } else { Some((g.quests.day, g.quests.list.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
         };
-        store::write(&encode_progress(&progress));
+        let text = encode_progress(&progress);
+        store::write(&text);
+        if g.venue.account.is_some() && net::state() == 2 && (g.venue.cloud_now || g.venue.cloud_clock > 30.0) && g.venue.cloud_offer.is_none() {
+            let shared: String = text.lines().filter(|l| !l.starts_with("account ")).map(|l| format!("{l}\n")).collect();
+            net::send(&format!("cloudput {}", venues::b64_encode(shared.as_bytes())));
+            g.venue.cloud_now = false;
+            g.venue.cloud_clock = 0.0;
+        }
     }
 }

@@ -495,6 +495,34 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## Restart and accounts
+
+**Restart** (pause menu, R twice) erases the game on this device and starts again from the name screen. Only the DJ key and the sign-in are kept.
+
+**Signing in** keeps the game on the server, so it survives a lost computer and moves between computers. The buttons are on the name screen and in the pause menu (A). After signing in:
+
+- on the name screen, a saved game on the account loads straight away;
+- in the middle of a game, it asks first: load the saved game, or keep this one and save it to the account.
+
+While signed in, the game is saved to the account every 30 seconds or so.
+
+Which buttons show depends on what is set up on the server. All of them need the server on a public https address, given with `--public-url https://your.server` (or `MQ_PUBLIC_URL`). Accounts and saves are kept in `--accounts <folder>` (`MQ_ACCOUNTS`, default `accounts`, `/data/accounts` in the Docker image).
+
+- **Steam** works as soon as `--public-url` is set. It uses Steam's OpenID sign-in, which needs no keys.
+- **Google / Gmail**: in the Google Cloud console, create an OAuth client ID of type "web application" with the redirect URI `https://your.server/auth/google`. Start the server with `--google-id` and `--google-secret` (`MQ_GOOGLE_ID`, `MQ_GOOGLE_SECRET`).
+- **Apple ID** needs the paid Apple Developer Program. Create a Services ID with Sign in with Apple turned on and the return URL `https://your.server/auth/apple`, and a Sign in with Apple key (a `.p8` file). Start the server with `--apple-id <services id> --apple-team <team id> --apple-key-id <key id> --apple-key <path to the .p8>` (or the `MQ_APPLE_*` variables).
+- **Proton Mail** has no "sign in with Proton" for other apps, so it can't be offered.
+
+Keep the secrets in environment variables or files on the server, never in this repository.
+
+## Books
+
+The bookshelf at home has eight books, including computer science and learning rust.
+
+## The hard CTF
+
+Players called leon or neomole get a harder terminal at the PC bang: a web bug hunt through git history, a JSON web token and an API, instead of rot13.
+
 ## The rave tour
 
 After the first three steps (sing, find the fire, make a memory) a second chapter leads new players to the rave, in the same banners:

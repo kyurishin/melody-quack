@@ -311,7 +311,7 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         };
         let w = 230f32.min(low_w() - 10.0);
         let row_h = 24.0;
-        let h = 40.0 + row_h * 5.0 + 74.0;
+        let h = 40.0 + row_h * 5.0 + 98.0;
         let x = ((low_w() - w) / 2.0).round();
         let y = if radio::touch_ui() && low_h() > low_w() { (low_h() * 0.16).round() } else { ((low_h() - h) / 2.0).round() };
         let label_w = 70.0;
@@ -431,6 +431,27 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             ui_rect(live_x[i], live_y, live_w, btn_h, fill);
             let ink = if on { Color::from_rgba(36, 26, 71, 255) } else { WHITE };
             ui_text(&label, live_x[i] + (live_w - ui_measure(&label, 10.0)) / 2.0, live_y + 14.0, 10.0, ink);
+        }
+        let acc_y = live_y + btn_h + 4.0;
+        let acc_w = w - 20.0;
+        let on_acc = fr.ux > dex_x && fr.ux < dex_x + acc_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
+        let mut acc_label = match &g.venue.account {
+            Some((_, label)) => format!("account: {label}"),
+            None => "account: sign in to save".to_string(),
+        };
+        if !radio::touch_ui() {
+            acc_label += " (A)";
+        }
+        while ui_measure(&acc_label, 10.0) > acc_w - 6.0 && acc_label.len() > 4 {
+            acc_label.pop();
+        }
+        ui_rect(dex_x, acc_y, acc_w, btn_h, if on_acc { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
+        ui_text(&acc_label, dex_x + (acc_w - ui_measure(&acc_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, WHITE);
+        if !fr.just_paused && ((fr.click && on_acc && g.mix_drag.is_none()) || is_key_pressed(KeyCode::A)) {
+            g.paused = false;
+            g.restart_confirm = 0.0;
+            g.venue.overlay = venues::Overlay::Account;
+            fr.click = false;
         }
         let hint = if radio::touch_ui() { "tap outside to play" } else { "click outside or esc to play" };
         ui_text(hint, x + (w - ui_measure(hint, 10.0)) / 2.0, y + h - 8.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));

@@ -31,6 +31,7 @@ pub(crate) enum Overlay {
     Door,
     Mail,
     Decks,
+    Account,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -104,6 +105,14 @@ pub(crate) struct VenueState {
     pub(crate) look: usize,
     pub(crate) chat_open: bool,
     pub(crate) tour: u8,
+    pub(crate) session: String,
+    pub(crate) account: Option<(String, String)>,
+    pub(crate) providers: Vec<String>,
+    pub(crate) resume_sent: bool,
+    pub(crate) signing_in: bool,
+    pub(crate) cloud_clock: f32,
+    pub(crate) cloud_now: bool,
+    pub(crate) cloud_offer: Option<String>,
     pub(crate) tour_clock: f32,
     pub(crate) chat_draft: String,
     pub(crate) chat_log: Vec<(u8, String, String, f64)>,

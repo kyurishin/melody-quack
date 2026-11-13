@@ -215,6 +215,9 @@ fn online(g: &mut Game, dt: f32) {
         g.venue.hello = false;
         g.venue.tonight = None;
         g.venue.key_sent = false;
+        g.venue.resume_sent = false;
+        g.venue.account = None;
+        g.venue.providers.clear();
         g.venue.dj_name = None;
         g.venue.admin = false;
         g.venue.requests.clear();
@@ -232,6 +235,11 @@ fn online(g: &mut Game, dt: f32) {
             net::send(&format!("hello {}", g.venue.token));
             g.venue.hello = true;
         }
+        if !g.venue.resume_sent && !g.venue.session.is_empty() {
+            net::send(&format!("resume {}", g.venue.session));
+            g.venue.resume_sent = true;
+        }
+        g.venue.cloud_clock += dt;
         while g.venue.announced < g.venue.raves.len() {
             let r = &g.venue.raves[g.venue.announced];
             net::send(&format!("host {} {}", r.code, rave_info(r)));
@@ -366,6 +374,52 @@ fn online(g: &mut Game, dt: f32) {
                 }
             }
             "patreon" if parts.len() >= 2 => g.venue.patreon = parts[1].to_string(),
+            "providers" => g.venue.providers = parts[1..].iter().map(|p| p.to_string()).collect(),
+            "loginurl" if parts.len() >= 2 => {
+                if parts[1].starts_with("https://") || parts[1].starts_with("http://") {
+                    net::open_url(parts[1]);
+                    g.toasts.push(("finish signing in in your browser, then come back".to_string(), 6.0));
+                } else {
+                    g.venue.signing_in = false;
+                }
+            }
+            "nologin" => {
+                g.venue.signing_in = false;
+                g.toasts.push(("that sign-in isn't set up on this server".to_string(), 4.0));
+            }
+            "account" if parts.len() >= 5 => {
+                g.venue.session = parts[1].chars().filter(|c| c.is_ascii_hexdigit()).take(64).collect();
+                g.venue.account = Some((parts[2].to_string(), parts[3].to_string()));
+                g.venue.resume_sent = true;
+                g.save_clock = 99.0;
+                if parts[4] == "new" {
+                    g.toasts.push((format!("signed in: {}", parts[3]), 4.0));
+                    if g.venue.signing_in {
+                        net::send("cloudget");
+                    }
+                }
+            }
+            "noaccount" => {
+                g.venue.account = None;
+                g.venue.session.clear();
+                g.venue.signing_in = false;
+                g.save_clock = 99.0;
+            }
+            "cloud" if parts.len() >= 2 => {
+                if g.venue.signing_in {
+                    g.venue.signing_in = false;
+                    if parts[1] == "-" {
+                        g.venue.cloud_now = true;
+                        g.save_clock = 99.0;
+                    } else if g.venue.name.is_empty() || g.venue.welcome {
+                        load_cloud(g, parts[1]);
+                    } else {
+                        g.venue.cloud_offer = Some(parts[1].to_string());
+                        g.venue.overlay = Overlay::Account;
+                    }
+                }
+            }
+            "cloudok" => {}
             "dj" if parts.len() >= 2 => {
                 if parts[1] == "ok" && parts.len() >= 4 {
                     g.venue.credit = parts[2].parse().unwrap_or(0);
@@ -735,6 +789,100 @@ fn send_mix(g: &mut Game) {
     let m = g.venue.mix;
     retime(g, m.3);
     net::send(&format!("mix {} {} {} {}", m.0 as u8, m.1 as u8, m.2, m.3));
+}
+
+fn load_cloud(g: &mut Game, data: &str) {
+    let Some(text) = b64_decode(data).map(|b| String::from_utf8_lossy(&b).to_string()) else {
+        return;
+    };
+    if !text.starts_with("melody-quack-save 1") {
+        g.toasts.push(("the saved game on your account couldn't be read".to_string(), 5.0));
+        return;
+    }
+    let mut text: String = text.lines().filter(|l| !l.starts_with("account ") && !l.starts_with("fresh")).map(|l| format!("{l}\n")).collect();
+    text += &format!("account {}\n", g.venue.session);
+    store::write(&text);
+    store::restart();
+}
+
+fn provider_name(p: &str) -> &str {
+    match p {
+        "google" => "google / gmail",
+        "apple" => "apple id",
+        other => other,
+    }
+}
+
+fn sign_in_buttons(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32) -> bool {
+    let n = g.venue.providers.len().max(1) as f32;
+    let bw = ((w - (n - 1.0) * 4.0) / n).floor();
+    let mut pressed = false;
+    for (i, p) in g.venue.providers.clone().iter().enumerate() {
+        if button(fr, provider_name(p), x + i as f32 * (bw + 4.0), y, bw, 15.0, false) {
+            g.venue.signing_in = true;
+            net::send(&format!("login {p}"));
+            fr.click = false;
+            pressed = true;
+        }
+    }
+    pressed
+}
+
+fn account_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (w, h) = (250.0f32.min(low_w() - 12.0), 120.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, Color::from_rgba(36, 26, 71, 255));
+    ui_rect(x, y, w, 3.0, Color::from_rgba(255, 214, 110, 255));
+    ui_text("your account", x + 10.0, y + 17.0, 12.0, cream());
+    let soft = Color::new(1.0, 0.97, 0.88, 0.75);
+    let say = |lines: &[&str]| {
+        for (i, l) in lines.iter().enumerate() {
+            ui_text(l, x + 10.0, y + 34.0 + i as f32 * 11.0, 9.0, soft);
+        }
+    };
+    let mut close = false;
+    if let Some(data) = g.venue.cloud_offer.clone() {
+        say(&["your account already has a saved game.", "load it? the game on this device is replaced.", "or keep this one: it replaces the saved one."]);
+        if button(fr, "load my saved game", x + 10.0, y + 74.0, 110.0, 16.0, false) && !fresh {
+            g.venue.cloud_offer = None;
+            load_cloud(g, &data);
+        }
+        if button(fr, "keep this one", x + 126.0, y + 74.0, 80.0, 16.0, false) && !fresh {
+            g.venue.cloud_offer = None;
+            g.venue.cloud_now = true;
+            g.save_clock = 99.0;
+            close = true;
+        }
+    } else if net::state() != 2 {
+        say(&["signing in needs the game server,", "and you're offline right now."]);
+    } else if let Some((provider, label)) = g.venue.account.clone() {
+        say(&[&format!("signed in with {}:", provider_name(&provider)), &label, "your game is saved to your account as you play."]);
+        if button(fr, "sign out", x + 10.0, y + 74.0, 60.0, 16.0, false) && !fresh {
+            net::send("logout");
+            fr.click = false;
+        }
+    } else if g.venue.signing_in {
+        say(&["finish signing in in your browser.", "this screen updates by itself."]);
+    } else if g.venue.providers.is_empty() {
+        say(&["signing in isn't set up on this server yet."]);
+    } else {
+        say(&["sign in to keep your game safe and carry", "it to other computers."]);
+        if !fresh {
+            sign_in_buttons(g, fr, x + 10.0, y + 64.0, w - 20.0);
+        }
+    }
+    if g.venue.cloud_offer.is_none() && button(fr, "close", x + w - 60.0, y + h - 24.0, 50.0, 16.0, false) {
+        close = true;
+    }
+    if fresh {
+        return;
+    }
+    if (close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h))) && g.venue.cloud_offer.is_none() {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
 }
 
 fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
@@ -1235,6 +1383,22 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     let ready = !g.venue.name_draft.trim().is_empty();
     let hint = if ready { "enter to start" } else { "friends see it above your head when you rave together" };
     let hy = bottom + 18.0;
+    let ay = hy + 16.0;
+    if net::state() == 2 && !g.venue.providers.is_empty() {
+        let aw = 230.0f32.min(low_w() - 16.0);
+        let ax = (cx - aw / 2.0).round();
+        if let Some((provider, label)) = g.venue.account.clone() {
+            let t = format!("signed in with {}: {label}", provider_name(&provider));
+            ui_text(&t, cx - ui_measure(&t, 9.0) / 2.0, ay + 10.0, 9.0, soft);
+        } else if g.venue.signing_in {
+            let t = "finish signing in in your browser...";
+            ui_text(t, cx - ui_measure(t, 9.0) / 2.0, ay + 10.0, 9.0, soft);
+        } else {
+            let t = "have a saved game? sign in to load it";
+            ui_text(t, cx - ui_measure(t, 9.0) / 2.0, ay + 8.0, 9.0, soft);
+            sign_in_buttons(g, fr, ax, ay + 14.0, aw);
+        }
+    }
     let bw = ui_measure(hint, 10.0) + 16.0;
     if ready {
         ui_rect(cx - bw / 2.0, hy - 11.0, bw, 16.0, gold);
@@ -1332,6 +1496,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Door => door_talk(g, fr, fresh),
         Overlay::Mail => mail(g, fr, fresh),
         Overlay::Decks => decks(g, fr, fresh),
+        Overlay::Account => account_panel(g, fr, fresh),
         Overlay::None => {}
     }
     true

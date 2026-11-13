@@ -54,7 +54,7 @@ pub fn recv() -> Option<String> {
 }
 
 fn would_block(e: &tungstenite::Error) -> bool {
-    matches!(e, tungstenite::Error::Io(io) if io.kind() == ErrorKind::WouldBlock || io.kind() == ErrorKind::TimedOut)
+    matches!(e, tungstenite::Error::Io(io) if io.kind() == ErrorKind::WouldBlock || io.kind() == ErrorKind::TimedOut || io.kind() == ErrorKind::Interrupted)
 }
 
 fn run(url: String, rx: Receiver<String>, tx: Sender<String>, state: Arc<AtomicI32>) {
@@ -131,7 +131,11 @@ pub fn open_url(url: &str) {
     } else {
         "xdg-open"
     };
-    let _ = std::process::Command::new(program).arg(url).spawn();
+    if let Ok(mut child) = std::process::Command::new(program).arg(url).spawn() {
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
 }
 
 pub fn listen(_url: &str) {}

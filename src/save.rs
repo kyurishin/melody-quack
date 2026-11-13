@@ -47,6 +47,7 @@ pub(crate) struct Progress {
     pub(crate) welcome: bool,
     pub(crate) tour: u8,
     pub(crate) fresh: bool,
+    pub(crate) session: String,
 }
 
 pub(crate) fn kind_index(kind: Kind) -> u8 {
@@ -83,6 +84,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     }
     if p.welcome {
         out += "welcome 1\n";
+    }
+    if !p.session.is_empty() {
+        out += &format!("account {}\n", p.session);
     }
     if p.tour > 0 {
         out += &format!("tour {}\n", p.tour);
@@ -150,6 +154,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         welcome: false,
         tour: 0,
         fresh: false,
+        session: String::new(),
     };
     for line in lines {
         let (key, rest) = line.split_once(' ').unwrap_or((line, ""));
@@ -211,6 +216,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
             "djkey" => p.dj_key = rest.chars().filter(|c| !c.is_control() && *c != ' ').take(40).collect(),
             "welcome" => p.welcome = true,
             "fresh" => p.fresh = true,
+            "account" => p.session = rest.trim().chars().filter(|c| c.is_ascii_hexdigit()).take(64).collect(),
             "tour" if nums.len() == 1 => p.tour = (nums[0] as u8).min(6),
             "name" => p.name = rest.chars().filter(|c| !c.is_control()).take(12).collect::<String>().trim().to_string(),
             "seq" if nums.len() == 4 => p.seq = [nums[0] as u16, nums[1] as u16, nums[2] as u16, nums[3] as u16],

@@ -1,6 +1,8 @@
 use futures_util::{SinkExt, StreamExt};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
+mod accounts;
+
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
@@ -180,6 +182,9 @@ struct Client {
     admin: bool,
     name: String,
     spoke: i64,
+    account: Option<String>,
+    session: Option<String>,
+    put_at: i64,
 }
 
 struct Hub {
@@ -202,6 +207,7 @@ struct Hub {
     next_ask: u32,
     grants: HashSet<(String, String)>,
     live: HashMap<String, Live>,
+    accounts: accounts::Accounts,
 }
 
 impl Hub {
@@ -228,14 +234,31 @@ impl Hub {
             next_ask: 0,
             grants: HashSet::new(),
             live: HashMap::new(),
+            accounts: accounts::Accounts::default(),
         }
     }
 
     fn connect(&mut self, tx: Option<mpsc::UnboundedSender<Message>>) -> u32 {
         self.next += 1;
         let token = next_rand(&mut self.rng);
-        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false, name: String::new(), spoke: -10_000 });
+        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false, name: String::new(), spoke: -10_000, account: None, session: None, put_at: -100_000 });
         self.next
+    }
+
+    fn signed_in(&mut self, nonce: &str, provider: &str, account: String, label: String, now: i64) -> bool {
+        let Some((id, session)) = self.accounts.finish(nonce, provider, account.clone(), label, now) else {
+            return false;
+        };
+        if !self.clients.contains_key(&id) {
+            return false;
+        }
+        let label = self.accounts.sessions.get(&session).map(|s| s.label.clone()).unwrap_or_default();
+        if let Some(c) = self.clients.get_mut(&id) {
+            c.account = Some(account);
+            c.session = Some(session.clone());
+        }
+        self.say(id, format!("account {session} {provider} {label} new"));
+        true
     }
 
     fn say(&mut self, id: u32, text: String) {
@@ -369,6 +392,10 @@ impl Hub {
                 if !self.patreon.is_empty() {
                     let line = format!("patreon {}", self.patreon);
                     self.say(id, line);
+                }
+                let providers = self.accounts.providers();
+                if !providers.is_empty() {
+                    self.say(id, format!("providers {}", providers.join(" ")));
                 }
             }
             "dj" => {
@@ -555,6 +582,50 @@ impl Hub {
                     self.say(one, line.clone());
                 }
             }
+            "login" => {
+                let url = self.accounts.begin(id, rest.trim(), now);
+                self.say(id, url.map(|u| format!("loginurl {u}")).unwrap_or_else(|| "nologin".to_string()));
+            }
+            "resume" => {
+                let found = self.accounts.sessions.get(rest.trim()).map(|s| (s.account.clone(), s.provider.clone(), s.label.clone()));
+                match found {
+                    Some((account, provider, label)) => {
+                        let session = rest.trim().to_string();
+                        if let Some(c) = self.clients.get_mut(&id) {
+                            c.account = Some(account);
+                            c.session = Some(session.clone());
+                        }
+                        self.say(id, format!("account {session} {provider} {label} old"));
+                    }
+                    None => self.say(id, "noaccount".to_string()),
+                }
+            }
+            "logout" => {
+                if let Some(session) = self.clients.get_mut(&id).and_then(|c| {
+                    c.account = None;
+                    c.session.take()
+                }) {
+                    self.accounts.forget(&session);
+                }
+                self.say(id, "noaccount".to_string());
+            }
+            "cloudget" => {
+                if let Some(account) = self.clients.get(&id).and_then(|c| c.account.clone()) {
+                    let data = self.accounts.cloud_get(&account).unwrap_or_else(|| "-".to_string());
+                    self.say(id, format!("cloud {data}"));
+                }
+            }
+            "cloudput" => {
+                let Some(c) = self.clients.get(&id) else {
+                    return;
+                };
+                if let (Some(account), true) = (c.account.clone(), now - c.put_at >= 10_000) {
+                    if self.accounts.cloud_put(&account, rest.trim()) {
+                        self.clients.get_mut(&id).unwrap().put_at = now;
+                        self.say(id, "cloudok".to_string());
+                    }
+                }
+            }
             "sit" => {
                 let token = self.clients[&id].token;
                 match self.event.sit(token, now) {
@@ -730,6 +801,20 @@ async fn main() {
         }
     }
     first.credits_path = Some(credits_path);
+    let env = |flag: &str, var: &str| arg(flag).or_else(|| std::env::var(var).ok()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    first.accounts.public = env("--public-url", "MQ_PUBLIC_URL").unwrap_or_default().trim_end_matches('/').to_string();
+    first.accounts.dir = Some(std::path::PathBuf::from(env("--accounts", "MQ_ACCOUNTS").unwrap_or_else(|| "accounts".to_string())));
+    if let (Some(id), Some(secret)) = (env("--google-id", "MQ_GOOGLE_ID"), env("--google-secret", "MQ_GOOGLE_SECRET")) {
+        first.accounts.google = Some((id, secret));
+    }
+    if let (Some(client), Some(team), Some(key_id), Some(key)) = (env("--apple-id", "MQ_APPLE_ID"), env("--apple-team", "MQ_APPLE_TEAM"), env("--apple-key-id", "MQ_APPLE_KEY_ID"), env("--apple-key", "MQ_APPLE_KEY")) {
+        match std::fs::read_to_string(&key) {
+            Ok(key_pem) => first.accounts.apple = Some(accounts::Apple { client, team, key_id, key_pem }),
+            Err(_) => println!("the apple key file {key} could not be read"),
+        }
+    }
+    first.accounts.load();
+    println!("sign-in: {}", if first.accounts.providers().is_empty() { "off (set --public-url)".to_string() } else { first.accounts.providers().join(", ") });
     first.load_djs();
     println!("{} dj(s) on the list, admin key {}", first.djs.len(), if first.admin_key.is_some() { "set" } else { "not set" });
     let hub = Arc::new(Mutex::new(first));
@@ -758,6 +843,24 @@ async fn main() {
 
 async fn client(stream: TcpStream, hub: Arc<Mutex<Hub>>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     stream.set_nodelay(true)?;
+    let mut peek = [0u8; 2048];
+    let mut tries = 0;
+    let upgrade = loop {
+        let n = stream.peek(&mut peek).await?;
+        let start = String::from_utf8_lossy(&peek[..n]).to_ascii_lowercase();
+        if start.contains("upgrade: websocket") {
+            break true;
+        }
+        if start.contains("\r\n\r\n") || n == peek.len() || n == 0 || tries > 40 {
+            break false;
+        }
+        tries += 1;
+        tokio::time::sleep(Duration::from_millis(15)).await;
+    };
+    if !upgrade {
+        accounts::http(stream, hub).await;
+        return Ok(());
+    }
     let ws = tokio_tungstenite::accept_async(stream).await?;
     let (mut sink, mut source) = ws.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
@@ -854,6 +957,89 @@ mod tests {
         let extra = h.connect(None);
         h.handle(extra, &format!("join {code} 1 0 0 late"), T + 20);
         assert_eq!(said(&mut h, extra), vec![format!("full {code}")]);
+    }
+
+    #[test]
+    fn players_sign_in_and_keep_their_save_in_the_cloud() {
+        let mut h = hub();
+        let dir = std::env::temp_dir().join(format!("mq-hub-{}", accounts::random_hex(6)));
+        h.accounts.public = "https://rave.example".to_string();
+        h.accounts.dir = Some(dir);
+        h.accounts.load();
+        let (a, b) = (h.connect(None), h.connect(None));
+        h.handle(a, "hello 1", 0);
+        assert!(said(&mut h, a).contains(&"providers steam".to_string()));
+        h.handle(a, "login apple", 0);
+        assert_eq!(said(&mut h, a), vec!["nologin".to_string()]);
+        h.handle(a, "cloudput QUJD", 0);
+        h.handle(a, "cloudget", 0);
+        assert!(said(&mut h, a).is_empty());
+        h.handle(a, "login steam", 0);
+        let url = said(&mut h, a)[0].strip_prefix("loginurl ").unwrap().to_string();
+        let nonce = url.split("n=").nth(1).unwrap().to_string();
+        assert!(!h.signed_in(&nonce, "steam", "steam:5".to_string(), "steam-5".to_string(), 30 * 60 * 1000));
+        h.handle(a, "login steam", 0);
+        let url = said(&mut h, a)[0].strip_prefix("loginurl ").unwrap().to_string();
+        let nonce = url.split("n=").nth(1).unwrap().to_string();
+        assert!(h.signed_in(&nonce, "steam", "steam:5".to_string(), "steam-5".to_string(), 1));
+        let line = said(&mut h, a)[0].clone();
+        assert!(line.starts_with("account ") && line.ends_with(" steam steam-5 new"));
+        let session = line.split(' ').nth(1).unwrap().to_string();
+        h.handle(a, "cloudget", 2);
+        assert_eq!(said(&mut h, a), vec!["cloud -".to_string()]);
+        h.handle(a, "cloudput QUJD", 20_000);
+        h.handle(a, "cloudput REVG", 21_000);
+        assert_eq!(said(&mut h, a), vec!["cloudok".to_string()]);
+        h.handle(b, &format!("resume {session}"), 22_000);
+        assert_eq!(said(&mut h, b), vec![format!("account {session} steam steam-5 old")]);
+        h.handle(b, "cloudget", 22_000);
+        assert_eq!(said(&mut h, b), vec!["cloud QUJD".to_string()]);
+        h.handle(b, "logout", 23_000);
+        h.handle(a, &format!("resume {session}"), 24_000);
+        assert_eq!(said(&mut h, b), vec!["noaccount".to_string()]);
+        assert_eq!(said(&mut h, a), vec!["noaccount".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn the_server_answers_browsers_and_websockets_on_one_port() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut first = hub();
+        first.accounts.public = "https://rave.example".to_string();
+        first.accounts.dir = Some(std::env::temp_dir().join(format!("mq-http-{}", accounts::random_hex(6))));
+        first.accounts.load();
+        let nonce = first.accounts.begin(99, "steam", unix_ms()).unwrap().split("n=").nth(1).unwrap().to_string();
+        let hub = Arc::new(Mutex::new(first));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let h2 = hub.clone();
+        tokio::spawn(async move {
+            while let Ok((s, _)) = listener.accept().await {
+                let h = h2.clone();
+                tokio::spawn(async move {
+                    let _ = client(s, h).await;
+                });
+            }
+        });
+        let fetch = |path: String| async move {
+            let mut s = TcpStream::connect(addr).await.unwrap();
+            s.write_all(format!("GET {path} HTTP/1.1\r\nhost: x\r\n\r\n").as_bytes()).await.unwrap();
+            let mut out = String::new();
+            s.read_to_string(&mut out).await.unwrap();
+            out
+        };
+        let r = fetch(format!("/login/steam?n={nonce}")).await;
+        assert!(r.starts_with("HTTP/1.1 302"));
+        assert!(r.contains("location: https://steamcommunity.com/openid/login?"));
+        assert!(fetch("/login/steam?n=nope".to_string()).await.contains("link expired"));
+        assert!(fetch(format!("/auth/steam?n={nonce}&openid.return_to=https%3A%2F%2Fevil.example")).await.contains("another page"));
+        assert!(fetch("/".to_string()).await.contains("rave server is running"));
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/")).await.unwrap();
+        ws.send(Message::text("hello 5")).await.unwrap();
+        let mut got = Vec::new();
+        while let Ok(Some(Ok(m))) = tokio::time::timeout(Duration::from_millis(300), ws.next()).await {
+            got.push(m.to_string());
+        }
+        assert!(got.contains(&"providers steam".to_string()));
     }
 
     #[test]

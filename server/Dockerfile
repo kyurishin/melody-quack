@@ -6,5 +6,8 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 COPY --from=build /src/target/release/melody-quack-server /usr/local/bin/melody-quack-server
 ENV PORT=7777
+ENV MQ_ACCOUNTS=/data/accounts
+WORKDIR /data
+VOLUME /data
 EXPOSE 7777
 CMD ["melody-quack-server"]
