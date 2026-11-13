@@ -231,3 +231,8 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Terminal selection: `term_sel` (start/end as row and column in the wrapped rows) and `term_drag`; drawn as a highlight, copied on release, copied again on ctrl/cmd+c. A press and release without moving is the old click-to-copy-word.
 - Practice decks: `VenueState.practice`; offline, the decks panel offers it, `my_set` is true while practising, `on_air` is a local "you", and `online()` no longer clears it while offline. Ends on "go off air", leaving or entering a venue.
 - Server address: native builds read `MELODY_QUACK_SERVER`, then `~/.melody-quack/server.txt`, then `MQ_DEFAULT_SERVER` baked in at build time. The packages and pages workflows take it from the repository variable `MQ_SERVER` (pages writes it into `sets.js`). `server/fly.toml` and `server/SETUP.md` describe hosting.
+
+## Web page gallery, tour skip fix
+
+- `web/index.html` has an "inside melody quack" section under the game: twelve screenshots in `web/shots/*.webp` (1080x810) with captions. The pages workflow copies `web/shots`. On touch layouts the pinned controller buttons hide while the game is scrolled out of view (`body.game-away`, an IntersectionObserver on `.stage`).
+- The tour banner's clicks are handled early in the frame (`tour_click`), because a click anywhere on the world opens the pause menu; "skip" used to pause the game.

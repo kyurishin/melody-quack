@@ -508,6 +508,28 @@
         width: min(100%, 1120px, calc((100dvh - var(--chrome)) * 4 / 3));
       }
     }
+    .inside {
+      position: relative;
+      z-index: 1;
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 40px clamp(14px, 3vw, 32px) 64px;
+    }
+    .inside-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 22px; }
+    .inside h2 { font-family: var(--pixel); font-weight: 600; font-size: clamp(26px, 4vw, 38px); color: var(--yellow); margin: 0; letter-spacing: 0.5px; }
+    .inside-head p { margin: 6px 0 0; color: var(--muted); max-width: 60ch; line-height: 1.5; }
+    .inside-head a { color: var(--cream); text-decoration: none; border: 1px solid var(--line-2); border-radius: 999px; padding: 8px 14px; font-weight: 700; white-space: nowrap; }
+    .inside-head a:hover, .inside-head a:focus-visible { background: rgba(255, 247, 224, 0.08); }
+    .shots { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+    .shots figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+    .shots a { display: block; line-height: 0; }
+    .shots img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; transition: transform 0.25s ease; }
+    .shots a:hover img, .shots a:focus-visible img { transform: scale(1.03); }
+    .shots figcaption { padding: 12px 14px 14px; color: var(--muted); line-height: 1.45; font-size: 15px; }
+    .shots figcaption b { display: block; color: var(--cream); font-family: var(--pixel); font-weight: 600; font-size: 17px; margin-bottom: 2px; }
+    body.game-away .joycon, body.game-away .karaoke { visibility: hidden; }
+    @media (prefers-reduced-motion: reduce) { .shots img { transition: none; } .shots a:hover img { transform: none; } }
+
     @media (max-width: 760px) {
       .tagline { display: none; }
       .wordmark { font-size: 22px; }
@@ -787,6 +809,30 @@
       <span class="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>saves by itself</span>
     </footer>
   </div>
+
+  <section class="inside" id="inside" aria-labelledby="inside-title">
+    <div class="inside-head">
+      <div>
+        <h2 id="inside-title">inside melody quack</h2>
+        <p>a cosy town where animal voices are notes, a pc bang hiding tonight's rave code, and a gothic chapel where friends rave together online.</p>
+      </div>
+      <a href="#glcanvas">play now</a>
+    </div>
+    <ul class="shots">
+        <li><figure><a href="shots/town.webp" target="_blank" rel="noopener"><img src="shots/town.webp" alt="home: jam by the campfire, fish on the beat, cook percussion with your friend." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>home</b>jam by the campfire, fish on the beat, cook percussion with your friend.</figcaption></figure></li>
+        <li><figure><a href="shots/pc-bang.webp" target="_blank" rel="noopener"><img src="shots/pc-bang.webp" alt="the pc bang: fat old computers, a red arcade cabinet and mr. kim at the counter." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the pc bang</b>fat old computers, a red arcade cabinet and mr. kim at the counter.</figcaption></figure></li>
+        <li><figure><a href="shots/rave-exe.webp" target="_blank" rel="noopener"><img src="shots/rave-exe.webp" alt="rave.exe: book your own rave and get a secret code to share." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>rave.exe</b>book your own rave and get a secret code to share.</figcaption></figure></li>
+        <li><figure><a href="shots/terminal.webp" target="_blank" rel="noopener"><img src="shots/terminal.webp" alt="the terminal: a capture-the-flag hunt for tonight's code. drag to select, copy and paste." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the terminal</b>a capture-the-flag hunt for tonight's code. drag to select, copy and paste.</figcaption></figure></li>
+        <li><figure><a href="shots/door.webp" target="_blank" rel="noopener"><img src="shots/door.webp" alt="the door: the goose at st. bassilica only lets you in with the code." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the door</b>the goose at st. bassilica only lets you in with the code.</figcaption></figure></li>
+        <li><figure><a href="shots/chapel.webp" target="_blank" rel="noopener"><img src="shots/chapel.webp" alt="st. bassilica: up to a hundred ravers, names over heads, chat with enter." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>st. bassilica</b>up to a hundred ravers, names over heads, chat with enter.</figcaption></figure></li>
+        <li><figure><a href="shots/decks.webp" target="_blank" rel="noopener"><img src="shots/decks.webp" alt="the decks: djs play the in-game decks live for the whole room, or stream real audio." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the decks</b>djs play the in-game decks live for the whole room, or stream real audio.</figcaption></figure></li>
+        <li><figure><a href="shots/jungle.webp" target="_blank" rel="noopener"><img src="shots/jungle.webp" alt="jungle at sunset: the dj picks the room. palms, vines and fireflies." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>jungle at sunset</b>the dj picks the room. palms, vines and fireflies.</figcaption></figure></li>
+        <li><figure><a href="shots/san-francisco.webp" target="_blank" rel="noopener"><img src="shots/san-francisco.webp" alt="the bay: a terrace over san francisco, the bridge and the fog rolling in." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the bay</b>a terrace over san francisco, the bridge and the fog rolling in.</figcaption></figure></li>
+        <li><figure><a href="shots/kinky.webp" target="_blank" rel="noopener"><img src="shots/kinky.webp" alt="red room: black, red, neon and chains." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>red room</b>black, red, neon and chains.</figcaption></figure></li>
+        <li><figure><a href="shots/bookshelf.webp" target="_blank" rel="noopener"><img src="shots/bookshelf.webp" alt="the bookshelf: eight books, from electronic music to computer science and learning rust." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the bookshelf</b>eight books, from electronic music to computer science and learning rust.</figcaption></figure></li>
+        <li><figure><a href="shots/sign-in.webp" target="_blank" rel="noopener"><img src="shots/sign-in.webp" alt="your account: sign in with google, steam or apple to keep your game on every computer." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>your account</b>sign in with google, steam or apple to keep your game on every computer.</figcaption></figure></li>
+    </ul>
+  </section>
 
   <dialog class="sheet" id="keys-sheet" aria-labelledby="keys-title">
     <header>
@@ -1730,6 +1776,15 @@
       });
       sheet.addEventListener("close", function () { canvas.focus(); });
       sheet.addEventListener("click", function (e) { if (e.target === sheet) sheet.close(); });
+    })();
+  </script>
+  <script>
+    (function () {
+      var stage = document.querySelector(".stage");
+      if (!stage || !("IntersectionObserver" in window)) return;
+      new IntersectionObserver(function (entries) {
+        document.body.classList.toggle("game-away", !entries[0].isIntersecting);
+      }, { threshold: 0.35 }).observe(stage);
     })();
   </script>
 </body>

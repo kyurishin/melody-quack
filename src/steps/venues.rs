@@ -1082,9 +1082,9 @@ fn tour_tick(g: &mut Game, dt: f32) {
     TOUR_MARK.with(|m| m.set(mark));
 }
 
-fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
+fn tour_layout(g: &Game, y: f32) -> Option<(&'static str, Vec<String>, f32, f32, f32, f32)> {
     if !(1..=5).contains(&g.venue.tour) || g.picking || g.show_help || g.paused || g.venue.overlay != Overlay::None {
-        return;
+        return None;
     }
     let (heading, message) = match g.venue.tour {
         1 => ("the rave - 1/5", "post came. click the envelope at the top left"),
@@ -1095,13 +1095,45 @@ fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
         _ => ("you're in - 5/5", "press enter and say hello to everyone. 1-6 sings along. want to play here one day? esc, restart, become a dj."),
     };
     if g.venue.pc_open && g.venue.pc_app != 0 {
-        return;
+        return None;
     }
     let w = (low_w() - 16.0).min(if g.venue.pc_open { 215.0 } else { 250.0 });
     let x = if g.venue.pc_open { (low_w() / 2.0 - w / 2.0 + 22.0).round() } else { ((low_w() - w) / 2.0).round() };
     let lines = ui_wrap(message, 9.0, w - 34.0);
     let h = 16.0 + lines.len() as f32 * 10.0 + 4.0;
     let y = if y < 0.0 { (low_h() + y - h).round() } else { y };
+    Some((heading, lines, x, y, w, h))
+}
+
+fn tour_skip_rect(x: f32, y: f32, w: f32) -> (f32, f32, f32, f32) {
+    let sw = ui_measure("skip", 8.0);
+    (x + w - sw - 12.0, y + 2.0, sw + 8.0, 12.0)
+}
+
+fn outdoor_banner_y(fr: &Frame) -> f32 {
+    if fr.touch_ui && fr.portrait { 52.0 } else { 44.0 }
+}
+
+fn tour_click(g: &mut Game, fr: &mut Frame) {
+    if !fr.click || g.venue.at != Venue::None || g.inside {
+        return;
+    }
+    if let Some((_, _, x, y, w, h)) = tour_layout(g, outdoor_banner_y(fr)) {
+        if hit(fr, x, y, w, h) {
+            let (sx, sy, sw, sh) = tour_skip_rect(x, y, w);
+            if hit(fr, sx, sy, sw, sh) {
+                g.venue.tour = 6;
+                TOUR_MARK.with(|m| m.set(0));
+            }
+            fr.click = false;
+        }
+    }
+}
+
+fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
+    let Some((heading, lines, x, y, w, h)) = tour_layout(g, y) else {
+        return;
+    };
     ui_rect(x, y, w, h, Color::new(0.1, 0.08, 0.2, 0.88));
     ui_rect(x, y, 3.0, h, Color::from_rgba(176, 92, 255, 255));
     ui_text(heading, x + 9.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
@@ -1135,11 +1167,9 @@ fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
             ui_rect(cx - 2.0, cy - 2.0, 4.0, 4.0, Color::from_rgba(255, 214, 110, 255));
         }
     }
-    let skip = "skip";
-    let sw = ui_measure(skip, 8.0);
-    let (sx, sy) = (x + w - sw - 8.0, y + 4.0);
-    ui_text(skip, sx, sy + 7.0, 8.0, Color::new(1.0, 1.0, 1.0, 0.55));
-    if fr.click && hit(fr, sx - 4.0, sy - 2.0, sw + 8.0, 12.0) {
+    let (sx, sy, sw, sh) = tour_skip_rect(x, y, w);
+    ui_text("skip", sx + 4.0, sy + 9.0, 8.0, Color::new(1.0, 1.0, 1.0, 0.55));
+    if fr.click && hit(fr, sx, sy, sw, sh) {
         g.venue.tour = 6;
         TOUR_MARK.with(|m| m.set(0));
         fr.click = false;
@@ -1168,7 +1198,8 @@ fn mail_key(g: &Game) -> (String, u8, u8) {
 
 pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
     if g.venue.at == Venue::None && !g.inside {
-        tour_banner(g, fr, if fr.touch_ui && fr.portrait { 52.0 } else { 44.0 });
+        let by = outdoor_banner_y(fr);
+        tour_banner(g, fr, by);
     }
     if !mail_visible(g) {
         return;
@@ -1484,6 +1515,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
 pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     online(g, fr.dt);
     tour_tick(g, fr.dt);
+    tour_click(g, fr);
     if g.venue.name.is_empty() || g.venue.welcome {
         if is_quit_requested() {
             return false;
