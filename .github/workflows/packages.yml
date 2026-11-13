@@ -87,3 +87,21 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+
+  preview:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [macos, linux, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: preview-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: melody quack preview ${{ github.run_number }}
+          body: "Test build from ${{ github.ref_name }} (${{ github.sha }}). macOS .dmg, Linux .tar.gz and .AppImage, Arch Linux .pkg.tar.zst."
+          files: dist/*
