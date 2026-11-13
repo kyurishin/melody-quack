@@ -8,9 +8,6 @@ pub(crate) struct CatLook {
     pub(crate) fur: Color,
     pub(crate) stripes: Option<Color>,
     pub(crate) eye: Option<Color>,
-    pub(crate) hat: Color,
-    pub(crate) hat_dark: Color,
-    pub(crate) band: Color,
 }
 
 #[derive(Clone, Copy)]
@@ -20,7 +17,6 @@ pub(crate) struct DogLook {
     pub(crate) muzzle: Color,
     pub(crate) tail: Option<bool>,
     pub(crate) collar: Option<Color>,
-    pub(crate) hat: Option<(Color, Color, Color)>,
 }
 
 #[derive(Clone, Copy)]
@@ -70,43 +66,43 @@ pub(crate) fn roster() -> Vec<Character> {
         Character {
             name: "cream cat",
             noun: "cat",
-            body: Body::Cat(CatLook { fur: rgba(250, 226, 192), stripes: None, eye: None, hat: rgba(78, 66, 176), hat_dark: rgba(50, 40, 124), band: rgba(255, 208, 92) }),
+            body: Body::Cat(CatLook { fur: rgba(250, 226, 192), stripes: None, eye: None }),
             voice: VoiceKind::Meow { shift: 0, bright: 1.0, length: 0.55 },
         },
         Character {
             name: "russian blue",
             noun: "cat",
-            body: Body::Cat(CatLook { fur: rgba(98, 102, 118), stripes: None, eye: Some(rgba(186, 214, 72)), hat: rgba(116, 72, 168), hat_dark: rgba(84, 50, 128), band: rgba(236, 184, 72) }),
+            body: Body::Cat(CatLook { fur: rgba(98, 102, 118), stripes: None, eye: Some(rgba(186, 214, 72)) }),
             voice: VoiceKind::Meow { shift: 0, bright: 0.55, length: 0.6 },
         },
         Character {
             name: "ginger tabby",
             noun: "cat",
-            body: Body::Cat(CatLook { fur: rgba(240, 160, 84), stripes: Some(rgba(198, 112, 52)), eye: Some(rgba(120, 200, 96)), hat: rgba(54, 136, 90), hat_dark: rgba(34, 96, 62), band: rgba(250, 236, 200) }),
+            body: Body::Cat(CatLook { fur: rgba(240, 160, 84), stripes: Some(rgba(198, 112, 52)), eye: Some(rgba(120, 200, 96)) }),
             voice: VoiceKind::Meow { shift: 0, bright: 1.45, length: 0.45 },
         },
         Character {
             name: "black cat",
             noun: "cat",
-            body: Body::Cat(CatLook { fur: rgba(54, 52, 64), stripes: None, eye: Some(rgba(244, 204, 60)), hat: rgba(178, 48, 60), hat_dark: rgba(120, 30, 40), band: rgba(255, 208, 92) }),
+            body: Body::Cat(CatLook { fur: rgba(54, 52, 64), stripes: None, eye: Some(rgba(244, 204, 60)) }),
             voice: VoiceKind::Meow { shift: -12, bright: 0.9, length: 0.62 },
         },
         Character {
             name: "labrador",
             noun: "dog",
-            body: Body::Dog(DogLook { fur: rgba(232, 196, 128), ear: rgba(200, 156, 92), muzzle: rgba(232, 196, 128), tail: Some(false), collar: None, hat: Some((rgba(40, 140, 128), rgba(24, 94, 88), rgba(214, 224, 236))) }),
+            body: Body::Dog(DogLook { fur: rgba(232, 196, 128), ear: rgba(200, 156, 92), muzzle: rgba(232, 196, 128), tail: Some(false), collar: None }),
             voice: VoiceKind::Woof,
         },
         Character {
             name: "cream pup",
             noun: "dog",
-            body: Body::Dog(DogLook { fur: rgba(248, 230, 194), ear: rgba(214, 164, 104), muzzle: rgba(254, 244, 222), tail: None, collar: Some(rgba(52, 178, 168)), hat: None }),
+            body: Body::Dog(DogLook { fur: rgba(248, 230, 194), ear: rgba(214, 164, 104), muzzle: rgba(254, 244, 222), tail: None, collar: Some(rgba(52, 178, 168)) }),
             voice: VoiceKind::Yap,
         },
         Character {
             name: "shiba",
             noun: "dog",
-            body: Body::Dog(DogLook { fur: rgba(226, 140, 72), ear: rgba(214, 126, 60), muzzle: rgba(250, 240, 226), tail: Some(true), collar: Some(rgba(200, 50, 60)), hat: None }),
+            body: Body::Dog(DogLook { fur: rgba(226, 140, 72), ear: rgba(214, 126, 60), muzzle: rgba(250, 240, 226), tail: Some(true), collar: Some(rgba(200, 50, 60)) }),
             voice: VoiceKind::Howl,
         },
         Character { name: "duck", noun: "duck", body: Body::Duck, voice: VoiceKind::Quack },

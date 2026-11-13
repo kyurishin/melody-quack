@@ -7,7 +7,6 @@ pub(crate) fn draw_cat(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: b
     let fur = look.fur;
     let dark = tinted(fur, -0.5);
     let pink = Color::from_rgba(255, 160, 175, 255);
-    let (hat, hat_dark, gold) = (look.hat, look.hat_dark, look.band);
 
     let bob = if walking { (time * 14.0).sin().abs() * 0.05 } else { dance * 0.06 };
     let o = pos + vec3(0.0, bob, 0.0);
@@ -64,14 +63,6 @@ pub(crate) fn draw_cat(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: b
         b.box_at(o, yaw, vec3(0.0, 0.45, 0.324), vec3(0.05, 0.04, 0.01), Color::from_rgba(150, 70, 80, 255));
     }
 
-    b.box_at(o, yaw, vec3(0.0, 0.72, 0.16), vec3(0.44, 0.035, 0.4), hat_dark);
-    b.box_at(o, yaw, vec3(0.0, 0.77, 0.15), vec3(0.3, 0.07, 0.27), hat);
-    b.box_at(o, yaw, vec3(0.0, 0.81, 0.15), vec3(0.305, 0.025, 0.275), gold);
-    b.box_at(o, yaw, vec3(0.0, 0.88, 0.13), vec3(0.22, 0.12, 0.2), hat);
-    b.box_at(o, yaw, vec3(0.01, 0.98, 0.1), vec3(0.14, 0.1, 0.13), hat);
-    b.box_at(o, yaw, vec3(0.03, 1.06, 0.06), vec3(0.08, 0.08, 0.08), hat);
-    b.box_at(o, yaw, vec3(0.06, 1.11, 0.02), vec3(0.05, 0.05, 0.05), hat_dark);
-    b.box_at(o, yaw, vec3(0.0, 0.88, 0.235), vec3(0.06, 0.06, 0.01), gold);
 }
 
 pub(crate) fn draw_carry(b: &mut Batch, o: Vec3, yaw: f32, at: Vec3, carry: Option<Carry>) {
@@ -149,17 +140,6 @@ pub(crate) fn draw_dog(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: b
         b.box_at(o, yaw, vec3(0.0, 0.43, 0.5), vec3(0.06, 0.02, 0.08), Color::from_rgba(255, 140, 160, 255));
     }
     draw_carry(b, o, yaw, vec3(0.0, 0.47, 0.5), carry);
-
-    if let Some((hat, hat_dark, band)) = look.hat {
-        b.box_at(o, yaw, vec3(0.0, 0.735, 0.24), vec3(0.4, 0.035, 0.38), hat_dark);
-        b.box_at(o, yaw, vec3(0.0, 0.79, 0.23), vec3(0.28, 0.07, 0.26), hat);
-        b.box_at(o, yaw, vec3(0.0, 0.83, 0.23), vec3(0.285, 0.025, 0.265), band);
-        b.box_at(o, yaw, vec3(0.0, 0.9, 0.21), vec3(0.2, 0.12, 0.19), hat);
-        b.box_at(o, yaw, vec3(-0.01, 1.0, 0.18), vec3(0.13, 0.1, 0.12), hat);
-        b.box_at(o, yaw, vec3(-0.03, 1.08, 0.14), vec3(0.08, 0.08, 0.08), hat);
-        b.box_at(o, yaw, vec3(-0.06, 1.13, 0.1), vec3(0.05, 0.05, 0.05), hat_dark);
-        b.box_at(o, yaw, vec3(0.0, 0.9, 0.305), vec3(0.06, 0.06, 0.01), band);
-    }
 }
 
 pub(crate) fn draw_duck(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: bool, quacking: bool, dance: f32, carry: Option<Carry>) {
@@ -167,8 +147,6 @@ pub(crate) fn draw_duck(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: 
     let wing = Color::from_rgba(222, 224, 228, 255);
     let orange = Color::from_rgba(250, 156, 50, 255);
     let ink = Color::from_rgba(26, 24, 30, 255);
-    let hat = Color::from_rgba(220, 90, 150, 255);
-    let hat_dark = Color::from_rgba(160, 54, 108, 255);
     let waddle = if walking { (time * 12.0).sin() * 0.12 } else { 0.0 };
     let bob = if walking { (time * 12.0).sin().abs() * 0.03 } else { dance * 0.06 };
     let o = pos + vec3(0.0, bob, 0.0);
@@ -196,11 +174,6 @@ pub(crate) fn draw_duck(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: 
         b.box_at(o, y2, vec3(side * 0.12, 0.49, 0.232), vec3(0.04, 0.025, 0.01), Color::from_rgba(255, 180, 190, 255));
     }
     draw_carry(b, o, y2, vec3(0.0, 0.45, 0.32), carry);
-    b.box_at(o, y2, vec3(0.0, 0.625, 0.11), vec3(0.32, 0.03, 0.3), hat_dark);
-    b.box_at(o, y2, vec3(0.0, 0.68, 0.1), vec3(0.2, 0.08, 0.19), hat);
-    b.box_at(o, y2, vec3(0.01, 0.76, 0.08), vec3(0.13, 0.08, 0.12), hat);
-    b.box_at(o, y2, vec3(0.03, 0.83, 0.05), vec3(0.07, 0.07, 0.07), hat);
-    b.box_at(o, y2, vec3(0.0, 0.69, 0.197), vec3(0.05, 0.05, 0.01), Color::from_rgba(255, 220, 90, 255));
 }
 
 pub(crate) fn draw_owl(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: bool, singing: bool, dance: f32, carry: Option<Carry>) {
@@ -246,8 +219,6 @@ pub(crate) fn draw_owl(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: b
         b.box_at(o, yaw, vec3(side * 0.215, 0.6, 0.0), vec3(0.06, 0.13, 0.13), phones);
         b.box_at(o, yaw, vec3(side * 0.247, 0.6, 0.0), vec3(0.01, 0.05, 0.05), led);
     }
-    b.box_at(o, yaw, vec3(0.16, 0.53, 0.1), vec3(0.025, 0.025, 0.16), Color::from_rgba(176, 180, 192, 255));
-    b.box_at(o, yaw, vec3(0.11, 0.52, 0.18), vec3(0.06, 0.045, 0.035), Color::from_rgba(118, 196, 186, 255));
     draw_carry(b, o, yaw, vec3(0.0, 0.46, 0.22), carry);
 }
 
