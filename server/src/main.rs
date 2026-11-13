@@ -297,6 +297,21 @@ impl Hub {
         }
     }
 
+    fn save_djs(&self) -> bool {
+        let Some(path) = self.djs_path.clone() else {
+            return false;
+        };
+        let text: String = self.djs.iter().map(|(n, k)| format!("{n} = {k}\n")).collect();
+        let tmp = format!("{path}.tmp");
+        std::fs::write(&tmp, text).is_ok() && std::fs::rename(&tmp, &path).is_ok()
+    }
+
+    fn dj_list(&mut self, id: u32) {
+        let mut names: Vec<String> = self.djs.iter().map(|(n, _)| n.clone()).collect();
+        names.sort();
+        self.say(id, format!("djs {}", names.join(" ")).trim_end().to_string());
+    }
+
     fn save_credits(&self) {
         if let Some(path) = &self.credits_path {
             let mut lines: Vec<String> = self.credits.iter().map(|(n, c)| format!("{c} {n}")).collect();
@@ -320,6 +335,8 @@ impl Hub {
         for (n, c) in names {
             self.say(id, format!("balance {c} {n}"));
         }
+        self.load_djs();
+        self.dj_list(id);
     }
 
     fn off_air(&mut self, id: u32) {
@@ -478,6 +495,53 @@ impl Hub {
                 for admin in self.admins() {
                     self.say(admin, format!("done {}", ask.id));
                     self.brief(admin);
+                }
+            }
+            "newdj" | "removedj" => {
+                if !self.clients[&id].admin {
+                    return;
+                }
+                let name: String = rest.trim().to_lowercase();
+                let ok = !name.is_empty() && name.chars().count() <= 12 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.');
+                if !ok {
+                    self.say(id, "djerror names are 1 to 12 letters, numbers, - _ or .".to_string());
+                    return;
+                }
+                if self.djs_path.is_none() {
+                    self.say(id, "djerror the server has no dj list file (start it with --djs)".to_string());
+                    return;
+                }
+                self.load_djs();
+                let before = self.djs.clone();
+                self.djs.retain(|(n, _)| *n != name);
+                let mut made = None;
+                if cmd == "newdj" {
+                    let alphabet = b"abcdefghjkmnpqrstuvwxyz23456789";
+                    let raw = accounts::random_hex(20);
+                    let bytes: Vec<u8> = (0..20).map(|i| u8::from_str_radix(&raw[i * 2..i * 2 + 2], 16).unwrap_or(0)).collect();
+                    let groups: Vec<String> = bytes.chunks(5).map(|g| g.iter().map(|b| alphabet[*b as usize % alphabet.len()] as char).collect()).collect();
+                    let key = format!("mq-{}", groups.join("-"));
+                    self.djs.push((name.clone(), key.clone()));
+                    made = Some(key);
+                } else if self.djs.len() == before.len() {
+                    self.say(id, format!("djerror {name} isn't on the list"));
+                    return;
+                }
+                if !self.save_djs() {
+                    self.djs = before;
+                    self.say(id, "djerror couldn't write the dj list file".to_string());
+                    return;
+                }
+                let gone: Vec<u32> = self.clients.iter().filter(|(_, c)| c.dj.as_deref() == Some(name.as_str())).map(|(k, _)| *k).collect();
+                for dj in gone {
+                    self.clients.get_mut(&dj).unwrap().dj = None;
+                    self.say(dj, "dj no".to_string());
+                }
+                if let Some(key) = made {
+                    self.say(id, format!("djkey {name} {key}"));
+                }
+                for admin in self.admins() {
+                    self.dj_list(admin);
                 }
             }
             "settle" => {
@@ -957,6 +1021,39 @@ mod tests {
         let extra = h.connect(None);
         h.handle(extra, &format!("join {code} 1 0 0 late"), T + 20);
         assert_eq!(said(&mut h, extra), vec![format!("full {code}")]);
+    }
+
+    #[test]
+    fn the_admin_hands_out_and_takes_back_dj_keys() {
+        let mut h = hub();
+        let path = std::env::temp_dir().join(format!("mq-djs-{}.txt", accounts::random_hex(6)));
+        std::fs::write(&path, "priori = k1\n").unwrap();
+        h.djs_path = Some(path.to_string_lossy().to_string());
+        h.admin_key = Some("boss".to_string());
+        let (admin, fan) = (h.connect(None), h.connect(None));
+        h.handle(admin, "dj boss", 0);
+        assert!(said(&mut h, admin).contains(&"djs priori".to_string()));
+        h.handle(fan, "newdj sneaky", 0);
+        assert!(said(&mut h, fan).is_empty());
+        h.handle(admin, "newdj Bad Name!", 0);
+        assert!(said(&mut h, admin)[0].starts_with("djerror"));
+        h.handle(admin, "newdj Cayennepfefa", 0);
+        let got = said(&mut h, admin);
+        let key = got[0].strip_prefix("djkey cayennepfefa ").unwrap().to_string();
+        assert!(key.starts_with("mq-") && key.len() == 26);
+        assert_eq!(got[1], "djs cayennepfefa priori");
+        assert!(std::fs::read_to_string(&path).unwrap().contains(&format!("cayennepfefa = {key}")));
+        h.handle(fan, &format!("dj {key}"), 0);
+        assert_eq!(said(&mut h, fan), vec!["dj ok 0 cayennepfefa".to_string()]);
+        h.handle(admin, "newdj cayennepfefa", 0);
+        let again = said(&mut h, admin)[0].clone();
+        assert_ne!(again, format!("djkey cayennepfefa {key}"));
+        assert_eq!(said(&mut h, fan), vec!["dj no".to_string()]);
+        h.handle(admin, "removedj priori", 0);
+        assert_eq!(said(&mut h, admin), vec!["djs cayennepfefa".to_string()]);
+        h.handle(admin, "removedj priori", 0);
+        assert!(said(&mut h, admin)[0].starts_with("djerror"));
+        assert!(!std::fs::read_to_string(&path).unwrap().contains("priori"));
     }
 
     #[test]

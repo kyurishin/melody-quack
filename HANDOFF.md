@@ -248,3 +248,9 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - The bag is M only (Enter removed; the touch bag button sends KeyM). The decks lost their B/M letter shortcuts. `venues::typing` stops the emoji keys while any text box is active. `mail_visible` checks pause, dex, shelf, bag and chat. The door panel closes on Esc, a close button or a click outside.
 - Hints now say "esc: close" consistently. Web: footer shows the main keys plus "all controls"; the controls dialog lists M, Esc, Enter; touch pad has a "back" (Escape) button; pad buttons without a data-key no longer send events.
 - Tested on desktop with a scripted run: bag/Esc, dex back to pause, help freezing movement, picker Esc, door close by click outside, typing z in chat.
+
+## DJ keys from the admin page
+
+- Server: admin-only `newdj <name>` (makes `mq-xxxxx-xxxxx-xxxxx-xxxxx`, replaces an existing key for that name and signs that DJ out, writes the `--djs` file, replies `djkey <name> <key>`) and `removedj <name>`; `djs <names...>` goes to admins on sign-in and after each change; `djerror <text>` on a bad name or a missing/unwritable file. Names: 1-12 of a-z 0-9 - _ . (lowercased).
+- Client: `admin_tab` (0 post, 1 requests, 2 djs) replaces `post_tab`; `dj_names`, `new_dj`, `made_key`, `dj_note`, `remove_armed` in `VenueState`. The djs tab is in `mail`; E doesn't close the envelope while typing there.
+- Tested: server unit test, and the tab in the game against a local server (make, copy shown, the new key signs in, remove with confirm).

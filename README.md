@@ -574,6 +574,8 @@ The arena has a membership for DJs: 5 euros a month on Patreon. Patreon takes ca
 - DJs have a purple name with "dj" in front of it.
 - **The look of the room.** While live, the DJ can change the arena for everyone with the "look" button at the decks: the gothic chapel, a jungle at sunset, a terrace with a view of San Francisco (the bridge, the skyline, fog coming in), or a kinky party in black, red, neon and chains. The room goes back to the chapel when the set ends.
 
+- **Handing out DJ keys.** Signed in as the admin, open the envelope and choose the "djs" tab. Type the DJ's name (up to 12 letters, numbers, - _ or .), press "new dj key" or Enter, and send them the key that appears ("copy" puts it on the clipboard). The same tab lists every DJ with a "remove" button (click twice). Making a key for a name that already has one replaces the old key.
+
 On the server: `--djs <file>` is the list of members, one `name = key` per line, and can be edited while the server runs. `--admin <key>` is the admin's key, `--patreon <url>` is the page the game links to, and `--credits <file>` is where the credit is kept. The same four can be set as `MQ_DJS`, `MQ_ADMIN`, `MQ_PATREON` and `MQ_CREDITS`.
 
 The game doesn't move any money. The credit is a number the admin settles by hand.

@@ -376,6 +376,13 @@ fn online(g: &mut Game, dt: f32) {
                 }
             }
             "patreon" if parts.len() >= 2 => g.venue.patreon = parts[1].to_string(),
+            "djs" => g.venue.dj_names = parts[1..].iter().map(|p| p.to_string()).collect(),
+            "djkey" if parts.len() >= 3 => {
+                g.venue.made_key = Some((parts[1].to_string(), parts[2].to_string()));
+                g.venue.new_dj.clear();
+                g.venue.dj_note.clear();
+            }
+            "djerror" => g.venue.dj_note = parts[1..].join(" "),
             "providers" => g.venue.providers = parts[1..].iter().map(|p| p.to_string()).collect(),
             "loginurl" if parts.len() >= 2 => {
                 if parts[1].starts_with("https://") || parts[1].starts_with("http://") {
@@ -1189,7 +1196,7 @@ fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
 }
 
 pub(crate) fn typing(g: &Game) -> bool {
-    g.venue.name.is_empty() || g.venue.welcome || g.venue.chat_open || g.venue.pc_open || matches!(g.venue.overlay, Overlay::Door | Overlay::Decks | Overlay::Account) || g.dex_open
+    g.venue.name.is_empty() || g.venue.welcome || g.venue.chat_open || g.venue.pc_open || matches!(g.venue.overlay, Overlay::Door | Overlay::Decks | Overlay::Account) || g.dex_open || (g.venue.overlay == Overlay::Mail && g.venue.admin_tab == 2)
 }
 
 fn mail_visible(g: &Game) -> bool {
@@ -1283,15 +1290,106 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let admin = g.venue.admin;
     if admin {
         let n = g.venue.requests.len();
-        let label = if n > 0 { format!("dj requests ({n})") } else { "dj requests".to_string() };
-        if button(fr, "post", x + w - 150.0, y + 8.0, 40.0, 14.0, !g.venue.post_tab) {
-            g.venue.post_tab = false;
+        let label = if n > 0 { format!("requests ({n})") } else { "requests".to_string() };
+        if button(fr, "post", x + w - 168.0, y + 8.0, 36.0, 14.0, g.venue.admin_tab == 0) {
+            g.venue.admin_tab = 0;
         }
-        if button(fr, &label, x + w - 106.0, y + 8.0, 96.0, 14.0, g.venue.post_tab) {
-            g.venue.post_tab = true;
+        if button(fr, &label, x + w - 128.0, y + 8.0, 80.0, 14.0, g.venue.admin_tab == 1) {
+            g.venue.admin_tab = 1;
+        }
+        if button(fr, "djs", x + w - 44.0, y + 8.0, 34.0, 14.0, g.venue.admin_tab == 2) {
+            g.venue.admin_tab = 2;
+            g.venue.made_key = None;
+            g.venue.dj_note.clear();
+            while get_char_pressed().is_some() {}
         }
     }
-    if admin && g.venue.post_tab {
+    if admin && g.venue.admin_tab == 2 {
+        lines.clear();
+        ui_text("dj keys", x + 12.0, y + 20.0, 14.0, ink());
+        if !fresh {
+            while let Some(ch) = get_char_pressed() {
+                if (ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.') && g.venue.new_dj.chars().count() < 12 && !shortcut_held() {
+                    g.venue.new_dj.push(ch.to_ascii_lowercase());
+                }
+            }
+            let mut pasted = String::new();
+            paste_into(&mut pasted, 12, |c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.');
+            for c in pasted.to_lowercase().chars() {
+                if g.venue.new_dj.chars().count() < 12 {
+                    g.venue.new_dj.push(c);
+                }
+            }
+            if is_key_pressed(KeyCode::Backspace) {
+                g.venue.new_dj.pop();
+            }
+        }
+        let fy = y + 30.0;
+        ui_rect(x + 12.0, fy, 128.0, 16.0, ink());
+        ui_rect(x + 13.0, fy + 1.0, 126.0, 14.0, WHITE);
+        let shown = if g.venue.new_dj.is_empty() { "dj name" } else { g.venue.new_dj.as_str() };
+        ui_text(shown, x + 17.0, fy + 11.5, 10.0, if g.venue.new_dj.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { ink() });
+        if (fr.time * 2.0).fract() < 0.6 {
+            ui_rect(x + 18.0 + if g.venue.new_dj.is_empty() { 0.0 } else { ui_measure(&g.venue.new_dj, 10.0) }, fy + 3.0, 1.0, 10.0, ink());
+        }
+        let make = button(fr, "new dj key", x + 146.0, fy + 1.0, 74.0, 14.0, false) || (!fresh && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)));
+        if make && !fresh {
+            if g.venue.new_dj.is_empty() {
+                g.venue.dj_note = "type a name first".to_string();
+            } else if net::state() != 2 {
+                g.venue.dj_note = "you're offline".to_string();
+            } else {
+                net::send(&format!("newdj {}", g.venue.new_dj));
+                g.venue.dj_note = "making a key...".to_string();
+                g.venue.made_key = None;
+            }
+            fr.click = false;
+        }
+        let mut ry = fy + 22.0;
+        if let Some((name, key)) = g.venue.made_key.clone() {
+            ui_text(&format!("key for {name} (send it to them):"), x + 12.0, ry + 8.0, 8.0, grey);
+            ui_rect(x + 12.0, ry + 11.0, 168.0, 15.0, Color::from_rgba(236, 228, 255, 255));
+            ui_text(&key, x + 16.0, ry + 22.0, 9.0, ink());
+            if button(fr, "copy", x + 184.0, ry + 11.0, 36.0, 15.0, false) && !fresh {
+                net::copy(&key);
+                g.venue.dj_note = "copied".to_string();
+                fr.click = false;
+            }
+            ry += 30.0;
+        } else {
+            ui_text("they type the key after 'become a dj'.", x + 12.0, ry + 8.0, 8.0, grey);
+            ry += 12.0;
+        }
+        if !g.venue.dj_note.is_empty() {
+            ui_text(&g.venue.dj_note, x + 12.0, ry + 8.0, 8.0, Color::from_rgba(200, 60, 90, 255));
+            ry += 11.0;
+        }
+        ui_text(&format!("on the list ({})", g.venue.dj_names.len()), x + 12.0, ry + 10.0, 8.0, grey);
+        ry += 13.0;
+        let rows = (((y + h - 14.0) - ry) / 15.0).floor().max(0.0) as usize;
+        let mut act: Option<String> = None;
+        for name in g.venue.dj_names.iter().take(rows) {
+            ui_text(&format!("dj {name}"), x + 12.0, ry + 10.0, 9.0, ink());
+            let armed = g.venue.remove_armed.as_deref() == Some(name.as_str());
+            if button(fr, if armed { "sure?" } else { "remove" }, x + w - 58.0, ry, 46.0, 13.0, armed) {
+                act = Some(name.clone());
+            }
+            ry += 15.0;
+        }
+        if g.venue.dj_names.len() > rows {
+            ui_text(&format!("+ {} more", g.venue.dj_names.len() - rows), x + 100.0, ry - 5.0, 8.0, grey);
+        }
+        if let (Some(name), false) = (act, fresh) {
+            if g.venue.remove_armed.as_deref() == Some(name.as_str()) {
+                net::send(&format!("removedj {name}"));
+                g.venue.remove_armed = None;
+            } else {
+                g.venue.remove_armed = Some(name);
+            }
+            fr.click = false;
+        }
+    }
+    if admin && g.venue.admin_tab == 1 {
         lines.clear();
         ui_text("dj requests", x + 12.0, y + 20.0, 14.0, ink());
         let mut ry = y + 30.0;
@@ -1341,7 +1439,7 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if fresh {
         return;
     }
-    if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::E) || (fr.click && !hit(fr, x, y, w, h)) {
+    if is_key_pressed(KeyCode::Escape) || (is_key_pressed(KeyCode::E) && g.venue.admin_tab != 2) || (fr.click && !hit(fr, x, y, w, h)) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }
@@ -1545,7 +1643,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         let (mx, my, mw, mh) = mail_rect(g);
         if hit(fr, mx - 2.0, my - 6.0, mw + 8.0, mh + 8.0) {
             g.venue.overlay = Overlay::Mail;
-            g.venue.post_tab = g.venue.admin && !g.venue.requests.is_empty();
+            g.venue.admin_tab = if g.venue.admin && !g.venue.requests.is_empty() { 1 } else { 0 };
             g.venue.mail_seen = mail_key(g);
             g.audio.play_ch(3, &g.plink, 0.4);
             fr.click = false;
