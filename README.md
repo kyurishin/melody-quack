@@ -497,8 +497,14 @@ The server picks the start time: by default every four hours on the hour (UTC). 
 
 ## Copy and paste
 
-- In the PC bang terminal: click a word to copy it, shift+click to copy the whole line, ctrl+c (cmd+c on a Mac) copies the last answer. Up and down bring back earlier commands.
+- In the PC bang terminal: drag over text to select and copy it, click a word to copy just that word, shift+click to copy the whole line. Ctrl+c (cmd+c on a Mac) copies the selection, or the last answer. Right-click pastes. Up and down bring back earlier commands.
 - Ctrl+v (cmd+v) pastes in the terminal, at the chapel door, in the chat, and in the name, DJ key and stream link boxes.
+
+## Putting the server online
+
+Chat, the decks for everyone, the timed rave and sign-in need the rave server on the internet. `server/SETUP.md` has the steps (Fly.io is ready to go with `server/fly.toml`). Once it runs, set the repository variable `MQ_SERVER` to its `wss://` address and new builds connect by themselves.
+
+Offline, the decks still work as practice: only you hear them.
 
 ## Chat without a server
 

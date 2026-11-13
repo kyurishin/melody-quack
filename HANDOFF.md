@@ -224,3 +224,10 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Terminal: `term_hist`/`term_hist_at` for up/down, `term_flash` for the "copied" badge; clicks map wrapped rows back to the original line, so long tokens copy whole.
 - Chat: Enter always opens it; `say_to_room` sends when joined and online, otherwise shows the message locally with a kind-3 notice line.
 - Tested on desktop: click-copy of a commit hash and of a three-row token, ctrl+v into commands, history, offline chat, online chat with two scripted clients. Not tested in the browser.
+
+## Mac clipboard, selection, practice decks, server address
+
+- miniquad 0.4's macOS clipboard is a stub (get returns None, set does nothing), so native `net::copy`/`clipboard_text` use `pbcopy`/`pbpaste` on macOS. `net::paste_now` backs right-click paste in the terminal.
+- Terminal selection: `term_sel` (start/end as row and column in the wrapped rows) and `term_drag`; drawn as a highlight, copied on release, copied again on ctrl/cmd+c. A press and release without moving is the old click-to-copy-word.
+- Practice decks: `VenueState.practice`; offline, the decks panel offers it, `my_set` is true while practising, `on_air` is a local "you", and `online()` no longer clears it while offline. Ends on "go off air", leaving or entering a venue.
+- Server address: native builds read `MELODY_QUACK_SERVER`, then `~/.melody-quack/server.txt`, then `MQ_DEFAULT_SERVER` baked in at build time. The packages and pages workflows take it from the repository variable `MQ_SERVER` (pages writes it into `sets.js`). `server/fly.toml` and `server/SETUP.md` describe hosting.

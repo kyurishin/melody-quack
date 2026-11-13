@@ -53,6 +53,10 @@ pub fn copy(text: &str) {
     unsafe { clip_write(text.as_ptr(), text.len() as u32) };
 }
 
+pub fn paste_now() -> Option<String> {
+    None
+}
+
 pub fn pasted() -> Option<String> {
     let len = unsafe { clip_paste_len() };
     if len <= 0 {

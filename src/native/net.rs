@@ -21,10 +21,10 @@ pub fn server() -> Option<String> {
             return Some(url.trim().to_string());
         }
     }
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".melody-quack").join("server.txt")).ok()?;
-    let url = text.trim();
-    if url.is_empty() { None } else { Some(url.to_string()) }
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    let saved = home.and_then(|h| std::fs::read_to_string(std::path::Path::new(&h).join(".melody-quack").join("server.txt")).ok());
+    let url = saved.map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
+    url.or_else(|| option_env!("MQ_DEFAULT_SERVER").map(|s| s.trim().to_string()).filter(|s| !s.is_empty()))
 }
 
 pub fn open(url: &str) {
@@ -121,14 +121,40 @@ fn run(url: String, rx: Receiver<String>, tx: Sender<String>, state: Arc<AtomicI
 }
 
 pub fn copy(text: &str) {
-    macroquad::miniquad::window::clipboard_set(text);
+    if cfg!(target_os = "macos") {
+        let text = text.to_string();
+        std::thread::spawn(move || {
+            use std::io::Write;
+            if let Ok(mut child) = std::process::Command::new("pbcopy").stdin(std::process::Stdio::piped()).spawn() {
+                if let Some(mut input) = child.stdin.take() {
+                    let _ = input.write_all(text.as_bytes());
+                }
+                let _ = child.wait();
+            }
+        });
+    } else {
+        macroquad::miniquad::window::clipboard_set(text);
+    }
+}
+
+pub fn paste_now() -> Option<String> {
+    clipboard_text()
+}
+
+fn clipboard_text() -> Option<String> {
+    if cfg!(target_os = "macos") {
+        let out = std::process::Command::new("pbpaste").output().ok()?;
+        String::from_utf8(out.stdout).ok().filter(|t| !t.is_empty())
+    } else {
+        macroquad::miniquad::window::clipboard_get()
+    }
 }
 
 pub fn pasted() -> Option<String> {
     use macroquad::prelude::{is_key_down, is_key_pressed, KeyCode};
     let held = [KeyCode::LeftControl, KeyCode::RightControl, KeyCode::LeftSuper, KeyCode::RightSuper].iter().any(|k| is_key_down(*k));
     if held && is_key_pressed(KeyCode::V) {
-        macroquad::miniquad::window::clipboard_get()
+        clipboard_text()
     } else {
         None
     }

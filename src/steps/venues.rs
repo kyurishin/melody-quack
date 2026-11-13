@@ -103,6 +103,7 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.friends.clear();
     g.venue.joined = false;
     g.venue.on_air = None;
+    g.venue.practice = false;
     g.venue.look = 0;
     g.venue.chat_open = false;
     g.venue.chat_draft.clear();
@@ -159,6 +160,7 @@ fn leave(g: &mut Game) {
     if g.venue.on_air.take().map(|o| o.audio).unwrap_or(false) {
         net::listen("");
     }
+    g.venue.practice = false;
     g.venue.at = Venue::None;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
@@ -223,7 +225,7 @@ fn online(g: &mut Game, dt: f32) {
         g.venue.requests.clear();
         g.venue.granted.clear();
         g.venue.asked = false;
-        if g.venue.on_air.take().map(|o| o.audio).unwrap_or(false) {
+        if !g.venue.practice && g.venue.on_air.take().map(|o| o.audio).unwrap_or(false) {
             net::listen("");
         }
     } else {
@@ -782,7 +784,7 @@ fn play_pad(g: &Game, i: usize) {
 }
 
 fn my_set(g: &Game) -> bool {
-    g.venue.joined && g.venue.dj_name.is_some() && g.venue.on_air.as_ref().map(|o| Some(&o.name) == g.venue.dj_name.as_ref()).unwrap_or(false)
+    g.venue.practice || g.venue.joined && g.venue.dj_name.is_some() && g.venue.on_air.as_ref().map(|o| Some(&o.name) == g.venue.dj_name.as_ref()).unwrap_or(false)
 }
 
 fn send_mix(g: &mut Game) {
@@ -920,16 +922,28 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
         }
     };
-    if net::state() != 2 {
-        say(&["the decks need the server. you're offline."]);
-    } else if g.venue.dj_name.is_none() {
+    if net::state() != 2 && !g.venue.practice {
+        say(&["you're offline, so nobody else can hear the decks.", "you can still practise: the in-game decks,", "only you hear them."]);
+        if button(fr, "practise on the decks", x + 10.0, y + 76.0, 120.0, 16.0, false) && !fresh {
+            g.venue.practice = true;
+            if let Some(r) = g.venue.now.clone() {
+                g.venue.mix = (true, true, r.sound, g.venue.bpm_now.max(100.0));
+            }
+            g.venue.on_air = Some(OnAir { audio: false, url: String::new(), name: "you".to_string() });
+            fr.click = false;
+        }
+    } else if g.venue.dj_name.is_none() && !g.venue.practice {
         say(&["the decks are for djs.", "to become one: esc, restart, then 'become a dj'.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
     } else if my_set(g) {
         let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
         if audio {
             say(&["you're live with real audio.", "everyone hears your stream."]);
         } else {
-            say(&["you're live on the in-game decks.", "1-6: pads, heard by everyone."]);
+            if g.venue.practice {
+                say(&["practice: only you hear the decks.", "1-6: pads. the room follows your mix."]);
+            } else {
+                say(&["you're live on the in-game decks.", "1-6: pads, heard by everyone."]);
+            }
             let m = g.venue.mix;
             let mut changed = false;
             if button(fr, if m.0 { "beat: on" } else { "beat: off" }, x + 10.0, y + 64.0, 58.0, 14.0, m.0) || is_key_pressed(KeyCode::B) {
@@ -970,6 +984,11 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         if button(fr, "go off air", x + 10.0, y + h - 34.0, 64.0, 16.0, false) {
             net::send("offair");
+            if g.venue.practice {
+                g.venue.practice = false;
+                g.venue.on_air = None;
+                g.venue.look = 0;
+            }
         }
         if button(fr, &format!("look: {}", LOOKS[g.venue.look % 4]), x + 78.0, y + h - 34.0, 124.0, 16.0, false) {
             g.venue.look = (g.venue.look + 1) % 4;
@@ -2169,6 +2188,15 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
     }
     let pw = g.venue.term_pw;
     paste_into(&mut g.venue.term_in, max, |c| !pw || c != ' ');
+    if is_mouse_button_pressed(MouseButton::Right) && hit(fr, x, y, w, h) {
+        if let Some(text) = net::paste_now() {
+            for ch in text.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }) {
+                if !ch.is_control() && (!pw || ch != ' ') && g.venue.term_in.chars().count() < max {
+                    g.venue.term_in.push(ch);
+                }
+            }
+        }
+    }
     if is_key_pressed(KeyCode::Backspace) {
         g.venue.term_in.pop();
     }
@@ -2183,7 +2211,8 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
             g.venue.term_in = g.venue.term_hist.get(g.venue.term_hist_at).cloned().unwrap_or_default();
         }
     }
-    if modifier_held() && is_key_pressed(KeyCode::C) {
+    let copy_now = modifier_held() && is_key_pressed(KeyCode::C);
+    if copy_now && g.venue.term_sel.map(|(a, b)| a == b).unwrap_or(true) {
         let last = g.venue.term.iter().rev().find(|l| !l.contains("@pc7:~$") && !l.trim().is_empty()).cloned();
         if let Some(l) = last {
             net::copy(&l);
@@ -2199,6 +2228,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
             }
         }
         g.venue.term_hist_at = g.venue.term_hist.len();
+        g.venue.term_sel = None;
         if g.venue.run(&line) {
             for n in [0usize, 2, 4, 5] {
                 g.audio.play_ch(3, &g.bells[n], 0.45);
@@ -2226,30 +2256,94 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         }
     }
     let start = lines.len().saturating_sub(rows);
+    let point = |ux: f32, uy: f32| -> (usize, usize) {
+        let row = (start + ((uy - y - 2.0) / 10.0).floor().max(0.0) as usize).min(lines.len().saturating_sub(1));
+        let chars: Vec<char> = lines.get(row).map(|l| l.0.chars().collect()).unwrap_or_default();
+        let mut k = 0;
+        while k < chars.len() && ui_measure(&chars[..=k].iter().collect::<String>(), 9.0) - ui_measure(&chars[k..=k].iter().collect::<String>(), 9.0) * 0.5 < ux - x - 4.0 {
+            k += 1;
+        }
+        (row, k)
+    };
+    let area = hit(fr, x, y + 2.0, w, rows as f32 * 10.0);
+    if is_mouse_button_pressed(MouseButton::Left) && area && !lines.is_empty() {
+        let p = point(fr.ux, fr.uy);
+        g.venue.term_sel = Some((p, p));
+        g.venue.term_drag = true;
+    }
+    if g.venue.term_drag && is_mouse_button_down(MouseButton::Left) {
+        let p = point(fr.ux, fr.uy.clamp(y + 2.0, y + 1.0 + rows as f32 * 10.0));
+        if let Some(sel) = g.venue.term_sel.as_mut() {
+            sel.1 = p;
+        }
+    }
+    let ordered = g.venue.term_sel.map(|(a, b)| if a <= b { (a, b) } else { (b, a) });
+    if let Some(((r0, c0), (r1, c1))) = ordered {
+        for r in r0.max(start)..=r1.min(lines.len().saturating_sub(1)) {
+            let chars: Vec<char> = lines[r].0.chars().collect();
+            let from = if r == r0 { c0.min(chars.len()) } else { 0 };
+            let to = if r == r1 { c1.min(chars.len()) } else { chars.len() };
+            if to > from {
+                let x0 = ui_measure(&chars[..from].iter().collect::<String>(), 9.0);
+                let x1 = ui_measure(&chars[..to].iter().collect::<String>(), 9.0);
+                ui_rect(x + 4.0 + x0, y + 2.0 + (r - start) as f32 * 10.0, x1 - x0, 10.0, Color::new(1.0, 0.84, 0.43, 0.38));
+            }
+        }
+    }
     for (i, (l, c)) in lines[start..].iter().enumerate() {
         ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, *c);
     }
-    if fr.click && hit(fr, x, y + 2.0, w, rows as f32 * 10.0) {
-        let row = start + ((fr.uy - y - 2.0) / 10.0).floor().max(0.0) as usize;
-        if let (Some((text, _)), Some((li, from))) = (lines.get(row), origin.get(row)) {
-            let chars: Vec<char> = text.chars().collect();
-            let mut k = 0;
-            while k < chars.len() && ui_measure(&chars[..=k].iter().collect::<String>(), 9.0) < fr.ux - x - 4.0 {
-                k += 1;
+    let selected = |sel: ((usize, usize), (usize, usize))| -> String {
+        let ((r0, c0), (r1, c1)) = sel;
+        let mut out = String::new();
+        for r in r0..=r1.min(lines.len().saturating_sub(1)) {
+            let chars: Vec<char> = lines[r].0.chars().collect();
+            let from = if r == r0 { c0.min(chars.len()) } else { 0 };
+            let to = if r == r1 { c1.min(chars.len()) } else { chars.len() };
+            if r > r0 && origin[r].0 != origin[r - 1].0 {
+                out.push('\n');
             }
-            let full = g.venue.term[*li].clone();
-            let full = full.split_once("@pc7:~$ ").map(|(_, cmd)| cmd.to_string()).unwrap_or(full);
-            let pick = if is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift) {
-                full.trim().to_string()
-            } else {
-                let prompt = g.venue.term[*li].find("@pc7:~$ ").map(|p| g.venue.term[*li][..p + 8].chars().count()).unwrap_or(0);
-                word_at(&full, (from + k).saturating_sub(prompt))
-            };
-            if !pick.is_empty() {
-                net::copy(&pick);
-                g.venue.term_flash = (format!("copied: {pick}"), get_time());
+            out.extend(chars[from..to.max(from)].iter());
+        }
+        out
+    };
+    if copy_now {
+        if let Some(sel) = ordered.filter(|(a, b)| a != b) {
+            let text = selected(sel).trim().to_string();
+            net::copy(&text);
+            g.venue.term_flash = (format!("copied: {}", text.replace('\n', " ")), get_time());
+        }
+    }
+    if g.venue.term_drag && is_mouse_button_released(MouseButton::Left) {
+        g.venue.term_drag = false;
+        let sel = ordered.unwrap_or(((0, 0), (0, 0)));
+        if sel.0 != sel.1 {
+            let text = selected(sel).trim().to_string();
+            if !text.is_empty() {
+                net::copy(&text);
+                g.venue.term_flash = (format!("copied: {}", text.replace('\n', " ")), get_time());
+            }
+        } else {
+            g.venue.term_sel = None;
+            let (row, k) = sel.0;
+            if let Some((li, from)) = origin.get(row) {
+                let full = g.venue.term[*li].clone();
+                let cmd = full.split_once("@pc7:~$ ").map(|(_, c)| c.to_string()).unwrap_or(full.clone());
+                let pick = if is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift) {
+                    cmd.trim().to_string()
+                } else {
+                    let prompt = full.find("@pc7:~$ ").map(|p| full[..p + 8].chars().count()).unwrap_or(0);
+                    word_at(&cmd, (from + k.min(lines[row].0.chars().count().saturating_sub(1))).saturating_sub(prompt))
+                };
+                if !pick.is_empty() {
+                    net::copy(&pick);
+                    g.venue.term_flash = (format!("copied: {pick}"), get_time());
+                }
             }
         }
+        fr.click = false;
+    }
+    if area && fr.click {
         fr.click = false;
     }
     if get_time() - g.venue.term_flash.1 < 1.6 && !g.venue.term_flash.0.is_empty() {
@@ -2745,7 +2839,11 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let live = !g.venue.live.is_empty() || on_air.is_some();
     let section = if live { "live" } else if bar < 4 { "intro" } else if (16..20).contains(&bar) { "breakdown" } else if drop { "drop" } else { "groove" };
     let line = if let Some(o) = &on_air {
-        format!("live: dj {} - {}", o.name, if o.audio { "real audio" } else { "on the decks" })
+        if g.venue.practice {
+            "practice: you on the decks, only you hear it".to_string()
+        } else {
+            format!("live: dj {} - {}", o.name, if o.audio { "real audio" } else { "on the decks" })
+        }
     } else if live {
         format!("live: {}", g.venue.live)
     } else { format!("generated set - {} - {} bpm - {}", SOUNDS[r.sound % 3], g.venue.bpm_now as i32, section)

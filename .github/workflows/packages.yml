@@ -20,6 +20,7 @@ jobs:
       - name: Build universal binary
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
+          MQ_DEFAULT_SERVER: ${{ vars.MQ_SERVER }}
         run: |
           cargo build --release --locked --target aarch64-apple-darwin
           cargo build --release --locked --target x86_64-apple-darwin
@@ -36,6 +37,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev pkg-config
       - run: cargo build --release --locked
+        env:
+          MQ_DEFAULT_SERVER: ${{ vars.MQ_SERVER }}
       - name: Fetch appimagetool
         run: |
           curl -sSfL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
@@ -58,6 +61,8 @@ jobs:
       - run: pacman -Syu --noconfirm git rust alsa-lib libx11 libxi libglvnd
       - uses: actions/checkout@v4
       - name: Build the package
+        env:
+          MQ_DEFAULT_SERVER: ${{ vars.MQ_SERVER }}
         run: |
           VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           useradd -m builder
@@ -67,7 +72,7 @@ jobs:
           sed "s/^pkgver=.*/pkgver=$VERSION/" packaging/arch/PKGBUILD > /build/PKGBUILD
           chown -R builder /build
           cd /build
-          sudo -u builder makepkg --noconfirm
+          sudo -u builder MQ_DEFAULT_SERVER="$MQ_DEFAULT_SERVER" makepkg --noconfirm
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cp /build/*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
       - uses: actions/upload-artifact@v4
