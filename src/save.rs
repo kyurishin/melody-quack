@@ -46,6 +46,7 @@ pub(crate) struct Progress {
     pub(crate) dj_key: String,
     pub(crate) welcome: bool,
     pub(crate) tour: u8,
+    pub(crate) fresh: bool,
 }
 
 pub(crate) fn kind_index(kind: Kind) -> u8 {
@@ -148,6 +149,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         dj_key: String::new(),
         welcome: false,
         tour: 0,
+        fresh: false,
     };
     for line in lines {
         let (key, rest) = line.split_once(' ').unwrap_or((line, ""));
@@ -208,6 +210,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
             "mush" if nums.len() == 3 => p.mush = [nums[0] as u32, nums[1] as u32, nums[2] as u32],
             "djkey" => p.dj_key = rest.chars().filter(|c| !c.is_control() && *c != ' ').take(40).collect(),
             "welcome" => p.welcome = true,
+            "fresh" => p.fresh = true,
             "tour" if nums.len() == 1 => p.tour = (nums[0] as u8).min(6),
             "name" => p.name = rest.chars().filter(|c| !c.is_control()).take(12).collect::<String>().trim().to_string(),
             "seq" if nums.len() == 4 => p.seq = [nums[0] as u16, nums[1] as u16, nums[2] as u16, nums[3] as u16],

@@ -6,7 +6,15 @@ use macroquad::prelude::*;
 pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
     g.save_clock += get_frame_time();
     fr.quitting = is_quit_requested();
-    if (g.save_clock > 5.0 || fr.quitting || g.restart_now) && !g.first_pick {
+    if g.restart_now {
+        let mut fresh = String::from("melody-quack-save 1\nfresh 1\n");
+        if !g.venue.dj_key.is_empty() {
+            fresh += &format!("djkey {}\n", g.venue.dj_key);
+        }
+        store::write(&fresh);
+        return;
+    }
+    if (g.save_clock > 5.0 || fr.quitting) && !g.first_pick {
         g.save_clock = 0.0;
         let progress = Progress {
             tiles: g.world.tiles.iter().map(|t| (kind_index(t.kind), t.stack)).collect(),
@@ -42,8 +50,9 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             stored: g.stored.iter().map(|i| i.index()).collect(),
             name: g.venue.name.clone(),
             dj_key: g.venue.dj_key.clone(),
-            welcome: g.restart_now,
+            welcome: false,
             tour: if g.venue.tour >= 6 { 6 } else { 0 },
+            fresh: false,
             seq: g.sampler.grid.map(|row| row.iter().enumerate().fold(0u16, |m, (k, on)| if *on { m | (1 << k) } else { m })),
             quests: if g.quests.day == i64::MIN { None } else { Some((g.quests.day, g.quests.list.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
         };

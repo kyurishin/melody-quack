@@ -207,8 +207,226 @@ pub(crate) fn rot13(text: &str) -> String {
         .collect()
 }
 
+const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+pub(crate) fn b64_encode(bytes: &[u8]) -> String {
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |n, (i, b)| n | (*b as u32) << (16 - 8 * i));
+        for k in 0..chunk.len() + 1 {
+            out.push(B64[((n >> (18 - 6 * k)) & 63) as usize] as char);
+        }
+    }
+    out
+}
+
+pub(crate) fn b64_decode(text: &str) -> Option<Vec<u8>> {
+    let mut bits = 0u32;
+    let mut have = 0;
+    let mut out = Vec::new();
+    for c in text.trim().trim_end_matches('=').bytes() {
+        let c = match c {
+            b'+' => b'-',
+            b'/' => b'_',
+            c => c,
+        };
+        let v = B64.iter().position(|x| *x == c)? as u32;
+        bits = (bits << 6) | v;
+        have += 6;
+        if have >= 8 {
+            have -= 8;
+            out.push((bits >> have) as u8);
+            bits &= (1 << have) - 1;
+        }
+    }
+    Some(out)
+}
+
+fn squash(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
+}
+
+struct Hard {
+    port: u32,
+    commits: [String; 3],
+    sig: String,
+    guest: String,
+}
+
 impl VenueState {
+    pub(crate) fn hard(&self) -> bool {
+        matches!(self.name.trim().to_lowercase().as_str(), "leon" | "neomole")
+    }
+
+    fn hard_setup(&self) -> Hard {
+        let mut rng = self.secret.as_ref().map(|r| r.seed).unwrap_or(7) ^ 0x1e0a_5eed;
+        let mut hex = |n: usize| (0..n).map(|_| char::from_digit(next(&mut rng) % 16, 16).unwrap()).collect::<String>();
+        let commits = [hex(7), hex(7), hex(7)];
+        let port = 3000 + next(&mut rng) % 6000;
+        let sig: String = (0..43).map(|_| B64[(next(&mut rng) % 64) as usize] as char).collect();
+        let guest = format!("{}.{}.{}", b64_encode(br#"{"alg":"HS256","typ":"JWT"}"#), b64_encode(br#"{"sub":"goose","role":"guest"}"#), sig);
+        Hard { port, commits, sig, guest }
+    }
+
+    fn run_hard(&mut self, line: &str) -> bool {
+        let h = self.hard_setup();
+        self.term.push(format!("leon@pc7:~$ {line}"));
+        let line = line.trim();
+        let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
+        let mut out: Vec<String> = Vec::new();
+        let mut won = false;
+        let mut say = |t: &str| out.push(t.to_string());
+        match (cmd, arg) {
+            ("", _) => {}
+            ("help", _) => {
+                say("hard mode. tools: ls [-a]  cat  git log|show <sha>");
+                say("base64 [-d] <text>  curl [-H 'k: v'] <url>");
+                say("xxd -r -p <hex>  hint  whoami  clear");
+                say("goal: tonight's code. it's behind the goose's api.");
+            }
+            ("hint", _) => {
+                say("1. history remembers what HEAD forgot.");
+                say("2. a token is three base64url parts. read them.");
+                say("3. look at how app.js trusts the header.");
+            }
+            ("whoami", _) => say("leon (the goose has heard of you)"),
+            ("ls", "-a") | ("ls", "-la") | ("ls", "-al") => say(".  ..  .git  .env  app.js  notes.txt"),
+            ("ls", _) => say("app.js  notes.txt"),
+            ("clear", _) => {}
+            ("cat", "notes.txt") => {
+                say("kim: the goose's ravenet api is up on");
+                say(&format!("localhost:{}. he says the code endpoint", h.port));
+                say("is admin only now. he rotated a secret");
+                say("after 'an incident'. i don't ask.");
+            }
+            ("cat", ".env") => {
+                say("JWT_SECRET=<rotated, ask the goose>");
+                say("SESSION=");
+            }
+            ("cat", "app.js") => {
+                for l in [
+                    "get('/admin/code', (req, res) => {",
+                    "  const t = decode(req.headers.authorization)",
+                    "  if (!verify(t)) return res.status(401).end()",
+                    "  if (t.payload.sub !== 'goose') return res.status(404).end()",
+                    "  if (t.payload.role !== 'admin') return res.status(403).end()",
+                    "  res.send(hex(tonight.code))",
+                    "})",
+                    "const verify = t => t.header.alg === 'none'",
+                    "  || hmac(t.body, env.JWT_SECRET) === t.sig",
+                    "// TODO(goose): drop alg none before prod",
+                ] {
+                    say(l);
+                }
+            }
+            ("cat", "") => say("cat: missing operand"),
+            ("cat", _) => say("cat: no such file"),
+            ("git", "log") | ("git", "log --oneline") => {
+                say(&format!("{} (HEAD) rotate jwt secret, clear session", h.commits[0]));
+                say(&format!("{} add admin-only code endpoint", h.commits[1]));
+                say(&format!("{} quick test session for the door", h.commits[2]));
+            }
+            ("git", a) if a.starts_with("show") => {
+                let sha = a.trim_start_matches("show").trim();
+                if sha.len() >= 4 && h.commits[2].starts_with(sha) {
+                    say(&format!("commit {}", h.commits[2]));
+                    say("diff --git a/.env b/.env");
+                    say("-SESSION=");
+                    say(&format!("+SESSION={}", h.guest));
+                } else if sha.len() >= 4 && h.commits.iter().any(|c| c.starts_with(sha)) {
+                    say("diff --git a/app.js b/app.js");
+                    say("(nothing interesting in this one)");
+                } else {
+                    say("fatal: bad revision. try git log");
+                }
+            }
+            ("git", _) => say("usage: git log | git show <sha>"),
+            ("base64", a) if a.starts_with("-d") => {
+                let text = a.trim_start_matches("-d").trim().trim_matches(|c| c == '\'' || c == '"');
+                match b64_decode(text) {
+                    Some(bytes) => say(&String::from_utf8_lossy(&bytes)),
+                    None => say("base64: invalid input"),
+                }
+            }
+            ("base64", "") => say("base64: give it some text"),
+            ("base64", a) => {
+                let text = a.trim_matches(|c| c == '\'' || c == '"');
+                say(&b64_encode(text.as_bytes()));
+                say("(base64url, no padding)");
+            }
+            ("curl", a) => {
+                let token = a.split_whitespace().skip_while(|w| !w.trim_matches(|c| c == '\'' || c == '"').eq_ignore_ascii_case("bearer")).nth(1).map(|t| t.trim_matches(|c| c == '\'' || c == '"').to_string());
+                let url = a.split_whitespace().find(|w| w.contains("localhost") || w.contains("127.0.0.1")).unwrap_or("").trim_matches(|c| c == '\'' || c == '"');
+                let port = url.split(':').nth(if url.starts_with("http") { 2 } else { 1 }).and_then(|p| p.split('/').next()).and_then(|p| p.parse::<u32>().ok());
+                if url.is_empty() {
+                    say("curl: give it a url, like localhost:<port>/");
+                } else if port != Some(h.port) {
+                    say("curl: (7) connection refused");
+                } else if !url.contains("/admin/code") {
+                    say("{\"service\":\"ravenet\",\"routes\":[\"/admin/code\"]}");
+                } else {
+                    match token {
+                        None => say("HTTP/1.1 401 Unauthorized"),
+                        Some(t) => {
+                            let parts: Vec<&str> = t.split('.').collect();
+                            let dec = |p: &str| b64_decode(p).map(|b| squash(&String::from_utf8_lossy(&b))).unwrap_or_default();
+                            let header = parts.first().map(|p| dec(p)).unwrap_or_default();
+                            let payload = parts.get(1).map(|p| dec(p)).unwrap_or_default();
+                            let none = header.contains(r#""alg":"none""#);
+                            let genuine = parts.len() == 3 && t == h.guest;
+                            let signed_ok = genuine || (none && parts.len() >= 2);
+                            if !signed_ok {
+                                say("HTTP/1.1 401 Unauthorized");
+                                say(if parts.len() == 3 && parts[2] == h.sig { "invalid signature" } else { "malformed token" });
+                            } else if !payload.contains(r#""sub":"goose""#) {
+                                say("HTTP/1.1 404 Not Found");
+                            } else if !payload.contains(r#""role":"admin""#) {
+                                say("HTTP/1.1 403 Forbidden");
+                                say("{\"error\":\"admins only\"}");
+                            } else if self.live_list {
+                                say("HTTP/1.1 200 OK");
+                                say("asking the goose's list...");
+                                self.ask = true;
+                            } else {
+                                let code = self.secret.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+                                let hexed: String = code.bytes().map(|b| format!("{b:02x}")).collect();
+                                say("HTTP/1.1 200 OK");
+                                say(&hexed);
+                            }
+                        }
+                    }
+                }
+            }
+            ("xxd", a) if a.starts_with("-r") => {
+                let hexed: String = a.split_whitespace().last().unwrap_or("").chars().filter(|c| c.is_ascii_hexdigit()).collect();
+                let bytes: Vec<u8> = (0..hexed.len() / 2).filter_map(|i| u8::from_str_radix(&hexed[i * 2..i * 2 + 2], 16).ok()).collect();
+                let text = String::from_utf8_lossy(&bytes).to_string();
+                say(&text);
+                if let Some(code) = tidy_code(&text).filter(|c| self.secret.as_ref().map(|r| &r.code == c).unwrap_or(false)) {
+                    say("flag captured. respect, leon. the goose will know this code.");
+                    self.learn(&code);
+                    self.flag = true;
+                    won = true;
+                }
+            }
+            ("xxd", _) => say("usage: xxd -r -p <hex>"),
+            _ => say("command not found. type help."),
+        }
+        self.term.extend(out);
+        if cmd == "clear" {
+            self.term.clear();
+        }
+        let n = self.term.len();
+        if n > 60 {
+            self.term.drain(..n - 60);
+        }
+        won
+    }
+
     pub(crate) fn run(&mut self, line: &str) -> bool {
+        if self.hard() {
+            return self.run_hard(line);
+        }
         let user = if self.term_goose { "goose" } else { "guest" };
         if self.term_pw {
             self.term_pw = false;
@@ -304,7 +522,7 @@ impl VenueState {
         let code = make_code(&mut v.rng);
         let seed = next(&mut v.rng);
         v.secret = Some(Rave { code, title: "the long waddle".to_string(), seed, sound: 1, bpm: 132.0, expired: false });
-        v.term = vec!["quack 95 terminal. type help.".to_string()];
+        v.term = vec![if v.hard() { "ravenet dev box. hard mode. type help.".to_string() } else { "quack 95 terminal. type help.".to_string() }];
         v.token = ((next(&mut v.rng) as u64) << 32) | next(&mut v.rng) as u64 | 1;
         v
     }

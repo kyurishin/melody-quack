@@ -4,7 +4,7 @@ pub struct Book {
     pub pages: [(&'static str, &'static str); 10],
 }
 
-pub const BOOKS: [Book; 6] = [
+pub const BOOKS: [Book; 8] = [
     Book {
         title: "experience design",
         cover: (52, 150, 140),
@@ -99,6 +99,38 @@ pub const BOOKS: [Book; 6] = [
             ("umami", "Kikunae Ikeda named umami in 1908 after studying kombu broth. Shiitake add guanylate, which makes the umami of kombu and fish taste even stronger."),
             ("dry your mushrooms", "Fresh mushrooms are about 90 percent water. Drying concentrates their flavour, and the soaking water of dried shiitake makes a rich stock."),
             ("cook together, quack together", "Three minutes of playing together by the fire earns three stars. Serve your dishes on the table at home and a friend comes to eat."),
+        ],
+    },
+    Book {
+        title: "computer science",
+        cover: (70, 92, 170),
+        pages: [
+            ("turing's machine", "In 1936 Alan Turing imagined a machine that reads and writes symbols on an endless tape. Anything a modern computer can calculate, it can calculate too."),
+            ("bits", "Claude Shannon's 1948 paper on communication measured information in bits, one yes-or-no answer each. The word was suggested by his colleague John Tukey."),
+            ("big o", "Big O notation says how the work grows with the input. Comparing every pair in a list of n items is O(n squared); a binary search is O(log n)."),
+            ("binary search", "To find a word in a sorted dictionary, open the middle and throw away the half it can't be in. A million words need only about twenty looks."),
+            ("the halting problem", "Turing also proved that no program can decide, for every program and input, whether it will finish or run forever. Some questions have no algorithm."),
+            ("dijkstra's café", "In 1956 Edsger Dijkstra worked out his shortest-path algorithm in about twenty minutes on a café terrace in Amsterdam, without pencil or paper."),
+            ("hash tables", "A hash table turns a key into a number and uses it as a shelf address, so finding an item takes about as long with ten items as with ten million."),
+            ("stack and heap", "Local values live on the stack, pushed and popped as functions start and end. Things that must outlive a function are kept on the heap."),
+            ("compilers", "In 1952 Grace Hopper's team built A-0, one of the first compilers: a program that turns friendlier instructions into the machine code a computer runs."),
+            ("p versus np", "If an answer is quick to check, is it always quick to find? Nobody knows. The Clay Mathematics Institute offers a million dollars for a proof either way."),
+        ],
+    },
+    Book {
+        title: "learning rust",
+        cover: (183, 65, 14),
+        pages: [
+            ("cargo new", "cargo new my_game makes a folder with Cargo.toml and src/main.rs. cargo run builds the program and starts it. Almost every Rust project begins like this."),
+            ("let and mut", "A value in Rust can't change unless you say so. let x = 5 stays 5 forever; let mut x = 5 lets you write x += 1 later on."),
+            ("ownership", "Every value has exactly one owner. When the owner goes out of scope, the value is freed: no garbage collector, and no memory left behind by accident."),
+            ("borrowing", "&x lends a value to read, &mut x lends it to change. Many readers or one writer, never both at once. That one rule prevents whole families of bugs."),
+            ("option", "Rust has no null. A value that might be missing is an Option: Some(value) or None, and the compiler makes you deal with both before it builds."),
+            ("result and ?", "A function that can fail returns a Result: Ok(value) or Err(error). The ? operator hands an error back to the caller in a single character."),
+            ("match", "match compares a value against patterns and has to cover every case. Add a new variant to an enum and the compiler lists every match you forgot."),
+            ("traits", "A trait describes what a type can do, like Display for printing. Write one function for anything that implements a trait and it works for all of them."),
+            ("reading errors", "Rust's compiler errors say what went wrong, point at the line and often suggest the fix. Read them slowly: they are a patient teacher."),
+            ("where next", "The Rust Programming Language, known as the book, is free at doc.rust-lang.org/book. Rustlings gives small broken programs to fix one at a time."),
         ],
     },
 ];

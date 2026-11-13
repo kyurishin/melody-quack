@@ -408,7 +408,7 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         let armed = g.restart_confirm > 0.0;
         ui_rect(btn_x, btn_y, btn_w, btn_h, if armed { Color::from_rgba(220, 70, 80, 255) } else if on_button { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
         let btn_label = if armed {
-            if radio::touch_ui() { "tap again" } else { "again to restart" }
+            if radio::touch_ui() { "tap: erase, new game" } else { "R: erase, new game" }
         } else if radio::touch_ui() {
             "restart"
         } else {

@@ -314,7 +314,17 @@ async fn main() {
     let mut saved_name = String::new();
     let mut saved_dj = (String::new(), false);
     let mut saved_tour = 0u8;
-    if let Some(saved) = store::read().and_then(|t| decode_progress(&t, cast_list.len())) {
+    let mut fresh_key: Option<String> = None;
+    let loaded = store::read().and_then(|t| decode_progress(&t, cast_list.len())).filter(|s| {
+        if s.fresh {
+            fresh_key = Some(s.dj_key.clone());
+        }
+        !s.fresh
+    });
+    if let Some(key) = fresh_key {
+        saved_dj = (key, false);
+    }
+    if let Some(saved) = loaded {
         saved_name = saved.name.clone();
         saved_dj = (saved.dj_key.clone(), saved.welcome);
         saved_tour = saved.tour;

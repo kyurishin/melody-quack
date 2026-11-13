@@ -1243,6 +1243,9 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     let tapped = ready && fr.click && hit(fr, cx - bw / 2.0, hy - 11.0, bw, 16.0);
     if ready && (is_key_pressed(KeyCode::Enter) || tapped) {
         g.venue.name = g.venue.name_draft.trim().to_string();
+        if g.venue.hard() {
+            g.venue.term = vec!["ravenet dev box. hard mode. type help.".to_string()];
+        }
         let key = if g.venue.dj_page { g.venue.key_draft.trim().to_string() } else { String::new() };
         if key != g.venue.dj_key {
             g.venue.dj_key = key;
@@ -1921,7 +1924,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
     let green = Color::from_rgba(198, 255, 61, 255);
     ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
     for ch in typed {
-        if !ch.is_control() && g.venue.term_in.len() < 30 {
+        if !ch.is_control() && g.venue.term_in.chars().count() < if g.venue.hard() { 200 } else { 30 } {
             g.venue.term_in.push(*ch);
         }
     }
@@ -1939,13 +1942,29 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         }
     }
     let rows = ((h - 16.0) / 10.0) as usize;
-    let start = g.venue.term.len().saturating_sub(rows);
-    for (i, l) in g.venue.term[start..].iter().enumerate() {
+    let mut lines: Vec<(String, Color)> = Vec::new();
+    for l in g.venue.term.iter() {
         let c = if l.starts_with("flag captured") { Color::from_rgba(255, 214, 110, 255) } else if l.contains("@pc7") { WHITE } else { green };
-        ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, c);
+        let mut rest: Vec<char> = l.chars().collect();
+        while !rest.is_empty() {
+            let mut n = rest.len();
+            while n > 1 && ui_measure(&rest[..n].iter().collect::<String>(), 9.0) > w - 8.0 {
+                n -= 1;
+            }
+            lines.push((rest[..n].iter().collect(), c));
+            rest.drain(..n);
+        }
     }
-    let prompt = if g.venue.term_pw { "password: ".to_string() } else { format!("{}@pc7:~$ ", if g.venue.term_goose { "goose" } else { "guest" }) };
-    let shown = if g.venue.term_pw { "*".repeat(g.venue.term_in.len()) } else { g.venue.term_in.clone() };
+    let start = lines.len().saturating_sub(rows);
+    for (i, (l, c)) in lines[start..].iter().enumerate() {
+        ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, *c);
+    }
+    let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+    let prompt = if g.venue.term_pw { "password: ".to_string() } else { format!("{who}@pc7:~$ ") };
+    let mut shown = if g.venue.term_pw { "*".repeat(g.venue.term_in.len()) } else { g.venue.term_in.clone() };
+    while shown.chars().count() > 1 && ui_measure(&format!("{prompt}{shown}"), 9.0) > w - 14.0 {
+        shown = shown.chars().skip(1).collect();
+    }
     let line = format!("{prompt}{shown}");
     ui_text(&line, x + 4.0, y + h - 4.0, 9.0, WHITE);
     if (fr.time * 2.0).fract() < 0.6 {

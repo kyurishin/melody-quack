@@ -73,10 +73,11 @@ pub(crate) fn reading_light() -> Light {
 }
 
 pub(crate) fn draw_shelf_scene(sel: usize, time: f32, spines: &[RenderTarget]) {
-    let eye = vec3(0.0, 0.62, 1.35);
+    let pan = (sel as f32 - (books::BOOKS.len() as f32 - 1.0) / 2.0) * 0.2 * 0.55;
+    let eye = vec3(pan, 0.62, 1.5);
     set_camera(&Camera3D {
         position: eye,
-        target: vec3(0.0, 0.42, 0.0),
+        target: vec3(pan, 0.42, 0.0),
         up: Vec3::Y,
         fovy: 0.85,
         ..Default::default()
@@ -90,9 +91,9 @@ pub(crate) fn draw_shelf_scene(sel: usize, time: f32, spines: &[RenderTarget]) {
     b.cube(vec3(0.0, 1.02, 0.0), vec3(1.7, 0.05, 0.66), wood);
     b.cube(vec3(-0.83, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
     b.cube(vec3(0.83, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
-    b.cube(vec3(0.72, 0.15, -0.05), vec3(0.12, 0.1, 0.12), Color::from_rgba(200, 110, 80, 255));
-    b.cube(vec3(0.72, 0.26, -0.05), vec3(0.07, 0.14, 0.07), Color::from_rgba(90, 160, 80, 255));
-    b.cube(vec3(-0.72, 0.13, -0.02), vec3(0.14, 0.06, 0.2), Color::from_rgba(230, 220, 200, 255));
+    b.cube(vec3(0.62, 1.1, -0.05), vec3(0.12, 0.1, 0.12), Color::from_rgba(200, 110, 80, 255));
+    b.cube(vec3(0.62, 1.21, -0.05), vec3(0.07, 0.14, 0.07), Color::from_rgba(90, 160, 80, 255));
+    b.cube(vec3(-0.62, 1.08, -0.02), vec3(0.14, 0.06, 0.2), Color::from_rgba(230, 220, 200, 255));
     let mut faces = Vec::new();
     for (i, book) in books::BOOKS.iter().enumerate() {
         let hgt = 0.6 + ((i * 7) % 3) as f32 * 0.04;
