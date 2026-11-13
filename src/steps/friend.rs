@@ -10,6 +10,16 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
         fr.delivered = g.players[0].carrying.take();
         fr.delivered_by = 0;
     }
+    if !g.two_player && !g.companion {
+        let here = g.players[0].pos;
+        let dog = &mut g.players[1];
+        dog.seated = false;
+        dog.sleeping = false;
+        dog.carrying = None;
+        dog.walking = false;
+        dog.place_at(here);
+        return;
+    }
     if g.two_player && !g.inside {
         if g.players[1].carrying.is_some() && g.players[1].pos.distance(STICK_DROP) < 0.9 {
             fr.delivered = g.players[1].carrying.take();

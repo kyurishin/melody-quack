@@ -495,6 +495,10 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## Playing without the companion
+
+Pause (Esc) and press C, or click the companion button, to send the dog (or whichever friend you picked) to rest. It disappears, stops fetching sticks, fishing and answering your tunes, and you fetch your own sticks for the fire. Playing on your own by the fire still earns stars. Press C again to bring it back. The choice is saved.
+
 ## Copy and paste
 
 - In the PC bang terminal: drag over text to select and copy it, click a word to copy just that word, shift+click to copy the whole line. Ctrl+c (cmd+c on a Mac) copies the selection, or the last answer. Right-click pastes. Up and down bring back earlier commands.

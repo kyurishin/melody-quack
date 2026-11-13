@@ -288,6 +288,8 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
             format!("the {} knows {} tune{} - answer back!", g.cast_list[g.players[1].character].noun, g.songbook.len(), if g.songbook.len() == 1 { "" } else { "s" })
         } else if fr.dog_jamming || (g.two_player && g.players[1].seated) {
             "playing together by the fire - E / O: cook, move to stand up".to_string()
+        } else if !g.companion && !g.two_player {
+            "playing by the fire - E: cook, move to stand up".to_string()
         } else {
             format!("playing by the fire - E: cook, the {} is on the way", g.cast_list[g.players[1].character].noun)
         }
@@ -300,7 +302,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     } else if fr.can_build_here {
         format!("E: build {}  X: change", g.tools[0].name())
     } else if !g.camp.lit && g.camp.fuel <= 0.0 {
-        if g.two_player { "find a tree with a stick at its foot - E or O picks it up".to_string() } else { format!("the {} is looking for sticks - or grab one yourself with E", g.cast_list[g.players[1].character].noun) }
+        if g.two_player { "find a tree with a stick at its foot - E or O picks it up".to_string() } else if !g.companion { "the fire is out - find a stick at the foot of a tree and press E".to_string() } else { format!("the {} is looking for sticks - or grab one yourself with E", g.cast_list[g.players[1].character].noun) }
     } else {
         String::new()
     };

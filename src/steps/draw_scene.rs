@@ -38,7 +38,7 @@ pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
     clear_background(FOG);
     let view = View {
         world: &g.world,
-        players: &g.players,
+        players: g.shown_players(),
         particles: &g.particles,
         camp: &g.camp,
         time: fr.time,

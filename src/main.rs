@@ -316,6 +316,7 @@ async fn main() {
     let mut saved_tour = 0u8;
     let mut fresh_key: Option<(String, String)> = None;
     let mut saved_session = String::new();
+    let mut saved_companion = true;
     let loaded = store::read().and_then(|t| decode_progress(&t, cast_list.len())).filter(|s| {
         if s.fresh {
             fresh_key = Some((s.dj_key.clone(), s.session.clone()));
@@ -331,6 +332,7 @@ async fn main() {
         saved_dj = (saved.dj_key.clone(), saved.welcome);
         saved_tour = saved.tour;
         saved_session = saved.session.clone();
+        saved_companion = !saved.companion_off;
         if saved.tiles.len() == world.tiles.len() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
@@ -537,6 +539,7 @@ async fn main() {
         wander_to,
         paused,
         restart_now,
+        companion: saved_companion,
         restart_confirm,
         mix,
         mix_drag,

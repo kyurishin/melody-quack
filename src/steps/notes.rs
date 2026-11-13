@@ -383,7 +383,7 @@ pub(crate) fn on_step(g: &mut Game, fr: &mut Frame) {
 }
 
 pub(crate) fn session_and_playback(g: &mut Game, fr: &mut Frame) {
-    fr.together = !g.inside && if g.two_player { g.players[0].seated && g.players[1].seated } else { fr.dog_jamming };
+    fr.together = !g.inside && if g.two_player { g.players[0].seated && g.players[1].seated } else if g.companion { fr.dog_jamming } else { g.jam && g.players[0].seated };
     fr.playing = fr.together && fr.time - g.last_note_at < 8.0;
     match g.session {
         None => {

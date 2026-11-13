@@ -38,6 +38,8 @@ pub(crate) fn character_picker(g: &mut Game, fr: &mut Frame) {
     if fr.picker_closed && g.first_pick {
         g.first_pick = false;
         g.first_steps = 1;
-        g.toasts.push((format!("the {} trots off to find sticks", g.cast_list[g.players[1].character].noun), 4.0));
+        if g.companion {
+            g.toasts.push((format!("the {} trots off to find sticks", g.cast_list[g.players[1].character].noun), 4.0));
+        }
     }
 }

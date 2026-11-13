@@ -1820,7 +1820,7 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
             guide_arrow(&mut b, vec3(PC_ORIGIN.x + seat.x, 1.05 + bob, PC_ORIGIN.y + seat.y), 0.05);
         }
     }
-    for p in g.players.iter() {
+    for p in g.shown_players().iter() {
         p.draw(&mut b, &g.world, time, 0.0);
     }
     b.flush();
@@ -2812,7 +2812,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for c in g.venue.crowd.iter() {
         c.draw(&mut b, &g.world, time, pulse);
     }
-    for p in g.players.iter() {
+    for p in g.shown_players().iter() {
         p.draw(&mut b, &g.world, time, pulse);
     }
     let mut tags: Vec<(Vec3, String, Color)> = Vec::new();

@@ -147,6 +147,7 @@ pub(crate) struct Game {
     pub(crate) wander_to: Vec2,
     pub(crate) paused: bool,
     pub(crate) restart_now: bool,
+    pub(crate) companion: bool,
     pub(crate) restart_confirm: f32,
     pub(crate) mix: [f32; 5],
     pub(crate) mix_drag: Option<usize>,
@@ -161,6 +162,10 @@ pub(crate) struct Game {
 }
 
 impl Game {
+    pub(crate) fn shown_players(&self) -> &[Player] {
+        if self.two_player || self.companion { &self.players } else { &self.players[..1] }
+    }
+
     pub(crate) fn perc(&self) -> [&audio::Sound; 4] {
         [&self.kick, &self.lid, &self.chop, &self.sizzle]
     }

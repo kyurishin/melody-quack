@@ -433,11 +433,29 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             ui_text(&label, live_x[i] + (live_w - ui_measure(&label, 10.0)) / 2.0, live_y + 14.0, 10.0, ink);
         }
         let acc_y = live_y + btn_h + 4.0;
-        let acc_w = w - 20.0;
-        let on_acc = fr.ux > dex_x && fr.ux < dex_x + acc_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
+        let comp_w = live_w;
+        let on_comp = fr.ux > dex_x && fr.ux < dex_x + comp_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
+        let noun = g.cast_list[g.players[1].character].noun;
+        let mut comp_label = format!("{}: {}{}", noun, if g.companion { "on" } else { "off" }, if radio::touch_ui() { "" } else { " (C)" });
+        while ui_measure(&comp_label, 10.0) > comp_w - 6.0 && comp_label.len() > 4 {
+            comp_label.pop();
+        }
+        let comp_fill = if g.companion { Color::from_rgba(140, 222, 168, 255) } else if on_comp { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
+        ui_rect(dex_x, acc_y, comp_w, btn_h, comp_fill);
+        ui_text(&comp_label, dex_x + (comp_w - ui_measure(&comp_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, if g.companion { Color::from_rgba(36, 26, 71, 255) } else { WHITE });
+        if !fr.just_paused && ((fr.click && on_comp && g.mix_drag.is_none()) || is_key_pressed(KeyCode::C)) {
+            g.companion = !g.companion;
+            g.save_clock = 99.0;
+            let line = if g.companion { format!("the {noun} is back") } else { format!("the {noun} is resting. you play on your own") };
+            g.toasts.push((line, 3.0));
+            fr.click = false;
+        }
+        let acc_x = dex_x + comp_w + 6.0;
+        let acc_w = w - 20.0 - comp_w - 6.0;
+        let on_acc = fr.ux > acc_x && fr.ux < acc_x + acc_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
         let mut acc_label = match &g.venue.account {
-            Some((_, label)) => format!("account: {label}"),
-            None => "account: sign in to save".to_string(),
+            Some((_, label)) => label.clone(),
+            None => "sign in to save".to_string(),
         };
         if !radio::touch_ui() {
             acc_label += " (A)";
@@ -445,8 +463,8 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         while ui_measure(&acc_label, 10.0) > acc_w - 6.0 && acc_label.len() > 4 {
             acc_label.pop();
         }
-        ui_rect(dex_x, acc_y, acc_w, btn_h, if on_acc { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        ui_text(&acc_label, dex_x + (acc_w - ui_measure(&acc_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, WHITE);
+        ui_rect(acc_x, acc_y, acc_w, btn_h, if on_acc { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
+        ui_text(&acc_label, acc_x + (acc_w - ui_measure(&acc_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, WHITE);
         if !fr.just_paused && ((fr.click && on_acc && g.mix_drag.is_none()) || is_key_pressed(KeyCode::A)) {
             g.paused = false;
             g.restart_confirm = 0.0;
