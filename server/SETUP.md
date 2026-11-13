@@ -1,6 +1,6 @@
 # Putting the rave server online
 
-The live server is the Fly.io app `willow-coral-204` (Amsterdam), at `wss://willow-coral-204.fly.dev`. To update it: `fly deploy` from this folder (or build the image locally and `fly deploy --image ...`). The repository variable `MQ_SERVER` points the apps at it.
+The live server is the Fly.io app `willow-coral-204` (Amsterdam), at `wss://willow-coral-204.fly.dev`. To update it: `fly deploy` from this folder (or build the image locally and `fly deploy --image ...`). The build workflows and `web/sets.js` point the apps at it; a repository variable `MQ_SERVER` would override it.
 
 The game works offline, but chat, the DJ decks for everyone, the timed secret rave, sign-in and cloud saves need this server running on the internet.
 

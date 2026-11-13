@@ -29,7 +29,7 @@ jobs:
 
       - name: Assemble site
         env:
-          MQ_SERVER: ${{ vars.MQ_SERVER }}
+          MQ_SERVER: ${{ vars.MQ_SERVER || 'wss://willow-coral-204.fly.dev' }}
         run: |
           mkdir -p dist
           cp target/wasm32-unknown-unknown/release/melody-quack.wasm dist/

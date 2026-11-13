@@ -9,5 +9,5 @@ window.MELODY_SETS = [
 window.MELODY_LIVE = {
   topic: "melody-quack-live-b3c29ad39c3a",
   listen: "",
-  server: ""
+  server: "wss://willow-coral-204.fly.dev"
 };
