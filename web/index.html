@@ -1088,6 +1088,25 @@
           importObject.env.net_recv_get = function (out) {
             new Uint8Array(wasm_memory.buffer, out, net.now.length).set(net.now);
           };
+          var clip = { text: null, at: 0, now: null };
+          document.addEventListener("paste", function (e) {
+            var data = (e.clipboardData || window.clipboardData);
+            var t = data ? data.getData("text") : "";
+            if (t) { clip.text = t; clip.at = Date.now(); }
+          }, true);
+          importObject.env.clip_paste_len = function () {
+            if (clip.text === null || Date.now() - clip.at > 1500) { clip.text = null; return -1; }
+            clip.now = bytesOf(clip.text);
+            clip.text = null;
+            return clip.now.length;
+          };
+          importObject.env.clip_paste_get = function (out) {
+            new Uint8Array(wasm_memory.buffer, out, clip.now.length).set(clip.now);
+          };
+          importObject.env.clip_write = function (p, l) {
+            var t = text(p, l);
+            try { if (navigator.clipboard) navigator.clipboard.writeText(t).catch(function () {}); } catch (e) {}
+          };
           importObject.env.net_open_url = function (p, l) {
             var url = text(p, l);
             if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");

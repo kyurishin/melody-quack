@@ -120,6 +120,20 @@ fn run(url: String, rx: Receiver<String>, tx: Sender<String>, state: Arc<AtomicI
     }
 }
 
+pub fn copy(text: &str) {
+    macroquad::miniquad::window::clipboard_set(text);
+}
+
+pub fn pasted() -> Option<String> {
+    use macroquad::prelude::{is_key_down, is_key_pressed, KeyCode};
+    let held = [KeyCode::LeftControl, KeyCode::RightControl, KeyCode::LeftSuper, KeyCode::RightSuper].iter().any(|k| is_key_down(*k));
+    if held && is_key_pressed(KeyCode::V) {
+        macroquad::miniquad::window::clipboard_get()
+    } else {
+        None
+    }
+}
+
 pub fn open_url(url: &str) {
     if !url.starts_with("https://") {
         return;

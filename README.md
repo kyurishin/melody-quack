@@ -495,6 +495,15 @@ Friends can meet in the same chapel rave over the internet. It needs one small s
 
 The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
 
+## Copy and paste
+
+- In the PC bang terminal: click a word to copy it, shift+click to copy the whole line, ctrl+c (cmd+c on a Mac) copies the last answer. Up and down bring back earlier commands.
+- Ctrl+v (cmd+v) pastes in the terminal, at the chapel door, in the chat, and in the name, DJ key and stream link boxes.
+
+## Chat without a server
+
+Enter always opens the chat in the chapel. Without a game server the message only shows on your own screen, with a note saying so. The downloadable apps don't have a server address built in yet; until one is set up, everyone plays offline.
+
 ## Restart and accounts
 
 **Restart** (pause menu, R twice) erases the game on this device and starts again from the name screen. Only the DJ key and the sign-in are kept.

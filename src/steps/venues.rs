@@ -791,6 +791,25 @@ fn send_mix(g: &mut Game) {
     net::send(&format!("mix {} {} {} {}", m.0 as u8, m.1 as u8, m.2, m.3));
 }
 
+fn say_to_room(g: &mut Game, text: &str, online: bool) {
+    if text.is_empty() {
+        return;
+    }
+    if online {
+        net::send(&format!("say {text}"));
+        return;
+    }
+    let now = get_time();
+    let kind = if g.venue.dj_name.is_some() { 1 } else { 0 };
+    g.venue.chat_log.push((kind, g.venue.name.clone(), text.to_string(), now));
+    let why = if net::server().is_none() { "only you can see this: no game server is set up, so you're playing offline." } else { "only you can see this: you're offline right now." };
+    g.venue.chat_log.push((3, String::new(), why.to_string(), now));
+    let n = g.venue.chat_log.len();
+    if n > 40 {
+        g.venue.chat_log.drain(..n - 40);
+    }
+}
+
 fn load_cloud(g: &mut Game, data: &str) {
     let Some(text) = b64_decode(data).map(|b| String::from_utf8_lossy(&b).to_string()) else {
         return;
@@ -970,10 +989,11 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         ui_text(if shown.is_empty() { "click to paste, or type" } else { &shown }, x + 14.0, y + 108.5, 8.0, if shown.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
         if !fresh {
             while let Some(ch) = get_char_pressed() {
-                if !ch.is_control() && ch != ' ' && g.venue.stream.len() < 190 {
+                if !ch.is_control() && ch != ' ' && g.venue.stream.len() < 190 && !shortcut_held() {
                     g.venue.stream.push(ch);
                 }
             }
+            paste_into(&mut g.venue.stream, 190, |c| c != ' ');
             if is_key_pressed(KeyCode::Backspace) {
                 g.venue.stream.pop();
             }
@@ -1303,7 +1323,21 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
         g.venue.field = 1;
     }
     let on_key = g.venue.field == 1;
+    if on_key {
+        paste_into(&mut g.venue.key_draft, 40, |c| c != ' ');
+    } else {
+        let mut add = String::new();
+        paste_into(&mut add, 12, |c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_');
+        for c in add.to_lowercase().chars() {
+            if g.venue.name_draft.chars().count() < 12 {
+                g.venue.name_draft.push(c);
+            }
+        }
+    }
     while let Some(ch) = get_char_pressed() {
+        if shortcut_held() {
+            continue;
+        }
         if on_key {
             if !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 40 {
                 g.venue.key_draft.push(ch);
@@ -2085,19 +2119,86 @@ fn rave_exe(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
     }
 }
 
+fn modifier_held() -> bool {
+    [KeyCode::LeftControl, KeyCode::RightControl, KeyCode::LeftSuper, KeyCode::RightSuper].iter().any(|k| is_key_down(*k))
+}
+
+fn shortcut_held() -> bool {
+    modifier_held() && (is_key_pressed(KeyCode::V) || is_key_pressed(KeyCode::C))
+}
+
+fn paste_into(target: &mut String, max: usize, keep: impl Fn(char) -> bool) {
+    if let Some(text) = net::pasted() {
+        for ch in text.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }) {
+            if !ch.is_control() && keep(ch) && target.chars().count() < max {
+                target.push(ch);
+            }
+        }
+    }
+}
+
+fn word_at(line: &str, at: usize) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let stop = |c: char| c.is_whitespace() || "=\"'(),;<>[]{}".contains(c);
+    let at = at.min(chars.len().saturating_sub(1));
+    if chars.is_empty() || stop(chars[at]) {
+        return String::new();
+    }
+    let mut a = at;
+    while a > 0 && !stop(chars[a - 1]) {
+        a -= 1;
+    }
+    let mut b = at;
+    while b + 1 < chars.len() && !stop(chars[b + 1]) {
+        b += 1;
+    }
+    let word: String = chars[a..=b].iter().collect();
+    word.trim_end_matches(|c| c == '.' || c == ':').to_string()
+}
+
 fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
     let green = Color::from_rgba(198, 255, 61, 255);
     ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
-    for ch in typed {
-        if !ch.is_control() && g.venue.term_in.chars().count() < if g.venue.hard() { 200 } else { 30 } {
-            g.venue.term_in.push(*ch);
+    let max = if g.venue.hard() { 200 } else { 30 };
+    if !shortcut_held() {
+        for ch in typed {
+            if !ch.is_control() && g.venue.term_in.chars().count() < max {
+                g.venue.term_in.push(*ch);
+            }
         }
     }
+    let pw = g.venue.term_pw;
+    paste_into(&mut g.venue.term_in, max, |c| !pw || c != ' ');
     if is_key_pressed(KeyCode::Backspace) {
         g.venue.term_in.pop();
     }
-    if is_key_pressed(KeyCode::Enter) {
+    if !g.venue.term_pw && !g.venue.term_hist.is_empty() {
+        let n = g.venue.term_hist.len();
+        if is_key_pressed(KeyCode::Up) {
+            g.venue.term_hist_at = g.venue.term_hist_at.saturating_sub(1).min(n - 1);
+            g.venue.term_in = g.venue.term_hist[g.venue.term_hist_at].clone();
+        }
+        if is_key_pressed(KeyCode::Down) {
+            g.venue.term_hist_at = (g.venue.term_hist_at + 1).min(n);
+            g.venue.term_in = g.venue.term_hist.get(g.venue.term_hist_at).cloned().unwrap_or_default();
+        }
+    }
+    if modifier_held() && is_key_pressed(KeyCode::C) {
+        let last = g.venue.term.iter().rev().find(|l| !l.contains("@pc7:~$") && !l.trim().is_empty()).cloned();
+        if let Some(l) = last {
+            net::copy(&l);
+            g.venue.term_flash = (format!("copied: {l}"), get_time());
+        }
+    }
+    if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
         let line = std::mem::take(&mut g.venue.term_in);
+        if !g.venue.term_pw && !line.trim().is_empty() && g.venue.term_hist.last() != Some(&line) {
+            g.venue.term_hist.push(line.clone());
+            if g.venue.term_hist.len() > 30 {
+                g.venue.term_hist.remove(0);
+            }
+        }
+        g.venue.term_hist_at = g.venue.term_hist.len();
         if g.venue.run(&line) {
             for n in [0usize, 2, 4, 5] {
                 g.audio.play_ch(3, &g.bells[n], 0.45);
@@ -2108,7 +2209,9 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
     }
     let rows = ((h - 16.0) / 10.0) as usize;
     let mut lines: Vec<(String, Color)> = Vec::new();
-    for l in g.venue.term.iter() {
+    let mut origin: Vec<(usize, usize)> = Vec::new();
+    for (li, l) in g.venue.term.iter().enumerate() {
+        let mut from = 0usize;
         let c = if l.starts_with("flag captured") { Color::from_rgba(255, 214, 110, 255) } else if l.contains("@pc7") { WHITE } else { green };
         let mut rest: Vec<char> = l.chars().collect();
         while !rest.is_empty() {
@@ -2117,12 +2220,49 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
                 n -= 1;
             }
             lines.push((rest[..n].iter().collect(), c));
+            origin.push((li, from));
+            from += n;
             rest.drain(..n);
         }
     }
     let start = lines.len().saturating_sub(rows);
     for (i, (l, c)) in lines[start..].iter().enumerate() {
         ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, *c);
+    }
+    if fr.click && hit(fr, x, y + 2.0, w, rows as f32 * 10.0) {
+        let row = start + ((fr.uy - y - 2.0) / 10.0).floor().max(0.0) as usize;
+        if let (Some((text, _)), Some((li, from))) = (lines.get(row), origin.get(row)) {
+            let chars: Vec<char> = text.chars().collect();
+            let mut k = 0;
+            while k < chars.len() && ui_measure(&chars[..=k].iter().collect::<String>(), 9.0) < fr.ux - x - 4.0 {
+                k += 1;
+            }
+            let full = g.venue.term[*li].clone();
+            let full = full.split_once("@pc7:~$ ").map(|(_, cmd)| cmd.to_string()).unwrap_or(full);
+            let pick = if is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift) {
+                full.trim().to_string()
+            } else {
+                let prompt = g.venue.term[*li].find("@pc7:~$ ").map(|p| g.venue.term[*li][..p + 8].chars().count()).unwrap_or(0);
+                word_at(&full, (from + k).saturating_sub(prompt))
+            };
+            if !pick.is_empty() {
+                net::copy(&pick);
+                g.venue.term_flash = (format!("copied: {pick}"), get_time());
+            }
+        }
+        fr.click = false;
+    }
+    if get_time() - g.venue.term_flash.1 < 1.6 && !g.venue.term_flash.0.is_empty() {
+        let mut t = g.venue.term_flash.0.clone();
+        if ui_measure(&t, 8.0) > w - 16.0 {
+            while t.chars().count() > 4 && ui_measure(&format!("{t}..."), 8.0) > w - 16.0 {
+                t.pop();
+            }
+            t.push_str("...");
+        }
+        let tw = ui_measure(&t, 8.0) + 8.0;
+        ui_rect(x + w - tw - 3.0, y + 3.0, tw, 11.0, Color::from_rgba(255, 214, 110, 255));
+        ui_text(&t, x + w - tw + 1.0, y + 11.0, 8.0, Color::from_rgba(8, 8, 14, 255));
     }
     let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
     let prompt = if g.venue.term_pw { "password: ".to_string() } else { format!("{who}@pc7:~$ ") };
@@ -2228,8 +2368,14 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
         return;
     }
     while let Some(ch) = get_char_pressed() {
-        if ch.is_ascii_alphanumeric() && g.venue.door_code.len() < 9 {
+        if ch.is_ascii_alphanumeric() && g.venue.door_code.len() < 9 && !shortcut_held() {
             g.venue.door_code.push(ch.to_ascii_uppercase());
+        }
+    }
+    if let Some(text) = net::pasted() {
+        let clean: String = text.chars().filter(|c| c.is_ascii_alphanumeric()).take(9).collect::<String>().to_uppercase();
+        if !clean.is_empty() {
+            g.venue.door_code = clean;
         }
     }
     if is_key_pressed(KeyCode::Backspace) {
@@ -2362,24 +2508,23 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let mut chat_done = false;
     if g.venue.chat_open && !fresh {
         while let Some(ch) = get_char_pressed() {
-            if !ch.is_control() && g.venue.chat_draft.chars().count() < 120 {
+            if !ch.is_control() && g.venue.chat_draft.chars().count() < 120 && !shortcut_held() {
                 g.venue.chat_draft.push(ch);
             }
         }
+        paste_into(&mut g.venue.chat_draft, 120, |_| true);
         if is_key_pressed(KeyCode::Backspace) {
             g.venue.chat_draft.pop();
         }
-        if is_key_pressed(KeyCode::Enter) {
+        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
             let text = g.venue.chat_draft.trim().to_string();
-            if !text.is_empty() && can_chat {
-                net::send(&format!("say {text}"));
-            }
+            say_to_room(g, &text, can_chat);
             chat_done = true;
         }
-        if is_key_pressed(KeyCode::Escape) || !can_chat {
+        if is_key_pressed(KeyCode::Escape) {
             chat_done = true;
         }
-    } else if !fresh && can_chat && g.venue.overlay == Overlay::None && is_key_pressed(KeyCode::Enter) {
+    } else if !fresh && g.venue.overlay == Overlay::None && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) {
         g.venue.chat_open = true;
         g.venue.chat_draft.clear();
         while get_char_pressed().is_some() {}
@@ -2629,17 +2774,15 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         "enter: send   esc: close"
     } else if at_decks {
         "E: the decks   enter: chat"
-    } else if can_chat {
-        "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
     } else {
-        "wasd: move   1-6: sing over the set   esc or the door: leave"
+        "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
     });
-    if can_chat && g.venue.overlay == Overlay::None {
+    if g.venue.overlay == Overlay::None {
         let now = get_time();
         let open = g.venue.chat_open;
         let cw = 190.0f32.min(low_w() - 12.0);
         let base = low_h() - 36.0;
-        let mut rows: Vec<(Color, String, String, f32)> = Vec::new();
+        let mut rows: Vec<(Color, String, String, f32, bool)> = Vec::new();
         for (kind, name, text, at) in g.venue.chat_log.iter().rev() {
             let age = (now - *at) as f32;
             let alpha = if open { 1.0 } else { (1.0 - (age - 14.0) / 3.0).clamp(0.0, 1.0) };
@@ -2647,22 +2790,24 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 break;
             }
             let (colour, shown) = match kind {
+                3 => (Color::from_rgba(255, 140, 120, 255), String::new()),
                 2 => (Color::from_rgba(255, 214, 110, 255), format!("* {name}")),
                 1 => (Color::from_rgba(196, 130, 255, 255), format!("dj {name}")),
                 _ => (Color::from_rgba(61, 242, 255, 255), name.clone()),
             };
-            let lead = ui_measure(&shown, 8.0) + 5.0;
+            let lead = if shown.is_empty() { 0.0 } else { ui_measure(&shown, 8.0) + 5.0 };
             let wrapped = ui_wrap(text, 8.0, cw - lead - 6.0);
             for (i, part) in wrapped.iter().enumerate().rev() {
-                rows.push((colour, if i == 0 { shown.clone() } else { String::new() }, part.clone(), alpha));
+                rows.push((colour, if i == 0 { shown.clone() } else { String::new() }, part.clone(), alpha, *kind == 3));
             }
         }
-        for (i, (colour, name, text, alpha)) in rows.iter().enumerate() {
+        for (i, (colour, name, text, alpha, notice)) in rows.iter().enumerate() {
             let ry = base - 12.0 - i as f32 * 10.0;
-            let lead = if name.is_empty() { 8.0 } else { ui_measure(name, 8.0) + 5.0 };
+            let lead = if name.is_empty() { if *notice { 0.0 } else { 8.0 } } else { ui_measure(name, 8.0) + 5.0 };
             ui_rect(6.0, ry, cw, 10.0, Color::new(0.08, 0.06, 0.16, 0.6 * alpha));
             ui_text(name, 9.0, ry + 7.5, 8.0, Color::new(colour.r, colour.g, colour.b, *alpha));
-            ui_text(text, 9.0 + lead, ry + 7.5, 8.0, Color::new(1.0, 0.97, 0.88, *alpha));
+            let ink_c = if *notice { Color::new(colour.r, colour.g, colour.b, *alpha) } else { Color::new(1.0, 0.97, 0.88, *alpha) };
+            ui_text(text, 9.0 + lead, ry + 7.5, 8.0, ink_c);
         }
         if open {
             ui_rect(6.0, base, cw, 13.0, ink());
@@ -2676,9 +2821,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             if button(fr, "chat", 6.0, base, 34.0, 13.0, false) {
                 if let Some(text) = radio::ask_text("say something to the room", "") {
                     let text: String = text.chars().filter(|c| !c.is_control()).take(120).collect();
-                    if !text.trim().is_empty() {
-                        net::send(&format!("say {}", text.trim()));
-                    }
+                    say_to_room(g, text.trim(), can_chat);
                 }
                 fr.click = false;
             }

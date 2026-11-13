@@ -4,6 +4,9 @@ unsafe extern "C" {
     fn net_send(text: *const u8, len: u32);
     fn net_state() -> i32;
     fn net_recv_len() -> i32;
+    fn clip_paste_len() -> i32;
+    fn clip_paste_get(out: *mut u8);
+    fn clip_write(text: *const u8, len: u32);
     fn net_recv_get(out: *mut u8);
     fn net_server_len() -> i32;
     fn net_server_get(out: *mut u8);
@@ -42,6 +45,21 @@ pub fn recv() -> Option<String> {
     if len > 0 {
         unsafe { net_recv_get(buf.as_mut_ptr()) };
     }
+    String::from_utf8(buf).ok()
+}
+
+pub fn copy(text: &str) {
+    macroquad::miniquad::window::clipboard_set(text);
+    unsafe { clip_write(text.as_ptr(), text.len() as u32) };
+}
+
+pub fn pasted() -> Option<String> {
+    let len = unsafe { clip_paste_len() };
+    if len <= 0 {
+        return None;
+    }
+    let mut buf = vec![0u8; len as usize];
+    unsafe { clip_paste_get(buf.as_mut_ptr()) };
     String::from_utf8(buf).ok()
 }
 

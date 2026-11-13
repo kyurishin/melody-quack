@@ -217,3 +217,10 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Books: `books.rs` has 8 books; the shelf camera in `reading.rs` pans to the selected book, and the plant and box moved on top of the shelf.
 - Hard CTF: `VenueState::hard()` (name leon or neomole, any case) switches `run` to `run_hard`: `.git` history leaks a guest JWT, `app.js` accepts `alg: none`, `curl` with a forged admin token returns the code in hex, `xxd -r -p` decodes it and captures the flag. Port, commit hashes and signature come from the secret's seed. In list mode the curl step asks the server instead. The terminal now wraps long lines and accepts 200 characters in hard mode.
 - Tested: server unit tests (10, including a real HTTP request and a websocket on one port), the hard CTF played through by hand, restart, the shelf, and sign-in on the name screen and mid-game against a scripted fake server. Not tested: real Google, Steam or Apple sign-in (no public server or keys here), the web build of these screens.
+
+## Copy, paste, offline chat
+
+- `net::copy` and `net::pasted` (native: miniquad clipboard, ctrl or super + V; web: a capture-phase `paste` listener and `navigator.clipboard.writeText` in `web/index.html`, imports `clip_paste_len`, `clip_paste_get`, `clip_write`). `paste_into`, `word_at`, `modifier_held`, `shortcut_held` in `steps/venues.rs`. Typed characters are only ignored on the frame a shortcut letter is pressed, so a modifier that looks stuck (cmd+tab on a Mac) can't block typing.
+- Terminal: `term_hist`/`term_hist_at` for up/down, `term_flash` for the "copied" badge; clicks map wrapped rows back to the original line, so long tokens copy whole.
+- Chat: Enter always opens it; `say_to_room` sends when joined and online, otherwise shows the message locally with a kind-3 notice line.
+- Tested on desktop: click-copy of a commit hash and of a three-row token, ctrl+v into commands, history, offline chat, online chat with two scripted clients. Not tested in the browser.

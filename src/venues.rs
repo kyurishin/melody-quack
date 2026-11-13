@@ -104,6 +104,9 @@ pub(crate) struct VenueState {
     pub(crate) post_tab: bool,
     pub(crate) look: usize,
     pub(crate) chat_open: bool,
+    pub(crate) term_hist: Vec<String>,
+    pub(crate) term_hist_at: usize,
+    pub(crate) term_flash: (String, f64),
     pub(crate) tour: u8,
     pub(crate) session: String,
     pub(crate) account: Option<(String, String)>,
@@ -292,6 +295,8 @@ impl VenueState {
                 say("base64 [-d] <text>  curl [-H 'k: v'] <url>");
                 say("xxd -r -p <hex>  hint  whoami  clear");
                 say("goal: tonight's code. it's behind the goose's api.");
+                say("click: copy a word. shift+click: the line. ctrl/cmd+c: last output.");
+                say("ctrl/cmd+v: paste. up/down: history.");
             }
             ("hint", _) => {
                 say("1. history remembers what HEAD forgot.");
@@ -459,6 +464,7 @@ impl VenueState {
                 say("commands: ls  ls -a  cat <file>  su <user>");
                 say("          rot13 <text>  whoami  clear");
                 say("goal: find tonight's secret rave code.");
+                say("click a word to copy it, ctrl/cmd+v pastes, up: last command.");
             }
             ("ls", "-a") | ("ls", "-la") | ("ls", "-al") => say(".rave  notes.txt  ramyeon.log"),
             ("ls", _) => say("notes.txt  ramyeon.log"),
