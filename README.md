@@ -180,7 +180,7 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
   - **the log hunt:** a log too long to read. grep for the code (easy), for three parts among old nights' decoys (medium), or for base64'd parts signed by the goose across two logs (hard).
   - **the cipher:** caesar with the shift given (easy), with the shift unknown (medium), or an XOR vault whose key hides in `.env` (hard).
 
-  Type `help` to start. It behaves like a real shell, but it only lives inside the game and never touches your computer:
+  On easy, a blue tip after every step says exactly what to type next, so anyone can finish. Type `help` to start. It behaves like a real shell, but it only lives inside the game and never touches your computer:
   - Tab completes commands and file names (twice lists the choices).
   - Ctrl+A/E jump to the start and end, and Ctrl+B/F or the arrows move by a letter.
   - Alt+B/F (Option on a Mac) move by a word.

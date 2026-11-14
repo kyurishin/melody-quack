@@ -2783,7 +2783,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
     let mut origin: Vec<(usize, usize)> = Vec::new();
     for (li, l) in g.venue.term.iter().enumerate() {
         let mut from = 0usize;
-        let c = if l.starts_with("flag captured") { Color::from_rgba(255, 214, 110, 255) } else if l.contains("@pc7") { WHITE } else { green };
+        let c = if l.starts_with("flag captured") { Color::from_rgba(255, 214, 110, 255) } else if l.starts_with("tip: ") { Color::from_rgba(120, 200, 255, 255) } else if l.contains("@pc7") { WHITE } else { green };
         let mut rest: Vec<char> = l.chars().collect();
         while !rest.is_empty() {
             let mut n = rest.len();

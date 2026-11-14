@@ -858,6 +858,61 @@ impl VenueState {
     }
 
     pub(crate) fn run(&mut self, line: &str) -> bool {
+        let won = self.run_inner(line);
+        if self.term_level == 1 && !won && !self.flag {
+            if let Some(tip) = self.easy_tip(line.trim()) {
+                self.term.push(format!("tip: {tip}"));
+            }
+        }
+        won
+    }
+
+    fn easy_tip(&self, line: &str) -> Option<String> {
+        let code = self.secret.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+        let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
+        let seen = |needle: &str| self.term.iter().any(|l| l.contains(needle));
+        let waiting = self.live_list && !self.claimed && self.term.last().map(|l| l.contains("asking the goose's list")).unwrap_or(false);
+        if waiting {
+            return Some("wait a moment for the goose's list to answer.".to_string());
+        }
+        Some(match self.ctf_type() {
+            0 => {
+                if self.term_pw {
+                    "type 132 (the goose's password) and press enter.".to_string()
+                } else if seen("scrambled:") {
+                    format!("unscramble it. type: rot13 {}", rot13(&code))
+                } else if self.term_goose {
+                    "you're the goose now. open his hidden file. type: cat .rave".to_string()
+                } else if seen("his password is 132") {
+                    "become the goose. type: su goose".to_string()
+                } else if cmd == "ls" && arg.contains('a') {
+                    "files starting with a dot are hidden. read kim's note first. type: cat notes.txt".to_string()
+                } else {
+                    "list every file, even hidden ones. type: ls -a".to_string()
+                }
+            }
+            1 => {
+                if seen("door.log") && (seen("grep it") || cmd == "cat") {
+                    "grep searches a file for a word. type: grep code door.log".to_string()
+                } else if cmd == "ls" {
+                    "read the note. type: cat notes.txt".to_string()
+                } else {
+                    "see what files are here. type: ls".to_string()
+                }
+            }
+            _ => {
+                if seen("moved 3 along") {
+                    format!("move every letter 3 back. type: caesar 3 {}", caesar(&code, 3))
+                } else if cmd == "ls" {
+                    "read the file. type: cat cipher.txt".to_string()
+                } else {
+                    "see what files are here. type: ls".to_string()
+                }
+            }
+        })
+    }
+
+    fn run_inner(&mut self, line: &str) -> bool {
         let said = line.trim().to_lowercase();
         if self.term_level == 0 {
             let pick = match said.as_str() {
@@ -923,6 +978,11 @@ impl VenueState {
             ("ls", _) => say("notes.txt"),
             ("whoami", _) => say(user),
             ("clear", _) => {}
+            ("cat", "notes.txt") if self.term_level == 1 => {
+                say("kim: the goose keeps tonight's code in a hidden");
+                say("file called .rave. only the goose can open it.");
+                say("his password is 132. don't tell him i told you.");
+            }
             ("cat", "notes.txt") => {
                 say("kim: stop asking me about the chapel.");
                 say("the goose keeps tonight's code in a hidden");
@@ -1484,6 +1544,24 @@ mod tests {
         let hexed = v.term.last().unwrap().clone();
         assert!(v.run(&format!("xor {key} {hexed}")), "cipher, hard");
         assert!(v.flag);
+    }
+
+    #[test]
+    fn easy_tips_alone_lead_to_the_flag() {
+        for kind in 0..3u8 {
+            let mut v = player(kind, 0);
+            let mut won = v.run("1");
+            let mut steps = 0;
+            while !won && steps < 10 {
+                let tip = v.term.iter().rev().find(|l| l.starts_with("tip: ")).cloned().unwrap_or_default();
+                let next = tip.split("type: ").nth(1).map(|t| t.to_string()).unwrap_or_else(|| if tip.contains("132") { "132".to_string() } else { String::new() });
+                assert!(!next.is_empty(), "type {kind}: no command in tip {tip:?} after {:?}", v.term);
+                won = v.run(&next);
+                steps += 1;
+            }
+            assert!(won, "type {kind} easy wasn't solved by following tips: {:?}", v.term);
+            assert!(steps <= 6, "type {kind} took {steps} steps");
+        }
     }
 
     #[test]
