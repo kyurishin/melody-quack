@@ -7,6 +7,7 @@ url="https://github.com/kyurishin/melody-quack"
 license=('custom')
 depends=('alsa-lib' 'libx11' 'libxi' 'libglvnd' 'gcc-libs')
 makedepends=('cargo')
+options=('!lto')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
