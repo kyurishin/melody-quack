@@ -151,6 +151,7 @@ pub(crate) struct VenueState {
     pub(crate) joined: bool,
     pub(crate) announced: usize,
     pub(crate) find: Option<(String, f32)>,
+    pub(crate) find_plain: Option<String>,
     pub(crate) at: Venue,
     pub(crate) overlay: Overlay,
     pub(crate) raves: Vec<Rave>,
@@ -221,6 +222,10 @@ pub(crate) fn tidy_code(input: &str) -> Option<String> {
         s.push(*c);
     }
     Some(s)
+}
+
+pub(crate) fn goose_scramble(code: &str) -> String {
+    b64_encode(rot13(code).as_bytes())
 }
 
 pub(crate) fn rot13(text: &str) -> String {
@@ -476,7 +481,8 @@ impl VenueState {
             ("", _) => {}
             ("help", _) => {
                 say("commands: ls  ls -a  cat <file>  su <user>");
-                say("          rot13 <text>  whoami  clear");
+                say("          base64 -d <text>  rot13 <text>");
+                say("          whoami  clear");
                 say("goal: find tonight's secret rave code.");
                 say("click a word to copy it, ctrl/cmd+v pastes, up: last command.");
             }
@@ -502,8 +508,9 @@ impl VenueState {
                 } else if user == "goose" {
                     let r = self.secret.clone().unwrap();
                     say(&format!("tonight: {}", r.title));
-                    say(&format!("code, scrambled: {}", rot13(&r.code)));
-                    say("every letter moved 13 along. rot13 it back.");
+                    say(&format!("code, scrambled twice: {}", goose_scramble(&r.code)));
+                    say("the goose rot13'd it, then base64'd that.");
+                    say("undo it: base64 -d first, then rot13.");
                 } else {
                     say("permission denied. this file belongs to goose.");
                     say("try: su goose");
@@ -937,5 +944,20 @@ pub(crate) fn draw_flyer(r: &Rave, x: f32, y: f32, cell: f32) {
     if r.expired {
         ui_rect(x, y, w, h, Color::new(0.82, 0.78, 0.7, 0.4));
         draw_line(x * kx, (y + h * 0.15) * ky, (x + w) * kx, (y + h * 0.8) * ky, 2.0 * ky, Color::new(0.85, 0.16, 0.16, 0.85));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_goose_code_unscrambles_with_base64_then_rot13() {
+        let code = "MKV-MFG-YDV";
+        let shown = goose_scramble(code);
+        assert_ne!(shown, code);
+        let step1 = String::from_utf8(b64_decode(&shown).unwrap()).unwrap();
+        assert_eq!(step1, "ZXI-ZST-LQI");
+        assert_eq!(rot13(&step1), code);
     }
 }

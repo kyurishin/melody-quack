@@ -314,8 +314,9 @@ fn online(g: &mut Game, dt: f32) {
                 let info = g.venue.tonight.as_ref().map(|t| t.info.clone()).unwrap_or_default();
                 if let Some(r) = rave_from(parts[1], &info) {
                     g.venue.term.push(format!("tonight: {}", r.title));
-                    g.venue.term.push(format!("code, scrambled: {}", rot13(&r.code)));
-                    g.venue.term.push("every letter moved 13 along. rot13 it back.".to_string());
+                    g.venue.term.push(format!("code, scrambled twice: {}", goose_scramble(&r.code)));
+                    g.venue.term.push("the goose rot13'd it, then base64'd that.".to_string());
+                    g.venue.term.push("undo it: base64 -d first, then rot13.".to_string());
                     g.venue.secret = Some(r);
                 }
             }
@@ -370,7 +371,11 @@ fn online(g: &mut Game, dt: f32) {
                 }
             }
             "none" if parts.len() >= 2 => {
-                if finding(g, parts[1]) {
+                if finding(g, parts[1]) && g.venue.find_plain.is_some() {
+                    let plain = g.venue.find_plain.take().unwrap_or_default();
+                    net::send(&format!("find {plain}"));
+                    g.venue.find = Some((plain, 4.0));
+                } else if finding(g, parts[1]) {
                     g.venue.find = None;
                     g.venue.door_code.clear();
                     g.venue.door_msg = "never heard of it. no code, no rave.".to_string();
@@ -2770,16 +2775,18 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 g.audio.play_ch(3, &g.tom, 0.6);
             }
             Some(code) => {
-                let found = g.venue.raves.iter().chain(g.venue.secret.iter()).find(|r| r.code == code).cloned();
+                let plain = rot13(&code);
+                let found = g.venue.raves.iter().chain(g.venue.secret.iter()).find(|r| r.code == code || r.code == plain).cloned();
                 if let Some(r) = found {
                     g.venue.now = Some(r);
                     enter(g, Venue::Chapel);
-                } else if g.venue.decoys.iter().any(|r| r.code == code) {
+                } else if g.venue.decoys.iter().any(|r| r.code == code || r.code == plain) {
                     g.venue.door_msg = "that flyer's from last summer. that night's long over.".to_string();
                     g.venue.door_code.clear();
                     g.audio.play_ch(3, &g.tom, 0.6);
                 } else if net::state() == 2 {
                     net::send(&format!("find {code}"));
+                    g.venue.find_plain = if plain != code { Some(plain) } else { None };
                     g.venue.find = Some((code, 4.0));
                     g.venue.door_msg = "let me check the list...".to_string();
                 } else {
@@ -3145,7 +3152,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for k in 0..4 {
         ui_rect(x + w - 26.0 + k as f32 * 5.0, 28.0 + hud_y, 4.0, 4.0, if k == beat_now { Color::from_rgba(255, 214, 110, 255) } else { ink() });
     }
-    let code = format!("code {}", r.code);
+    let code = format!("code {}", rot13(&r.code));
     let cw = ui_measure(&code, 9.0) + 10.0;
     let (code_x, code_y) = if slim { (6.0, low_h() - 18.0) } else { ((low_w() - cw) / 2.0, 42.0) };
     ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
