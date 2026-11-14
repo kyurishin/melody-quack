@@ -2496,55 +2496,274 @@ fn word_at(line: &str, at: usize) -> String {
     word.trim_end_matches(|c| c == '.' || c == ':').to_string()
 }
 
+thread_local! {
+    static HELD: std::cell::RefCell<std::collections::HashMap<KeyCode, f64>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+fn held_repeat(k: KeyCode) -> bool {
+    let now = get_time();
+    HELD.with(|h| {
+        let mut h = h.borrow_mut();
+        if !is_key_down(k) {
+            h.remove(&k);
+            return false;
+        }
+        if is_key_pressed(k) {
+            h.insert(k, now + 0.4);
+            return false;
+        }
+        let next = *h.entry(k).or_insert(now + 0.4);
+        if now >= next {
+            h.insert(k, now + 0.035);
+            true
+        } else {
+            false
+        }
+    })
+}
+
 fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
     let green = Color::from_rgba(198, 255, 61, 255);
     ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
-    let max = if g.venue.hard() { 200 } else { 30 };
-    if !shortcut_held() {
-        for ch in typed {
-            if !ch.is_control() && g.venue.term_in.chars().count() < max {
-                g.venue.term_in.push(*ch);
-            }
-        }
-    }
+    let max = if g.venue.hard() { 200 } else { 60 };
+    let down = |a: KeyCode, b: KeyCode| is_key_down(a) || is_key_down(b);
+    let ctrl = down(KeyCode::LeftControl, KeyCode::RightControl);
+    let sup = down(KeyCode::LeftSuper, KeyCode::RightSuper);
+    let alt = down(KeyCode::LeftAlt, KeyCode::RightAlt);
+    let shift = down(KeyCode::LeftShift, KeyCode::RightShift);
+    let repeating: Vec<KeyCode> = [KeyCode::Backspace, KeyCode::Delete, KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down, KeyCode::B, KeyCode::F, KeyCode::D, KeyCode::H, KeyCode::W, KeyCode::Y]
+        .into_iter()
+        .filter(|k| held_repeat(*k))
+        .collect();
+    let key = |k: KeyCode| is_key_pressed(k) || repeating.contains(&k);
     let pw = g.venue.term_pw;
-    paste_into(&mut g.venue.term_in, max, |c| !pw || c != ' ');
-    if is_mouse_button_pressed(MouseButton::Right) && hit(fr, x, y, w, h) {
-        if let Some(text) = net::paste_now() {
-            for ch in text.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }) {
-                if !ch.is_control() && (!pw || ch != ' ') && g.venue.term_in.chars().count() < max {
-                    g.venue.term_in.push(ch);
+    let mut chars: Vec<char> = g.venue.term_in.chars().collect();
+    let mut cur = g.venue.term_cur.min(chars.len());
+    let mut run_now = false;
+    let mut redraw_hist = false;
+    let mut copy_now = (sup && is_key_pressed(KeyCode::C)) || (ctrl && shift && is_key_pressed(KeyCode::C));
+    let has_sel = g.venue.term_sel.map(|(a, b)| a != b).unwrap_or(false);
+    if ctrl && !shift && is_key_pressed(KeyCode::C) && has_sel {
+        copy_now = true;
+    }
+    let alt_word = alt && (key(KeyCode::B) || key(KeyCode::F) || key(KeyCode::D) || key(KeyCode::Backspace) || key(KeyCode::Left) || key(KeyCode::Right));
+    let word_left = |c: &[char], mut i: usize| {
+        while i > 0 && !c[i - 1].is_alphanumeric() {
+            i -= 1;
+        }
+        while i > 0 && c[i - 1].is_alphanumeric() {
+            i -= 1;
+        }
+        i
+    };
+    let word_right = |c: &[char], mut i: usize| {
+        while i < c.len() && !c[i].is_alphanumeric() {
+            i += 1;
+        }
+        while i < c.len() && c[i].is_alphanumeric() {
+            i += 1;
+        }
+        i
+    };
+    if let Some((query, skip, before)) = g.venue.term_search.clone() {
+        let mut q = query;
+        let mut skip = skip;
+        if !ctrl && !sup && !alt {
+            for ch in typed {
+                if !ch.is_control() {
+                    q.push(*ch);
+                    skip = 0;
                 }
             }
         }
-    }
-    if is_key_pressed(KeyCode::Backspace) {
-        g.venue.term_in.pop();
-    }
-    if !g.venue.term_pw && !g.venue.term_hist.is_empty() {
-        let n = g.venue.term_hist.len();
-        if is_key_pressed(KeyCode::Up) {
+        if key(KeyCode::Backspace) {
+            q.pop();
+            skip = 0;
+        }
+        if ctrl && key(KeyCode::R) {
+            skip += 1;
+        }
+        let found: Vec<String> = g.venue.term_hist.iter().rev().filter(|l| !q.is_empty() && l.contains(q.as_str())).cloned().collect();
+        let skip = skip.min(found.len().saturating_sub(1));
+        let hit_line = found.get(skip).cloned();
+        if ctrl && (key(KeyCode::G) || key(KeyCode::C)) {
+            g.venue.term_search = None;
+            chars = before.chars().collect();
+            cur = chars.len();
+        } else if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+            g.venue.term_search = None;
+            chars = hit_line.unwrap_or(before).chars().collect();
+            cur = chars.len();
+            run_now = true;
+        } else if key(KeyCode::Left) || key(KeyCode::Right) || (ctrl && (key(KeyCode::A) || key(KeyCode::E))) || key(KeyCode::Tab) {
+            g.venue.term_search = None;
+            chars = hit_line.unwrap_or(before).chars().collect();
+            cur = if key(KeyCode::Left) || (ctrl && key(KeyCode::A)) { 0 } else { chars.len() };
+        } else {
+            g.venue.term_search = Some((q, skip, before));
+        }
+    } else {
+        if !ctrl && !sup && !alt_word {
+            for ch in typed {
+                if !ch.is_control() && chars.len() < max {
+                    chars.insert(cur, *ch);
+                    cur += 1;
+                }
+            }
+        }
+        let mut pasted = String::new();
+        paste_into(&mut pasted, max, |c| !pw || c != ' ');
+        if is_mouse_button_pressed(MouseButton::Right) && hit(fr, x, y, w, h) {
+            if let Some(text) = net::paste_now() {
+                pasted.extend(text.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }).filter(|c| !c.is_control() && (!pw || *c != ' ')));
+            }
+        }
+        for ch in pasted.chars() {
+            if chars.len() < max {
+                chars.insert(cur, ch);
+                cur += 1;
+            }
+        }
+        let kill = |k: &mut String, taken: Vec<char>| {
+            if !taken.is_empty() {
+                *k = taken.into_iter().collect();
+            }
+        };
+        if (ctrl && key(KeyCode::A)) || key(KeyCode::Home) {
+            cur = 0;
+        } else if (ctrl && key(KeyCode::E)) || key(KeyCode::End) {
+            cur = chars.len();
+        } else if (alt && (key(KeyCode::B) || key(KeyCode::Left))) || (ctrl && key(KeyCode::Left)) {
+            cur = word_left(&chars, cur);
+        } else if (alt && (key(KeyCode::F) || key(KeyCode::Right))) || (ctrl && key(KeyCode::Right)) {
+            cur = word_right(&chars, cur);
+        } else if (ctrl && key(KeyCode::B)) || key(KeyCode::Left) {
+            cur = cur.saturating_sub(1);
+        } else if (ctrl && key(KeyCode::F)) || key(KeyCode::Right) {
+            cur = (cur + 1).min(chars.len());
+        } else if ctrl && key(KeyCode::U) {
+            kill(&mut g.venue.term_kill, chars.drain(..cur).collect());
+            cur = 0;
+        } else if ctrl && key(KeyCode::K) {
+            kill(&mut g.venue.term_kill, chars.drain(cur..).collect());
+        } else if ctrl && key(KeyCode::W) {
+            let mut from = cur;
+            while from > 0 && chars[from - 1] == ' ' {
+                from -= 1;
+            }
+            while from > 0 && chars[from - 1] != ' ' {
+                from -= 1;
+            }
+            kill(&mut g.venue.term_kill, chars.drain(from..cur).collect());
+            cur = from;
+        } else if alt && key(KeyCode::Backspace) {
+            let from = word_left(&chars, cur);
+            kill(&mut g.venue.term_kill, chars.drain(from..cur).collect());
+            cur = from;
+        } else if alt && key(KeyCode::D) {
+            let to = word_right(&chars, cur);
+            kill(&mut g.venue.term_kill, chars.drain(cur..to).collect());
+        } else if ctrl && key(KeyCode::Y) {
+            for ch in g.venue.term_kill.chars() {
+                if chars.len() < max {
+                    chars.insert(cur, ch);
+                    cur += 1;
+                }
+            }
+        } else if ctrl && key(KeyCode::T) && cur > 0 && chars.len() >= 2 {
+            let at = if cur == chars.len() { cur - 1 } else { cur };
+            chars.swap(at - 1, at);
+            cur = (at + 1).min(chars.len());
+        } else if key(KeyCode::Backspace) || (ctrl && key(KeyCode::H)) {
+            if cur > 0 {
+                chars.remove(cur - 1);
+                cur -= 1;
+            }
+        } else if key(KeyCode::Delete) || (ctrl && key(KeyCode::D) && !chars.is_empty()) {
+            if cur < chars.len() {
+                chars.remove(cur);
+            }
+        } else if ctrl && key(KeyCode::D) && chars.is_empty() && !pw {
+            g.venue.term_exit = true;
+        } else if (ctrl && key(KeyCode::L)) || (sup && key(KeyCode::K)) {
+            g.venue.term.clear();
+            g.venue.term_sel = None;
+        } else if ctrl && !shift && is_key_pressed(KeyCode::C) && !has_sel {
+            let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+            let shown: String = if pw { "*".repeat(chars.len()) } else { chars.iter().collect() };
+            g.venue.term.push(if pw { format!("password: {shown}^C") } else { format!("{who}@pc7:~$ {shown}^C") });
+            g.venue.term_pw = false;
+            chars.clear();
+            cur = 0;
+            g.venue.term_hist_at = g.venue.term_hist.len();
+        } else if ctrl && key(KeyCode::R) && !pw {
+            g.venue.term_search = Some((String::new(), 0, chars.iter().collect()));
+        } else if !pw && !g.venue.term_hist.is_empty() && (key(KeyCode::Up) || (ctrl && key(KeyCode::P))) {
+            let n = g.venue.term_hist.len();
             g.venue.term_hist_at = g.venue.term_hist_at.saturating_sub(1).min(n - 1);
-            g.venue.term_in = g.venue.term_hist[g.venue.term_hist_at].clone();
-        }
-        if is_key_pressed(KeyCode::Down) {
-            g.venue.term_hist_at = (g.venue.term_hist_at + 1).min(n);
-            g.venue.term_in = g.venue.term_hist.get(g.venue.term_hist_at).cloned().unwrap_or_default();
+            redraw_hist = true;
+        } else if !pw && !g.venue.term_hist.is_empty() && (key(KeyCode::Down) || (ctrl && key(KeyCode::N))) {
+            g.venue.term_hist_at = (g.venue.term_hist_at + 1).min(g.venue.term_hist.len());
+            redraw_hist = true;
+        } else if key(KeyCode::Tab) && !pw {
+            let word_start = chars[..cur].iter().rposition(|c| *c == ' ').map(|i| i + 1).unwrap_or(0);
+            let word: String = chars[word_start..cur].iter().collect();
+            let first = chars[..word_start].iter().all(|c| *c == ' ');
+            let (cmds, files) = g.venue.term_words();
+            let pool: Vec<&str> = if first { cmds } else { files };
+            let options: Vec<&str> = pool.into_iter().filter(|o| o.starts_with(word.as_str())).collect();
+            if options.len() == 1 {
+                let rest: Vec<char> = options[0][word.len()..].chars().chain([' ']).collect();
+                for ch in rest {
+                    if chars.len() < max {
+                        chars.insert(cur, ch);
+                        cur += 1;
+                    }
+                }
+            } else if options.len() > 1 {
+                let mut common = options[0].to_string();
+                for o in &options[1..] {
+                    while !o.starts_with(common.as_str()) {
+                        common.pop();
+                    }
+                }
+                if common.len() > word.len() {
+                    for ch in common[word.len()..].chars() {
+                        chars.insert(cur, ch);
+                        cur += 1;
+                    }
+                } else if get_time() - g.venue.term_tab < 1.0 {
+                    let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+                    let line: String = chars.iter().collect();
+                    g.venue.term.push(format!("{who}@pc7:~$ {line}"));
+                    g.venue.term.push(options.join("  "));
+                } else {
+                    g.venue.term_tab = get_time();
+                }
+            }
+        } else if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+            run_now = true;
         }
     }
-    let copy_now = modifier_held() && is_key_pressed(KeyCode::C);
-    if copy_now && g.venue.term_sel.map(|(a, b)| a == b).unwrap_or(true) {
+    if redraw_hist {
+        chars = g.venue.term_hist.get(g.venue.term_hist_at).cloned().unwrap_or_default().chars().collect();
+        cur = chars.len();
+    }
+    if copy_now && !has_sel {
         let last = g.venue.term.iter().rev().find(|l| !l.contains("@pc7:~$") && !l.trim().is_empty()).cloned();
         if let Some(l) = last {
             net::copy(&l);
             g.venue.term_flash = (format!("copied: {l}"), get_time());
         }
     }
-    if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+    g.venue.term_in = chars.iter().collect();
+    g.venue.term_cur = cur;
+    if run_now {
         let line = std::mem::take(&mut g.venue.term_in);
+        g.venue.term_cur = 0;
         if !g.venue.term_pw && !line.trim().is_empty() && g.venue.term_hist.last() != Some(&line) {
             g.venue.term_hist.push(line.clone());
-            if g.venue.term_hist.len() > 30 {
+            if g.venue.term_hist.len() > 100 {
                 g.venue.term_hist.remove(0);
             }
         }
@@ -2557,6 +2776,11 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         } else {
             g.audio.play_ch(3, &g.plink, 0.25);
         }
+    }
+    if g.venue.term_exit {
+        g.venue.term_exit = false;
+        g.venue.term_search = None;
+        g.venue.pc_app = 0;
     }
     let rows = ((h - 16.0) / 10.0) as usize;
     let mut lines: Vec<(String, Color)> = Vec::new();
@@ -2680,15 +2904,39 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         ui_text(&t, x + w - tw + 1.0, y + 11.0, 8.0, Color::from_rgba(8, 8, 14, 255));
     }
     let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
-    let prompt = if g.venue.term_pw { "password: ".to_string() } else { format!("{who}@pc7:~$ ") };
-    let mut shown = if g.venue.term_pw { "*".repeat(g.venue.term_in.len()) } else { g.venue.term_in.clone() };
-    while shown.chars().count() > 1 && ui_measure(&format!("{prompt}{shown}"), 9.0) > w - 14.0 {
-        shown = shown.chars().skip(1).collect();
+    let (prompt, body, at): (String, Vec<char>, usize) = if let Some((q, skip, before)) = &g.venue.term_search {
+        let found: Vec<&String> = g.venue.term_hist.iter().rev().filter(|l| !q.is_empty() && l.contains(q.as_str())).collect();
+        let shown = found.get(*skip).map(|s| s.to_string()).unwrap_or_else(|| if q.is_empty() { before.clone() } else { String::new() });
+        let label = if !q.is_empty() && found.is_empty() { "failing reverse-i-search" } else { "reverse-i-search" };
+        let body: Vec<char> = shown.chars().collect();
+        let at = body.len();
+        (format!("({label})`{q}': "), body, at)
+    } else if g.venue.term_pw {
+        ("password: ".to_string(), "*".repeat(g.venue.term_in.chars().count()).chars().collect(), g.venue.term_cur)
+    } else {
+        (format!("{who}@pc7:~$ "), g.venue.term_in.chars().collect(), g.venue.term_cur)
+    };
+    let at = at.min(body.len());
+    let room = w - 14.0;
+    let mut from = 0usize;
+    while from < at && ui_measure(&format!("{prompt}{}", body[from..at].iter().collect::<String>()), 9.0) > room {
+        from += 1;
     }
-    let line = format!("{prompt}{shown}");
+    let mut to = body.len();
+    while to > at && ui_measure(&format!("{prompt}{}", body[from..to].iter().collect::<String>()), 9.0) > room {
+        to -= 1;
+    }
+    let line = format!("{prompt}{}", body[from..to].iter().collect::<String>());
     ui_text(&line, x + 4.0, y + h - 4.0, 9.0, WHITE);
     if (fr.time * 2.0).fract() < 0.6 {
-        ui_rect(x + 5.0 + ui_measure(&line, 9.0), y + h - 11.0, 4.0, 8.0, green);
+        let lead = format!("{prompt}{}", body[from..at].iter().collect::<String>());
+        let cx = x + 4.0 + ui_measure(&lead, 9.0);
+        let under = body.get(at).map(|c| c.to_string());
+        let cw = under.as_ref().map(|u| ui_measure(u, 9.0)).unwrap_or(4.0).max(4.0);
+        ui_rect(cx + 1.0, y + h - 11.0, cw, 9.0, green);
+        if let Some(u) = under {
+            ui_text(&u, cx + 1.0, y + h - 4.0, 9.0, Color::from_rgba(8, 8, 14, 255));
+        }
     }
 }
 

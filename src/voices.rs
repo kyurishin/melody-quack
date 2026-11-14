@@ -40,9 +40,9 @@ pub(crate) fn render_meow_style(freq: f32, length: f32, bright: f32) -> Vec<f32>
             let u = age / length;
             let pitch = if u < 0.3 { 0.92 + 0.13 * smoothstep(u / 0.3) } else { 1.05 - 0.2 * smoothstep((u - 0.3) / 0.7) };
             let vibrato = 1.0 + 0.01 * (age * 2.0 * PI * 5.5).sin();
-            let shape = if u < 0.25 { u / 0.25 } else { 1.0 - 0.8 * ((u - 0.25) / 0.75) };
+            let shape = if u < 0.25 { 0.5 + 0.5 * u / 0.25 } else { 1.0 - 0.8 * ((u - 0.25) / 0.75) };
             let b = shape * bright;
-            let amp = smoothstep(age / 0.05) * smoothstep((length - age) / 0.16);
+            let amp = smoothstep(age / 0.007) * smoothstep((length - age) / 0.16);
             let p = phase * 2.0 * PI;
             let tone = p.sin() + b * (0.45 * (2.0 * p).sin() + 0.25 * (3.0 * p).sin() + 0.12 * (4.0 * p).sin() + 0.06 * bright * (5.0 * p).sin());
             phase = (phase + freq * pitch * vibrato / sr) % 1.0;
@@ -70,11 +70,11 @@ pub(crate) fn render_howl(freq: f32) -> Vec<f32> {
             let u = t / length;
             let glide = 0.84 + 0.16 * smoothstep(u / 0.25) - 0.06 * smoothstep((u - 0.7) / 0.3);
             let vib = 1.0 + 0.015 * (t * 2.0 * PI * 6.0).sin() * smoothstep((u - 0.2) / 0.2);
-            let open = (u / 0.3).min(1.0) * (1.0 - 0.5 * smoothstep((u - 0.6) / 0.4));
+            let open = (0.4 + 0.6 * (u / 0.3).min(1.0)) * (1.0 - 0.5 * smoothstep((u - 0.6) / 0.4));
             let p = phase * 2.0 * PI;
             phase = (phase + freq * glide * vib / sr) % 1.0;
             let tone = p.sin() + open * (0.5 * (2.0 * p).sin() + 0.2 * (3.0 * p).sin());
-            tone * smoothstep(t / 0.06) * smoothstep((length - t) / 0.2)
+            tone * smoothstep(t / 0.007) * smoothstep((length - t) / 0.2)
         })
         .collect();
     normalise(out, 0.5)
@@ -119,7 +119,7 @@ pub(crate) fn render_hoot_machine(freq: f32) -> Vec<f32> {
     let out: Vec<f32> = (0..(length * sr) as usize)
         .map(|i| {
             let t = i as f32 / sr;
-            let syllable = |a: f32, b: f32| smoothstep((t - a) / 0.03) * smoothstep((b - t) / 0.06);
+            let syllable = |a: f32, b: f32| smoothstep((t - a) / if a == 0.0 { 0.007 } else { 0.03 }) * smoothstep((b - t) / 0.06);
             let env = syllable(0.0, 0.24) + syllable(0.32, length) * 0.9;
             let p = phase * 2.0 * PI;
             phase += freq / sr;
@@ -165,7 +165,7 @@ pub(crate) fn render_fox(freq: f32) -> Vec<f32> {
             let hiss = lp - prev;
             prev = lp;
             let rasp = 1.0 - 0.45 * (0.5 + 0.5 * (t * 2.0 * PI * 71.0).sin());
-            let env = smoothstep(t / 0.02) * (1.0 - smoothstep((u - 0.5) / 0.5));
+            let env = smoothstep(t / 0.006) * (1.0 - smoothstep((u - 0.5) / 0.5));
             (tone * rasp + hiss * 2.2 * (0.5 + 0.5 * u)) * env
         })
         .collect();

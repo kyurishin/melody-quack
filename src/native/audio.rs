@@ -232,9 +232,25 @@ fn start(voices: Arc<Mutex<Vec<Voice>>>) -> Option<cpal::Stream> {
     let channels = config.channels() as usize;
     let device_rate = config.sample_rate() as f32;
     let step = crate::SAMPLE_RATE as f32 / device_rate;
-    let stream = device
+    let small = match config.buffer_size() {
+        cpal::SupportedBufferSize::Range { min, max } => Some(256u32.clamp(*min, *max)),
+        cpal::SupportedBufferSize::Unknown => None,
+    };
+    let mut stream_config: cpal::StreamConfig = config.into();
+    let fallback = stream_config.clone();
+    if let Some(frames) = small {
+        stream_config.buffer_size = cpal::BufferSize::Fixed(frames);
+    }
+    let voices_again = voices.clone();
+    let stream = build(&device, stream_config, channels, step, device_rate, voices).or_else(|| build(&device, fallback, channels, step, device_rate, voices_again))?;
+    stream.play().ok()?;
+    Some(stream)
+}
+
+fn build(device: &cpal::Device, config: cpal::StreamConfig, channels: usize, step: f32, device_rate: f32, voices: Arc<Mutex<Vec<Voice>>>) -> Option<cpal::Stream> {
+    device
         .build_output_stream(
-            config.into(),
+            config,
             move |data: &mut [f32], _| {
                 for s in data.iter_mut() {
                     *s = 0.0;
@@ -297,7 +313,5 @@ fn start(voices: Arc<Mutex<Vec<Voice>>>) -> Option<cpal::Stream> {
             |e| eprintln!("audio error: {e}"),
             None,
         )
-        .ok()?;
-    stream.play().ok()?;
-    Some(stream)
+        .ok()
 }

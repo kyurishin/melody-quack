@@ -121,6 +121,11 @@ pub(crate) struct VenueState {
     pub(crate) chat_open: bool,
     pub(crate) term_hist: Vec<String>,
     pub(crate) term_hist_at: usize,
+    pub(crate) term_cur: usize,
+    pub(crate) term_kill: String,
+    pub(crate) term_search: Option<(String, usize, String)>,
+    pub(crate) term_tab: f64,
+    pub(crate) term_exit: bool,
     pub(crate) term_flash: (String, f64),
     pub(crate) term_sel: Option<((usize, usize), (usize, usize))>,
     pub(crate) term_drag: bool,
@@ -324,6 +329,7 @@ impl VenueState {
         let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
         let mut out: Vec<String> = Vec::new();
         let mut won = false;
+        let mut hard_fallback = false;
         let mut say = |t: &str| out.push(t.to_string());
         match (cmd, arg) {
             ("", _) => {}
@@ -333,7 +339,8 @@ impl VenueState {
                 say("xxd -r -p <hex>  hint  whoami  clear");
                 say("goal: tonight's code. it's behind the goose's api.");
                 say("click: copy a word. shift+click: the line. ctrl/cmd+c: last output.");
-                say("ctrl/cmd+v: paste. up/down: history.");
+                say("ctrl/cmd+v: paste. up/down: history. tab completes.");
+                say("ctrl+a/e/u/k/w/y/r/l/c/d work like a real shell (an in-game one).");
             }
             ("hint", _) => {
                 say("1. history remembers what HEAD forgot.");
@@ -461,7 +468,10 @@ impl VenueState {
                 }
             }
             ("xxd", _) => say("usage: xxd -r -p <hex>"),
-            _ => say("command not found. type help."),
+            _ => hard_fallback = true,
+        }
+        if hard_fallback {
+            out.extend(self.shell("leon", cmd, arg));
         }
         self.term.extend(out);
         if cmd == "clear" {
@@ -474,11 +484,46 @@ impl VenueState {
         won
     }
 
+    pub(crate) fn term_words(&self) -> (Vec<&'static str>, Vec<&'static str>) {
+        let shell = ["pwd", "echo", "history", "cd", "exit", "uname", "date", "man", "sudo"];
+        let (mut cmds, files): (Vec<&'static str>, Vec<&'static str>) = if self.hard() {
+            (vec!["ls", "cat", "git", "base64", "curl", "xxd", "hint", "help", "whoami", "clear"], vec!["app.js", "notes.txt", ".env", ".git"])
+        } else {
+            (vec!["ls", "cat", "su", "rot13", "base64", "help", "whoami", "clear"], vec!["notes.txt", ".rave", "goose"])
+        };
+        cmds.extend(shell);
+        cmds.sort();
+        (cmds, files)
+    }
+
+    fn shell(&mut self, user: &str, cmd: &str, arg: &str) -> Vec<String> {
+        match cmd {
+            "pwd" => vec![format!("/home/{user}")],
+            "echo" => vec![arg.trim_matches(|c| c == '"' || c == '\'').to_string()],
+            "history" => self.term_hist.iter().enumerate().map(|(i, l)| format!("{:>5}  {l}", i + 1)).collect(),
+            "cd" => match arg {
+                "" | "~" | "." | "./" => Vec::new(),
+                ".." | "/" | "/home" => vec!["cd: permission denied. the goose locked the rest of this computer.".to_string()],
+                other => vec![format!("cd: no such file or directory: {other}")],
+            },
+            "exit" | "logout" => {
+                self.term_exit = true;
+                vec!["logout".to_string()]
+            }
+            "uname" => vec![if arg.contains('a') { "ravenet 9.5 pc7 goose-kernel quack64 (it only lives inside melody quack)".to_string() } else { "ravenet".to_string() }],
+            "date" => vec!["sat 03:13 ravenet time. the night is young.".to_string()],
+            "man" => vec![format!("no manual entry for {}. try help.", if arg.is_empty() { "nothing" } else { arg })],
+            "sudo" => vec![format!("{user} is not in the sudoers file. this incident will be reported to the goose.")],
+            _ => vec![format!("{cmd}: command not found. type help.")],
+        }
+    }
+
     pub(crate) fn run(&mut self, line: &str) -> bool {
         if self.hard() {
             return self.run_hard(line);
         }
         let user = if self.term_goose { "goose" } else { "guest" };
+        let mut fallback = false;
         if self.term_pw {
             self.term_pw = false;
             self.term.push("password: ***".to_string());
@@ -500,12 +545,15 @@ impl VenueState {
             ("help", _) => {
                 say("commands: ls  ls -a  cat <file>  su <user>");
                 say("          base64 -d <text>  rot13 <text>");
-                say("          whoami  clear");
+                say("          whoami  pwd  echo  history  clear  exit");
+                say("keys: tab completes. ctrl+a/e start/end. ctrl+u/k/w cut.");
+                say("ctrl+y pastes the cut. ctrl+r searches history. ctrl+l clears.");
+                say("ctrl+c cancels the line. ctrl+d on an empty line exits.");
                 say("goal: find tonight's secret rave code.");
                 say("click a word to copy it, ctrl/cmd+v pastes, up: last command.");
             }
-            ("ls", "-a") | ("ls", "-la") | ("ls", "-al") => say(".rave  notes.txt  ramyeon.log"),
-            ("ls", _) => say("notes.txt  ramyeon.log"),
+            ("ls", "-a") | ("ls", "-la") | ("ls", "-al") => say(".rave  notes.txt"),
+            ("ls", _) => say("notes.txt"),
             ("whoami", _) => say(user),
             ("clear", _) => {}
             ("cat", "notes.txt") => {
@@ -514,10 +562,6 @@ impl VenueState {
                 say("file on this machine. his password is the");
                 say("tempo of his favourite night. he scribbled");
                 say("it at the bottom of the underground page.");
-            }
-            ("cat", "ramyeon.log") => {
-                say("03:12 spill on pc 4.");
-                say("03:13 denied everything.");
             }
             ("cat", ".rave") => {
                 if user == "goose" && self.live_list {
@@ -552,7 +596,11 @@ impl VenueState {
                     won = true;
                 }
             }
-            _ => say("unknown command. type help."),
+            _ => fallback = true,
+        }
+        if fallback {
+            let out = self.shell(user, cmd, arg);
+            self.term.extend(out);
         }
         if cmd == "clear" {
             self.term.clear();

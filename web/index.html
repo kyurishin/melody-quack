@@ -1746,12 +1746,23 @@
         window.visualViewport.addEventListener("resize", fitViewport);
         fitViewport();
       }
+      document.addEventListener("keydown", function (e) {
+        if (!document.body.classList.contains("screen-term")) return;
+        if (e.ctrlKey && !e.metaKey && /^Key[ABDEFGHKLNPRTUWY]$/.test(e.code)) e.preventDefault();
+        if (e.altKey && /^(KeyB|KeyF|KeyD|Backspace|ArrowLeft|ArrowRight)$/.test(e.code)) e.preventDefault();
+      }, true);
+      window.addEventListener("beforeunload", function (e) {
+        if (!document.body.classList.contains("screen-term")) return;
+        e.preventDefault();
+        e.returnValue = "";
+      });
       window.melodyUiReport = function (report) {
         if (report.indexOf("screen=") === 0) {
           var menu = report.indexOf("screen=menu") === 0;
           var typing = report.indexOf("type=1") > 0;
           document.body.classList.toggle("screen-menu", menu);
           document.body.classList.toggle("screen-type", typing);
+          document.body.classList.toggle("screen-term", report.indexOf("term=1") > 0);
           if (!typing && document.activeElement === softKb) softKb.blur();
           return;
         }

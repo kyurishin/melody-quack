@@ -89,7 +89,8 @@ pub(crate) fn report_screen(g: &Game) {
         || g.venue.chat_open
         || g.venue.overlay != crate::venues::Overlay::None;
     let typing = steps::venues::typing(g) && !g.dex_open;
-    let report = format!("screen={}|type={}", if menu { "menu" } else { "play" }, typing as u8);
+    let term = g.venue.pc_open && g.venue.pc_app == 4;
+    let report = format!("screen={}|type={}|term={}", if menu { "menu" } else { "play" }, typing as u8, term as u8);
     if let Ok(mut last) = LAST_SCREEN.lock() {
         if *last != report {
             radio::report(&report);

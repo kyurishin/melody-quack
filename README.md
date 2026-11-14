@@ -175,7 +175,17 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 
 - **rave.exe** books a rave: name, sound, tempo, and you get a code and a pixel flyer.
 - **quacknet** is the town's web; a tiny dot on the home page leads underground, where the flyers hang.
-- **terminal** hides a capture the flag whose flag is tonight's rave code. Type `help`. (Players called leon or neomole get a harder hunt: git history, a JSON web token and an API.) Drag to select text, click a word to copy it, Ctrl/Cmd+C copies, Ctrl/Cmd+V or right-click pastes, and up/down bring back commands.
+- **terminal** hides a capture the flag whose flag is tonight's rave code. Type `help`. (Players called leon or neomole get a harder hunt: git history, a JSON web token and an API.) It behaves like a real shell, but it only lives inside the game and never touches your computer:
+  - Tab completes commands and file names (twice lists the choices).
+  - Ctrl+A/E jump to the start and end, and Ctrl+B/F or the arrows move by a letter.
+  - Alt+B/F (Option on a Mac) move by a word.
+  - Ctrl+U/K/W cut, and Ctrl+Y pastes the cut back. Alt+Backspace cuts a word.
+  - Ctrl+T swaps two letters, and Ctrl+R searches what you typed before.
+  - Ctrl+L or Cmd+K clears the screen, Ctrl+C cancels the line, and Ctrl+D on an empty line exits.
+  - Up/down or Ctrl+P/N bring back commands.
+  - It also understands `pwd`, `echo`, `history`, `cd`, `exit`, `uname` and `sudo`, in character.
+  - Drag to select text, click a word to copy it, Cmd+C or Ctrl+Shift+C copies, and Ctrl/Cmd+V or right-click pastes.
+  - In the browser, Ctrl+W still closes the tab, so the page asks first while the terminal is open.
 - Mr. Kim at the counter has opinions.
 
 **The post:** the envelope at the top left has the goose's announcement of tonight's secret rave, with a countdown to the millisecond. A red 1 means news.
