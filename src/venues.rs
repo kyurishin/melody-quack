@@ -224,6 +224,18 @@ pub(crate) fn tidy_code(input: &str) -> Option<String> {
     Some(s)
 }
 
+pub(crate) fn clean_key(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '\u{2010}'..='\u{2015}' | '\u{2212}' | '_' => '-',
+            _ => c.to_ascii_lowercase(),
+        })
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
+
 pub(crate) fn goose_scramble(code: &str) -> String {
     b64_encode(rot13(code).as_bytes())
 }
@@ -959,5 +971,13 @@ mod tests {
         let step1 = String::from_utf8(b64_decode(&shown).unwrap()).unwrap();
         assert_eq!(step1, "ZXI-ZST-LQI");
         assert_eq!(rot13(&step1), code);
+    }
+
+    #[test]
+    fn keys_survive_phone_and_mac_keyboards() {
+        let want = "admin-abcde-fghjk-23456";
+        for typed in ["admin-abcde-fghjk-23456", "Admin-abcde-fghjk-23456 ", " admin\u{2013}abcde\u{2014}fghjk-23456\n", "`admin-abcde-fghjk-23456`", "ADMIN-ABCDE-FGHJK-23456."] {
+            assert_eq!(clean_key(typed), want, "{typed:?}");
+        }
     }
 }

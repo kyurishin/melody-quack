@@ -232,6 +232,7 @@ fn online(g: &mut Game, dt: f32) {
         }
     } else {
         if !g.venue.key_sent && !g.venue.dj_key.is_empty() {
+            g.venue.dj_key = clean_key(&g.venue.dj_key);
             net::send(&format!("dj {}", g.venue.dj_key));
             g.venue.key_sent = true;
         }
@@ -442,14 +443,16 @@ fn online(g: &mut Game, dt: f32) {
                     let name = parts[3..].join(" ");
                     g.toasts.push((format!("you're on the dj list, {name}. credit: {} euro", g.venue.credit), 5.0));
                     g.venue.dj_name = Some(name);
+                    g.venue.key_refused = false;
                 } else {
                     g.venue.dj_name = None;
                     g.venue.key_refused = !g.venue.admin;
-                    g.toasts.push(("that dj key isn't on the list".to_string(), 5.0));
+                    g.toasts.push((format!("not on the list: {}", g.venue.dj_key), 6.0));
                 }
             }
             "admin" => {
                 g.venue.admin = true;
+                g.venue.key_refused = false;
                 g.venue.admin_name = parts.get(2).map(|n| n.to_string()).unwrap_or_default();
                 g.toasts.push(("signed in as the admin. requests come by post.".to_string(), 5.0));
             }
@@ -943,7 +946,7 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
     } else if let Some(n) = &g.venue.dj_name {
         format!("on the dj list as {n}")
     } else if g.venue.key_refused {
-        "that key isn't on the list".to_string()
+        format!("not on the list: {}", g.venue.dj_key)
     } else if !g.venue.dj_key.is_empty() && g.venue.key_sent {
         "checking your key...".to_string()
     } else {
@@ -961,9 +964,11 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
     let on = g.venue.acct_key;
     let mut apply = false;
     if on && !fresh {
-        paste_into(&mut g.venue.key_draft, 40, |c| c != ' ');
+        if let Some(text) = net::pasted() {
+            g.venue.key_draft = clean_key(&text).chars().take(60).collect();
+        }
         while let Some(ch) = get_char_pressed() {
-            if !shortcut_held() && !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 40 {
+            if !shortcut_held() && !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 60 {
                 g.venue.key_draft.push(ch);
             }
         }
@@ -987,7 +992,7 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
         fr.click = false;
     }
     if apply && !g.venue.key_draft.trim().is_empty() {
-        g.venue.dj_key = g.venue.key_draft.trim().to_string();
+        g.venue.dj_key = clean_key(&g.venue.key_draft);
         g.venue.dj_page = true;
         g.venue.key_sent = false;
         g.venue.dj_name = None;
@@ -1620,7 +1625,9 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     }
     let on_key = g.venue.field == 1;
     if on_key {
-        paste_into(&mut g.venue.key_draft, 40, |c| c != ' ');
+        if let Some(text) = net::pasted() {
+            g.venue.key_draft = clean_key(&text).chars().take(60).collect();
+        }
     } else {
         let mut add = String::new();
         paste_into(&mut add, 12, |c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_');
@@ -1635,7 +1642,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
             continue;
         }
         if on_key {
-            if !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 40 {
+            if !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 60 {
                 g.venue.key_draft.push(ch);
             }
         } else if (ch.is_alphanumeric() || ch == ' ' || ch == '-' || ch == '_') && g.venue.name_draft.chars().count() < 12 {
@@ -1740,7 +1747,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
         if g.venue.hard() {
             g.venue.term = vec!["ravenet dev box. hard mode. type help.".to_string()];
         }
-        let key = if g.venue.dj_page { g.venue.key_draft.trim().to_string() } else { String::new() };
+        let key = if g.venue.dj_page { clean_key(&g.venue.key_draft) } else { String::new() };
         if key != g.venue.dj_key {
             g.venue.dj_key = key;
             g.venue.key_sent = false;
