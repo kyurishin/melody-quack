@@ -6,7 +6,8 @@ A cosy pixel game about animal friends making music. Your animal's voice is your
 
 Written in Rust with [macroquad](https://macroquad.rs). The world is chunky low-res 3D (about 360×270) with sharp full-resolution text on top. Every block, flame and meow is generated in code: no models, textures or sound files besides the icon.
 
-**Play now:** https://kyurishin.github.io/melody-quack/
+**Play now:** https://kyurishin.github.io/melody-quack/  
+Like it? [Buy me a cuppa](https://paypal.me/kyurishin).
 
 ## Contents
 

@@ -527,6 +527,11 @@
     .shots a:hover img, .shots a:focus-visible img { transform: scale(1.03); }
     .shots figcaption { padding: 12px 14px 14px; color: var(--muted); line-height: 1.45; font-size: 15px; }
     .shots figcaption b { display: block; color: var(--cream); font-family: var(--pixel); font-weight: 600; font-size: 17px; margin-bottom: 2px; }
+    a.chip { color: inherit; text-decoration: none; }
+    .chip.cuppa { border-color: rgba(255, 214, 110, 0.55); color: var(--yellow); }
+    .chip.cuppa:hover, .chip.cuppa:focus-visible { background: rgba(255, 214, 110, 0.14); }
+    .inside-links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .inside-head a.cuppa { border-color: rgba(255, 214, 110, 0.55); color: var(--yellow); }
     body.game-away .joycon, body.game-away .karaoke { visibility: hidden; }
     @media (prefers-reduced-motion: reduce) { .shots img { transition: none; } .shots a:hover img { transform: none; } }
 
@@ -691,6 +696,10 @@
         <button class="chip" id="toggle-radio" type="button" aria-pressed="true" hidden>
           <span class="dot" aria-hidden="true"></span><span class="label">radio</span>
         </button>
+        <a class="chip cuppa" href="https://paypal.me/kyurishin" target="_blank" rel="noopener" aria-label="buy me a cuppa on PayPal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c0 1 1 1.5 1 2.5M12 3.5c0 1 1 1.5 1 2.5"/></svg>
+          <span class="label">buy me a cuppa</span>
+        </a>
         <button class="chip" id="open-keys" type="button" aria-haspopup="dialog" aria-controls="keys-sheet">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7.5 14h9"/></svg>
           <span class="label">controls</span>
@@ -817,7 +826,7 @@
         <h2 id="inside-title">inside melody quack</h2>
         <p>a cosy town where animal voices are notes, a pc bang hiding tonight's rave code, and a gothic chapel where friends rave together online.</p>
       </div>
-      <a href="#glcanvas">play now</a>
+      <div class="inside-links"><a href="#glcanvas">play now</a><a class="cuppa" href="https://paypal.me/kyurishin" target="_blank" rel="noopener">buy me a cuppa</a></div>
     </div>
     <ul class="shots">
         <li><figure><a href="shots/town.webp" target="_blank" rel="noopener"><img src="shots/town.webp" alt="home: jam by the campfire, fish on the beat, cook percussion with your friend." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>home</b>jam by the campfire, fish on the beat, cook percussion with your friend.</figcaption></figure></li>
