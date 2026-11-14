@@ -575,7 +575,26 @@ impl VenueState {
     }
 }
 
+pub(crate) fn reserved(x: i32, z: i32) -> bool {
+    let chapel = x >= CHAPEL.0 - 2 && x <= CHAPEL.2 && z >= CHAPEL.3 && z < CHAPEL.3 + 3;
+    let pcbang = x >= PCBANG.0 - 1 && x <= PCBANG.2 && z >= PCBANG.3 && z < PCBANG.3 + 2;
+    chapel || pcbang
+}
+
 pub(crate) fn stamp(world: &mut World) {
+    for z in 0..MAP as i32 {
+        for x in 0..MAP as i32 {
+            if reserved(x, z) {
+                if let Some(t) = world.get_mut(x, z) {
+                    if matches!(t.kind, Kind::Tree | Kind::Sprout | Kind::Stone) {
+                        t.kind = Kind::Grass;
+                        t.fire = 0.0;
+                        t.stack = 0;
+                    }
+                }
+            }
+        }
+    }
     for (x0, z0, x1, z1) in [PCBANG, CHAPEL] {
         for z in z0..z1 {
             for x in x0..x1 {

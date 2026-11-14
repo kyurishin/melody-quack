@@ -79,8 +79,8 @@ pub(crate) fn cast(spell: usize, world: &mut World, cat: Vec2, facing: Vec2, par
                         t.kind = match t.kind {
                             Kind::Ash => Kind::Grass,
                             Kind::Grass => Kind::Flowers,
-                            Kind::Flowers if center => Kind::Sprout,
-                            Kind::Sprout if center && !blocked => Kind::Tree,
+                            Kind::Flowers if center && !crate::venues::reserved(x, z) => Kind::Sprout,
+                            Kind::Sprout if center && !blocked && !crate::venues::reserved(x, z) => Kind::Tree,
                             k => k,
                         };
                     }

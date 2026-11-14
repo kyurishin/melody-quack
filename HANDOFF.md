@@ -274,3 +274,7 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 2. A/D browse, W/S switch tabs (catalogue, diary, fishdex, mushrooms), Esc closes; the scene and labels should still be visible afterwards.
 3. With P (two players), player 2 reaches the catalogue with IJKL, opens it with O, browses with J/L, switches tabs with I/K, closes with U.
 4. Check the double bed, the table, the bag and saving still work, and repeat in a narrow browser window after rebuilding the WebAssembly.
+
+## Clear ground at the venues
+
+- `venues::reserved(x, z)`: the three rows in front of the chapel (from two tiles left of it to one past it, covering the flyer board and the goose) and the two rows in front of the PC bang. `stamp` turns trees, sprouts and stones there into grass (player walls are left alone), the bloom spell won't grow sprouts or trees there, and a fresh world (N twice) is stamped too.

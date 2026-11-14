@@ -238,6 +238,7 @@ pub(crate) fn tape_and_fresh_start(g: &mut Game, fr: &mut Frame) {
     if fr.start_fresh {
         store::clear();
         g.world = World::new();
+        venues::stamp(&mut g.world);
         g.inv = Inventory { wood: 2, stone: 0, fish: [0; 3], mush: [0; 3], acorns: 0 };
         g.camp = Camp { fuel: 0.0, lit: false, pile: 0 };
         g.dishes.clear();
