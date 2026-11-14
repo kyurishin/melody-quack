@@ -260,3 +260,10 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Server `golive`: the admin (shown as `--admin-name`) needs no DJ key or grant, and takes over a room where someone else is live (`off_air` of the current DJ first). `admin ok <name>` now carries the admin's display name.
 - Client: `VenueState.admin_name`; `my_set` recognises the admin's own set; the decks panel goes straight to the play choices for the admin, with a note when it takes over. The admin's own name tag shows "* <admin name>" in gold. Typing into the stream link is ignored for 0.25 s after the panel opens.
 - Real audio still means a stream link (web plays it in an audio element, desktop opens the browser).
+
+## Live audio from the desktop app
+
+- `src/native/live.rs` (desktop only): `start(device, send)` captures a cpal input, encodes 128 kbps stereo MP3 with `mp3lame-encoder` on a thread and hands chunks to `send` (net sends them as `aud <base64url>`); `level()` is a peak meter; `stop()`. `listen(url)` fetches an MP3 stream with `ureq`, decodes it with `symphonia` and pushes stereo frames into `audio::stream_push`; the output callback in `native/audio.rs` mixes that buffer in after 1.2 s of buffering, follows the master volume, and keeps at most 6 s.
+- `net` (native and web stubs): `inputs`, `can_cast`, `casting`, `cast_level`, `cast_start`, `cast_stop`; native `can_listen` is now true. A DJ's own stream is not played back to them.
+- Server: `golive stream` (needs `--public-url`) announces `live <id> audio <public>/live/<CODE>.mp3 <name>`; `aud` from the live DJ goes into a per-room broadcast channel plus 48 KB of recent bytes; `GET /live/<CODE>.mp3` streams it (chunked) until the set ends; 404 otherwise.
+- Tested: a unit test encodes a 440 Hz tone, serves it over chunked HTTP and checks the decoded stream (pitch and level); server tests cover the relay over HTTP and that only the live DJ's audio is relayed; the decks panel live from the dummy input of a machine without a sound card. Not tested: a real input device or hearing it (no sound card here). LAME is LGPL; the source is public, so it can be relinked.

@@ -171,6 +171,11 @@ struct Live {
     look: String,
 }
 
+struct Cast {
+    tx: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
+    recent: std::collections::VecDeque<u8>,
+}
+
 struct Client {
     tx: Option<mpsc::UnboundedSender<Message>>,
     token: u64,
@@ -208,6 +213,7 @@ struct Hub {
     grants: HashSet<(String, String)>,
     live: HashMap<String, Live>,
     accounts: accounts::Accounts,
+    casts: HashMap<String, Cast>,
 }
 
 impl Hub {
@@ -235,6 +241,7 @@ impl Hub {
             grants: HashSet::new(),
             live: HashMap::new(),
             accounts: accounts::Accounts::default(),
+            casts: HashMap::new(),
         }
     }
 
@@ -345,6 +352,7 @@ impl Hub {
         };
         if self.live.get(&room).map(|l| l.by == id).unwrap_or(false) {
             self.live.remove(&room);
+            self.casts.remove(&room.replace('-', ""));
             let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
             for to in all {
                 self.say(to, "live 0".to_string());
@@ -567,8 +575,10 @@ impl Hub {
                 };
                 let (mode, url) = rest.split_once(' ').unwrap_or((rest, ""));
                 let url = url.trim();
+                let stream_url = format!("{}/live/{}.mp3", self.accounts.public, code.replace('-', ""));
                 let fine = match mode {
                     "decks" => true,
+                    "stream" => !self.accounts.public.is_empty(),
                     "audio" => url.starts_with("https://") && url.len() < 200 && !url.contains(' '),
                     _ => false,
                 };
@@ -579,6 +589,11 @@ impl Hub {
                 if let Some(by) = self.live.get(&code).map(|l| l.by) {
                     self.off_air(by);
                 }
+                if mode == "stream" {
+                    let (tx, _) = tokio::sync::broadcast::channel(256);
+                    self.casts.insert(code.replace('-', ""), Cast { tx, recent: std::collections::VecDeque::new() });
+                }
+                let (mode, url) = if mode == "stream" { ("audio", stream_url.as_str()) } else { (mode, url) };
                 let line = format!("live {id} {mode} {} {dj}", if mode == "audio" { url } else { "-" });
                 self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new(), look: String::new() });
                 let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
@@ -587,6 +602,24 @@ impl Hub {
                 }
             }
             "offair" => self.off_air(id),
+            "aud" => {
+                let Some(code) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
+                    return;
+                };
+                if !self.live.get(&code).map(|l| l.by == id).unwrap_or(false) || rest.len() > 96 * 1024 {
+                    return;
+                }
+                let Some(bytes) = accounts::b64url_decode(rest.trim()) else {
+                    return;
+                };
+                if let Some(cast) = self.casts.get_mut(&code.replace('-', "")) {
+                    cast.recent.extend(bytes.iter().copied());
+                    while cast.recent.len() > 48 * 1024 {
+                        cast.recent.pop_front();
+                    }
+                    let _ = cast.tx.send(Arc::new(bytes));
+                }
+            }
             "mix" | "pad" | "look" => {
                 let Some(code) = self.clients[&id].room.clone() else {
                     return;
@@ -1101,6 +1134,54 @@ mod tests {
         h.handle(a, &format!("resume {session}"), 24_000);
         assert_eq!(said(&mut h, b), vec!["noaccount".to_string()]);
         assert_eq!(said(&mut h, a), vec!["noaccount".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn a_live_stream_reaches_listeners_over_http() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut first = hub();
+        first.accounts.public = "https://rave.example".to_string();
+        first.admin_key = Some("boss".to_string());
+        let (dj, fan) = (first.connect(None), first.connect(None));
+        first.handle(dj, "dj boss", 0);
+        first.handle(dj, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        first.handle(dj, "join ACD-EFG-HJK 1 0 0 boss", 0);
+        first.handle(fan, "join ACD-EFG-HJK 1 2 0 mina", 0);
+        said(&mut first, fan);
+        first.handle(dj, "golive stream", 1);
+        assert!(said(&mut first, fan).contains(&"live 1 audio https://rave.example/live/ACDEFGHJK.mp3 admin".to_string()));
+        first.handle(fan, &format!("aud {}", accounts::b64url(b"sneaky")), 1);
+        first.handle(dj, &format!("aud {}", accounts::b64url(b"ID3-early")), 1);
+        let hub = Arc::new(Mutex::new(first));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let h2 = hub.clone();
+        tokio::spawn(async move {
+            while let Ok((s, _)) = listener.accept().await {
+                let h = h2.clone();
+                tokio::spawn(async move {
+                    let _ = client(s, h).await;
+                });
+            }
+        });
+        let mut s = TcpStream::connect(addr).await.unwrap();
+        s.write_all(b"GET /live/ACDEFGHJK.mp3 HTTP/1.1\r\nhost: x\r\n\r\n").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        hub.lock().unwrap().handle(dj, &format!("aud {}", accounts::b64url(b"frame-two")), 2);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        hub.lock().unwrap().handle(dj, "offair", 3);
+        let mut out = String::new();
+        tokio::time::timeout(Duration::from_secs(2), s.read_to_string(&mut out)).await.unwrap().unwrap();
+        assert!(out.starts_with("HTTP/1.1 200 OK"));
+        assert!(out.contains("audio/mpeg"));
+        assert!(out.contains("ID3-early") && out.contains("frame-two"));
+        assert!(!out.contains("sneaky"));
+        assert!(out.ends_with("0\r\n\r\n"));
+        let mut gone = TcpStream::connect(addr).await.unwrap();
+        gone.write_all(b"GET /live/ACDEFGHJK.mp3 HTTP/1.1\r\nhost: x\r\n\r\n").await.unwrap();
+        let mut body = String::new();
+        gone.read_to_string(&mut body).await.unwrap();
+        assert!(body.starts_with("HTTP/1.1 404"));
     }
 
     #[tokio::test]

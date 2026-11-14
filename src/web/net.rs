@@ -80,3 +80,25 @@ pub fn listen(url: &str) {
 pub fn can_listen() -> bool {
     true
 }
+
+pub fn inputs() -> Vec<String> {
+    Vec::new()
+}
+
+pub fn can_cast() -> bool {
+    false
+}
+
+pub fn casting() -> bool {
+    false
+}
+
+pub fn cast_level() -> Option<f32> {
+    None
+}
+
+pub fn cast_stop() {}
+
+pub fn cast_start(_device: &str) -> Result<(), String> {
+    Err("streaming from this computer needs the desktop app".to_string())
+}

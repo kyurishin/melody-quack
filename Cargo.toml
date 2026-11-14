@@ -9,6 +9,9 @@ macroquad = "0.4.16"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 cpal = "0.18"
 tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+mp3lame-encoder = "0.3"
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [profile.release]
 opt-level = "s"

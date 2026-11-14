@@ -140,6 +140,7 @@ fn enter(g: &mut Game, venue: Venue) {
 }
 
 fn leave(g: &mut Game) {
+    net::cast_stop();
     let door = match g.venue.at {
         Venue::PcBang => PCBANG_DOOR,
         Venue::Chapel => CHAPEL_DOOR + vec2(-0.5, 0.2),
@@ -218,6 +219,7 @@ fn online(g: &mut Game, dt: f32) {
         g.venue.tonight = None;
         g.venue.key_sent = false;
         g.venue.resume_sent = false;
+        net::cast_stop();
         g.venue.account = None;
         g.venue.providers.clear();
         g.venue.dj_name = None;
@@ -478,12 +480,16 @@ fn online(g: &mut Game, dt: f32) {
                 g.toasts.push(("the admin says not this time.".to_string(), 5.0));
             }
             "credit" if parts.len() >= 2 => g.venue.credit = parts[1].parse().unwrap_or(g.venue.credit),
-            "nolive" => g.toasts.push(("the decks aren't free, or you need a fresh yes from the admin.".to_string(), 5.0)),
+            "nolive" => {
+                net::cast_stop();
+                g.toasts.push(("the decks aren't free, or you need a fresh yes from the admin.".to_string(), 5.0));
+            }
             "live" if parts.len() >= 2 => {
                 let was_audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
                 g.venue.look = 0;
                 if parts[1] == "0" || parts.len() < 5 {
                     g.venue.on_air = None;
+                    net::cast_stop();
                     if was_audio {
                         net::listen("");
                     }
@@ -495,7 +501,12 @@ fn online(g: &mut Game, dt: f32) {
                     let audio = parts[2] == "audio";
                     let url = if audio && parts[3].starts_with("https://") { parts[3].to_string() } else { String::new() };
                     let name = parts[4..].join(" ");
-                    if audio && net::can_listen() {
+                    let me = if g.venue.admin { Some(g.venue.admin_name.clone()) } else { g.venue.dj_name.clone() };
+                    let mine = me.as_deref() == Some(name.as_str());
+                    if !mine {
+                        net::cast_stop();
+                    }
+                    if audio && net::can_listen() && !(mine && net::casting()) {
                         net::listen(&url);
                     }
                     g.venue.granted.retain(|c| Some(c) != g.venue.now.as_ref().map(|r| &r.code));
@@ -947,6 +958,16 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
         if audio {
             say(&["you're live with real audio.", "everyone hears your stream."]);
+            if let Some(lv) = net::cast_level() {
+                let name = g.venue.inputs.get(g.venue.cast_input).cloned().unwrap_or_else(|| "your input".to_string());
+                ui_text(&format!("sending: {name}"), x + 10.0, y + 66.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
+                ui_rect(x + 10.0, y + 72.0, 160.0, 6.0, Color::from_rgba(20, 16, 40, 255));
+                let fill = (lv.min(1.0) * 160.0).round();
+                ui_rect(x + 10.0, y + 72.0, fill, 6.0, if lv > 0.95 { Color::from_rgba(255, 90, 95, 255) } else { Color::from_rgba(140, 222, 168, 255) });
+                if lv < 0.01 {
+                    ui_text("no sound coming in. check the input in serato or your mixer.", x + 10.0, y + 88.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+                }
+            }
         } else {
             if g.venue.practice {
                 say(&["practice: only you hear the decks.", "1-6: pads. the room follows your mix."]);
@@ -993,6 +1014,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         if button(fr, "go off air", x + 10.0, y + h - 34.0, 64.0, 16.0, false) {
             net::send("offair");
+            net::cast_stop();
             if g.venue.practice {
                 g.venue.practice = false;
                 g.venue.on_air = None;
@@ -1015,11 +1037,41 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         if button(fr, "in-game decks", x + 10.0, y + 64.0, 84.0, 16.0, false) {
             net::send("golive decks");
         }
-        ui_text("or real audio: your own live stream link (https)", x + 10.0, y + 94.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
-        bevel(x + 10.0, y + 98.0, w - 20.0, 14.0, false);
-        ui_rect(x + 11.0, y + 99.0, w - 22.0, 12.0, WHITE);
-        let shown: String = g.venue.stream.chars().rev().take(46).collect::<Vec<char>>().into_iter().rev().collect();
-        ui_text(if shown.is_empty() { "click to paste, or type" } else { &shown }, x + 14.0, y + 108.5, 8.0, if shown.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
+        if net::can_cast() {
+            if g.venue.inputs.is_empty() {
+                g.venue.inputs = net::inputs();
+            }
+            let pick = g.venue.inputs.get(g.venue.cast_input).cloned().unwrap_or_else(|| "default input".to_string());
+            if button(fr, "from this computer", x + 100.0, y + 64.0, 104.0, 16.0, false) && !fresh {
+                match net::cast_start(&pick) {
+                    Ok(()) => {
+                        net::send("golive stream");
+                        g.toasts.push((format!("sending {pick} to the room"), 4.0));
+                    }
+                    Err(e) => g.toasts.push((format!("couldn't use that input: {e}"), 5.0)),
+                }
+                fr.click = false;
+            }
+            let mut shown = format!("input: {pick}");
+            if ui_measure(&shown, 9.0) > w - 118.0 {
+                while ui_measure(&format!("{shown}..."), 9.0) > w - 118.0 && shown.len() > 8 {
+                    shown.pop();
+                }
+                shown.push_str("...");
+            }
+            if button(fr, &shown, x + 100.0, y + 81.0, w - 110.0, 11.0, false) && !fresh {
+                g.venue.inputs = net::inputs();
+                if !g.venue.inputs.is_empty() {
+                    g.venue.cast_input = (g.venue.cast_input + 1) % g.venue.inputs.len();
+                }
+                fr.click = false;
+            }
+        }
+        ui_text("or real audio: your own live stream link (https)", x + 10.0, y + 98.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
+        bevel(x + 10.0, y + 102.0, w - 76.0, 14.0, false);
+        ui_rect(x + 11.0, y + 103.0, w - 78.0, 12.0, WHITE);
+        let shown: String = g.venue.stream.chars().rev().take(36).collect::<Vec<char>>().into_iter().rev().collect();
+        ui_text(if shown.is_empty() { "click to paste, or type" } else { &shown }, x + 14.0, y + 112.5, 8.0, if shown.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
         if !fresh {
             let settled = get_time() - g.venue.opened_at > 0.25;
             while let Some(ch) = get_char_pressed() {
@@ -1031,14 +1083,14 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             if is_key_pressed(KeyCode::Backspace) {
                 g.venue.stream.pop();
             }
-            if fr.click && hit(fr, x + 10.0, y + 98.0, w - 20.0, 14.0) {
+            if fr.click && hit(fr, x + 10.0, y + 102.0, w - 76.0, 14.0) {
                 if let Some(text) = radio::ask_text("the https link to your live stream", &g.venue.stream) {
                     g.venue.stream = text.trim().chars().filter(|c| !c.is_control() && *c != ' ').take(190).collect();
                 }
                 fr.click = false;
             }
         }
-        if button(fr, "go live with this link", x + 10.0, y + 116.0, 120.0, 16.0, false) {
+        if button(fr, "go live with this link", x + 10.0, y + 120.0, 120.0, 16.0, false) {
             if g.venue.stream.starts_with("https://") {
                 net::send(&format!("golive audio {}", g.venue.stream));
             } else {

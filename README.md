@@ -575,11 +575,10 @@ The arena has a membership for DJs: 5 euros a month on Patreon. Patreon takes ca
 - **The look of the room.** While live, the DJ can change the arena for everyone with the "look" button at the decks: the gothic chapel, a jungle at sunset, a terrace with a view of San Francisco (the bridge, the skyline, fog coming in), or a kinky party in black, red, neon and chains. The room goes back to the chapel when the set ends.
 
 - **The admin plays whenever they like.** Signed in with the admin key, the decks in any chapel room go straight to "in-game decks" or "real audio", without asking. If a DJ is already playing, going live takes over from them.
-- **Playing your own Serato DJ Pro set (real audio).** The game plays a live stream link, so Serato's sound has to become a stream first:
-  1. Get Serato's master output onto an input of your computer. Many controllers show their master output as a recording input; otherwise use a loopback tool (BlackHole is free on the Mac).
-  2. Stream that input with a free broadcaster such as BUTT to an Icecast or Shoutcast host, which gives you an https stream link (it must start with https:// and play in a browser).
-  3. In the chapel, E at the decks, paste the link into "real audio" and press "go live with this link".
-  Players in the browser hear it in the room; the desktop apps show a "listen in your browser" button.
+- **Playing your own Serato DJ Pro set from the desktop app.** At the decks, click the "input" button until it shows the input that carries Serato's sound, then "from this computer". The game sends that input to the server as a live stream and everyone in the room hears it, in the browser and in the desktop apps. A meter shows your level; if it stays empty, nothing is coming in on that input.
+  - To get Serato onto an input: many controllers show their master output as a recording input. Otherwise use a loopback tool (BlackHole on the Mac is free) and set Serato's output to it.
+  - The stream is 128 kbps MP3 and arrives a couple of seconds late, like any radio stream.
+- **Or play a stream you already have.** Paste any https stream link under "real audio" and press "go live with this link".
 - **Handing out DJ keys.** Signed in as the admin, open the envelope and choose the "djs" tab. Type the DJ's name (up to 12 letters, numbers, - _ or .), press "new dj key" or Enter, and send them the key that appears ("copy" puts it on the clipboard). The same tab lists every DJ with a "remove" button (click twice). Making a key for a name that already has one replaces the old key.
 
 On the server: `--djs <file>` is the list of members, one `name = key` per line, and can be edited while the server runs. `--admin <key>` is the admin's key, `--patreon <url>` is the page the game links to, and `--credits <file>` is where the credit is kept. The same four can be set as `MQ_DJS`, `MQ_ADMIN`, `MQ_PATREON` and `MQ_CREDITS`.

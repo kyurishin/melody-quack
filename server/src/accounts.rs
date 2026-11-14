@@ -385,6 +385,43 @@ pub async fn http(mut stream: TcpStream, hub: Arc<Mutex<Hub>>) {
         respond(&mut stream, "200 OK", "", &body).await;
         return;
     }
+    if let Some(name) = route.strip_prefix("/live/").and_then(|r| r.strip_suffix(".mp3")) {
+        let joined = {
+            let h = hub.lock().unwrap();
+            h.casts.get(name).map(|c| (c.tx.subscribe(), c.recent.iter().copied().collect::<Vec<u8>>()))
+        };
+        let Some((mut rx, recent)) = joined else {
+            respond(&mut stream, "404 Not Found", "", &page("nobody is live", "this room isn't streaming right now.")).await;
+            return;
+        };
+        let head = "HTTP/1.1 200 OK\r\ncontent-type: audio/mpeg\r\ncache-control: no-store\r\naccess-control-allow-origin: *\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n";
+        if stream.write_all(head.as_bytes()).await.is_err() {
+            return;
+        }
+        let chunk = |data: &[u8]| {
+            let mut out = format!("{:x}\r\n", data.len()).into_bytes();
+            out.extend_from_slice(data);
+            out.extend_from_slice(b"\r\n");
+            out
+        };
+        if !recent.is_empty() && stream.write_all(&chunk(&recent)).await.is_err() {
+            return;
+        }
+        loop {
+            match rx.recv().await {
+                Ok(data) => {
+                    if stream.write_all(&chunk(&data)).await.is_err() {
+                        return;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        let _ = stream.write_all(b"0\r\n\r\n").await;
+        let _ = stream.shutdown().await;
+        return;
+    }
     respond(&mut stream, "200 OK", "", &page("melody quack", "the rave server is running.")).await;
 }
 

@@ -7,6 +7,54 @@ struct Voice {
     volume: f32,
 }
 
+struct StreamBuf {
+    data: std::collections::VecDeque<[f32; 2]>,
+    rate: f32,
+    pos: f32,
+    playing: bool,
+    volume: f32,
+}
+
+static STREAM: std::sync::OnceLock<Mutex<StreamBuf>> = std::sync::OnceLock::new();
+
+fn stream_buf() -> &'static Mutex<StreamBuf> {
+    STREAM.get_or_init(|| Mutex::new(StreamBuf { data: std::collections::VecDeque::new(), rate: 44100.0, pos: 0.0, playing: false, volume: 1.0 }))
+}
+
+pub fn stream_push(samples: &[f32], channels: usize, rate: f32) {
+    if channels == 0 {
+        return;
+    }
+    if let Ok(mut s) = stream_buf().lock() {
+        s.rate = rate;
+        for c in samples.chunks(channels) {
+            let l = c[0];
+            let r = if channels > 1 { c[1] } else { c[0] };
+            s.data.push_back([l, r]);
+        }
+        let most = (rate * 6.0) as usize;
+        while s.data.len() > most {
+            s.data.pop_front();
+        }
+    }
+}
+
+#[cfg(test)]
+pub fn stream_take(n: usize) -> Vec<[f32; 2]> {
+    stream_buf().lock().map(|mut s| {
+        let k = n.min(s.data.len());
+        s.data.drain(..k).collect()
+    }).unwrap_or_default()
+}
+
+pub fn stream_clear() {
+    if let Ok(mut s) = stream_buf().lock() {
+        s.data.clear();
+        s.playing = false;
+        s.pos = 0.0;
+    }
+}
+
 #[derive(Clone)]
 pub struct Sound(Arc<Vec<f32>>, Option<Arc<Vec<f32>>>, u16);
 
@@ -57,6 +105,9 @@ impl Audio {
 
     pub fn set_mix(&self, mix: [f32; 5]) {
         self.mix.set(mix);
+        if let Ok(mut s) = stream_buf().lock() {
+            s.volume = mix[4];
+        }
     }
 
     pub fn set_boost(&self, on: bool) {
@@ -179,7 +230,8 @@ fn start(voices: Arc<Mutex<Vec<Voice>>>) -> Option<cpal::Stream> {
         return None;
     }
     let channels = config.channels() as usize;
-    let step = crate::SAMPLE_RATE as f32 / config.sample_rate() as f32;
+    let device_rate = config.sample_rate() as f32;
+    let step = crate::SAMPLE_RATE as f32 / device_rate;
     let stream = device
         .build_output_stream(
             config.into(),
@@ -207,6 +259,36 @@ fn start(voices: Arc<Mutex<Vec<Voice>>>) -> Option<cpal::Stream> {
                         }
                     }
                     list.retain(|v| v.position < 0.0 || (v.position as usize) + 1 < v.samples.len());
+                }
+                if let Ok(mut st) = stream_buf().lock() {
+                    if !st.playing && st.data.len() as f32 > st.rate * 1.2 {
+                        st.playing = true;
+                    }
+                    if st.playing {
+                        let advance = st.rate / device_rate;
+                        let vol = st.volume * 0.8;
+                        for frame in data.chunks_mut(channels) {
+                            if st.data.len() < 2 {
+                                st.playing = false;
+                                break;
+                            }
+                            let f = st.pos;
+                            let (a, b) = (st.data[0], st.data[1]);
+                            let l = (a[0] * (1.0 - f) + b[0] * f) * vol;
+                            let r = (a[1] * (1.0 - f) + b[1] * f) * vol;
+                            if channels >= 2 {
+                                frame[0] += l;
+                                frame[1] += r;
+                            } else {
+                                frame[0] += (l + r) * 0.5;
+                            }
+                            st.pos += advance;
+                            while st.pos >= 1.0 && !st.data.is_empty() {
+                                st.data.pop_front();
+                                st.pos -= 1.0;
+                            }
+                        }
+                    }
                 }
                 for s in data.iter_mut() {
                     *s = s.tanh();

@@ -178,8 +178,37 @@ pub fn open_url(url: &str) {
     }
 }
 
-pub fn listen(_url: &str) {}
+#[path = "live.rs"]
+mod live;
+
+pub fn listen(url: &str) {
+    live::listen(url);
+}
+
+pub fn inputs() -> Vec<String> {
+    live::inputs()
+}
+
+pub fn can_cast() -> bool {
+    true
+}
+
+pub fn casting() -> bool {
+    live::casting()
+}
+
+pub fn cast_level() -> Option<f32> {
+    live::level()
+}
+
+pub fn cast_stop() {
+    live::stop();
+}
+
+pub fn cast_start(device: &str) -> Result<(), String> {
+    live::start(device, |bytes| send(&format!("aud {}", crate::venues::b64_encode(&bytes))))
+}
 
 pub fn can_listen() -> bool {
-    false
+    true
 }
