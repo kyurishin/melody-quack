@@ -89,6 +89,7 @@ pub(crate) struct VenueState {
     pub(crate) key_draft: String,
     pub(crate) key_sent: bool,
     pub(crate) acct_key: bool,
+    pub(crate) cast_note: String,
     pub(crate) key_refused: bool,
     pub(crate) dj_name: Option<String>,
     pub(crate) credit: u32,

@@ -39,6 +39,31 @@ pub fn stop() {
     });
 }
 
+struct Resampler {
+    step: f64,
+    pos: f64,
+    last: [f32; 2],
+}
+
+impl Resampler {
+    fn push(&mut self, frame: [f32; 2], out: &mut Vec<i16>) {
+        let pcm = |v: f32| (v.clamp(-1.0, 1.0) * 32767.0) as i16;
+        if self.step == 1.0 {
+            out.extend([pcm(frame[0]), pcm(frame[1])]);
+            return;
+        }
+        while self.pos < 1.0 {
+            let t = self.pos as f32;
+            for k in 0..2 {
+                out.push(pcm(self.last[k] + (frame[k] - self.last[k]) * t));
+            }
+            self.pos += self.step;
+        }
+        self.pos -= 1.0;
+        self.last = frame;
+    }
+}
+
 pub fn start(device_name: &str, send: impl Fn(Vec<u8>) + Send + 'static) -> Result<(), String> {
     stop();
     let host = cpal::default_host();
@@ -46,49 +71,59 @@ pub fn start(device_name: &str, send: impl Fn(Vec<u8>) + Send + 'static) -> Resu
         .input_devices()
         .ok()
         .and_then(|mut d| d.find(|x| x.to_string() == device_name))
-        .or_else(|| host.default_input_device())
-        .ok_or("no audio input found")?;
+        .or_else(|| if device_name == "default input" { host.default_input_device() } else { None })
+        .ok_or(format!("{device_name} isn't there right now. is it switched on?"))?;
     let config = device.default_input_config().map_err(|e| e.to_string())?;
-    let channels = config.channels() as usize;
-    let rate = config.sample_rate();
+    let channels = (config.channels() as usize).max(1);
+    let in_rate = config.sample_rate();
+    let rate = if in_rate == 44100 || in_rate == 48000 || in_rate == 32000 { in_rate } else { 44100 };
     let (tx, rx) = mpsc::channel::<Vec<i16>>();
     let level = Arc::new(AtomicU32::new(0));
     let alive = Arc::new(AtomicBool::new(true));
     let meter = level.clone();
-    let push = move |frames: &mut dyn Iterator<Item = (f32, f32)>| {
+    let step = in_rate as f64 / rate as f64;
+    let resample = std::sync::Mutex::new(Resampler { step, pos: 0.0, last: [0.0; 2] });
+    let push = Arc::new(move |data: &[f32], channels: usize| {
         let mut out = Vec::new();
         let mut peak = 0.0f32;
-        for (l, r) in frames {
-            peak = peak.max(l.abs()).max(r.abs());
-            out.push((l.clamp(-1.0, 1.0) * 32767.0) as i16);
-            out.push((r.clamp(-1.0, 1.0) * 32767.0) as i16);
+        let mut state = resample.lock().unwrap();
+        for c in data.chunks(channels) {
+            let frame = [c[0], if c.len() >= 2 { c[1] } else { c[0] }];
+            peak = peak.max(frame[0].abs()).max(frame[1].abs());
+            state.push(frame, &mut out);
         }
         let old = f32::from_bits(meter.load(Ordering::Relaxed));
         meter.store((peak.max(old * 0.9)).to_bits(), Ordering::Relaxed);
         let _ = tx.send(out);
-    };
-    let pair = move |c: &[f32]| if c.len() >= 2 { (c[0], c[1]) } else { (c[0], c[0]) };
-    let stream = match config.sample_format() {
-        cpal::SampleFormat::F32 => {
+    });
+    let format = config.sample_format();
+    let config: cpal::StreamConfig = config.into();
+    macro_rules! input {
+        ($t:ty) => {{
+            let push = push.clone();
             device.build_input_stream(
-                config.into(),
-                move |data: &[f32], _| push(&mut data.chunks(channels).map(pair)),
-                |e| eprintln!("live input error: {e}"),
-                None,
-            )
-        }
-        cpal::SampleFormat::I16 => {
-            device.build_input_stream(
-                config.into(),
-                move |data: &[i16], _| {
-                    let f: Vec<f32> = data.iter().map(|s| *s as f32 / 32768.0).collect();
-                    push(&mut f.chunks(channels).map(pair))
+                config.clone(),
+                move |data: &[$t], _| {
+                    let f: Vec<f32> = data.iter().map(|s| <f32 as cpal::FromSample<$t>>::from_sample_(*s)).collect();
+                    push(&f, channels)
                 },
                 |e| eprintln!("live input error: {e}"),
                 None,
             )
-        }
-        _ => return Err("this input's sample format isn't supported".to_string()),
+        }};
+    }
+    let stream = match format {
+        cpal::SampleFormat::F32 => input!(f32),
+        cpal::SampleFormat::F64 => input!(f64),
+        cpal::SampleFormat::I8 => input!(i8),
+        cpal::SampleFormat::I16 => input!(i16),
+        cpal::SampleFormat::I32 => input!(i32),
+        cpal::SampleFormat::I64 => input!(i64),
+        cpal::SampleFormat::U8 => input!(u8),
+        cpal::SampleFormat::U16 => input!(u16),
+        cpal::SampleFormat::U32 => input!(u32),
+        cpal::SampleFormat::U64 => input!(u64),
+        other => return Err(format!("this input sends {other} audio, which isn't supported yet")),
     }
     .map_err(|e| e.to_string())?;
     let mut builder = mp3lame_encoder::Builder::new().ok_or("the mp3 encoder couldn't start")?;
@@ -171,6 +206,21 @@ fn play_stream(url: &str, gen: u32) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn a_96k_input_comes_out_at_44k_with_the_same_pitch() {
+        let mut r = Resampler { step: 96000.0 / 44100.0, pos: 0.0, last: [0.0; 2] };
+        let mut out = Vec::new();
+        for i in 0..96000 {
+            let v = ((i as f32 / 96000.0) * 440.0 * std::f32::consts::TAU).sin() * 0.5;
+            r.push([v, v], &mut out);
+        }
+        let frames = out.len() / 2;
+        assert!((44090..=44110).contains(&frames), "{frames} frames");
+        let left: Vec<i16> = out.iter().step_by(2).copied().collect();
+        let crossings = left.windows(2).filter(|w| w[0] < 0 && w[1] >= 0).count();
+        assert!((438..=442).contains(&crossings), "{crossings}");
+    }
 
     #[test]
     fn a_tone_survives_encoding_streaming_and_decoding() {

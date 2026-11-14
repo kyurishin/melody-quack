@@ -1043,7 +1043,14 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 let fill = (lv.min(1.0) * 160.0).round();
                 ui_rect(x + 10.0, y + 72.0, fill, 6.0, if lv > 0.95 { Color::from_rgba(255, 90, 95, 255) } else { Color::from_rgba(140, 222, 168, 255) });
                 if lv < 0.01 {
-                    ui_text("no sound coming in. check the input in serato or your mixer.", x + 10.0, y + 88.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+                    let tips = if cfg!(target_os = "macos") {
+                        ["no sound coming in. in serato: setup > audio,", "turn on serato virtual audio and play a track.", "mac: system settings > privacy > microphone > melody quack."]
+                    } else {
+                        ["no sound coming in. check that your dj software", "plays into this input, and that a track is playing.", ""]
+                    };
+                    for (i, t) in tips.iter().enumerate() {
+                        ui_text(t, x + 10.0, y + 88.0 + i as f32 * 9.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+                    }
                 }
             }
         } else {
@@ -1124,9 +1131,10 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 match net::cast_start(&pick) {
                     Ok(()) => {
                         net::send("golive stream");
+                        g.venue.cast_note.clear();
                         g.toasts.push((format!("sending {pick} to the room"), 4.0));
                     }
-                    Err(e) => g.toasts.push((format!("couldn't use that input: {e}"), 5.0)),
+                    Err(e) => g.venue.cast_note = format!("couldn't use {pick}: {e}"),
                 }
                 fr.click = false;
             }
@@ -1137,7 +1145,14 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 }
                 shown.push_str("...");
             }
+            if !g.venue.cast_note.is_empty() {
+                let note = ui_wrap(&g.venue.cast_note, 8.0, w - 80.0);
+                for (i, l) in note.iter().take(2).enumerate() {
+                    ui_text(l, x + 10.0, y + 128.0 + i as f32 * 9.0, 8.0, Color::from_rgba(255, 140, 120, 255));
+                }
+            }
             if button(fr, &shown, x + 100.0, y + 81.0, w - 110.0, 11.0, false) && !fresh {
+                g.venue.cast_note.clear();
                 g.venue.inputs = net::inputs();
                 if !g.venue.inputs.is_empty() {
                     g.venue.cast_input = (g.venue.cast_input + 1) % g.venue.inputs.len();
