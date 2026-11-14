@@ -319,11 +319,10 @@ fn online(g: &mut Game, dt: f32) {
             "code" if parts.len() >= 2 => {
                 let info = g.venue.tonight.as_ref().map(|t| t.info.clone()).unwrap_or_default();
                 if let Some(r) = rave_from(parts[1], &info) {
-                    g.venue.term.push(format!("tonight: {}", r.title));
-                    g.venue.term.push(format!("code, scrambled twice: {}", goose_scramble(&r.code)));
-                    g.venue.term.push("the goose rot13'd it, then base64'd that.".to_string());
-                    g.venue.term.push("undo it: base64 -d first, then rot13.".to_string());
+                    let lines = g.venue.reveal_lines(&r);
+                    g.venue.term.extend(lines);
                     g.venue.secret = Some(r);
+                    g.venue.claimed = true;
                 }
             }
             "nocode" if parts.len() >= 2 => {
@@ -1780,9 +1779,6 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     let tapped = ready && fr.click && hit(fr, cx - bw / 2.0, hy - 11.0, bw, 16.0);
     if ready && (is_key_pressed(KeyCode::Enter) || tapped) {
         g.venue.name = g.venue.name_draft.trim().to_string();
-        if g.venue.hard() {
-            g.venue.term = vec!["ravenet dev box. hard mode. type help.".to_string()];
-        }
         let key = if g.venue.dj_page { clean_key(&g.venue.key_draft) } else { String::new() };
         if key != g.venue.dj_key {
             g.venue.dj_key = key;
@@ -2525,7 +2521,7 @@ fn held_repeat(k: KeyCode) -> bool {
 fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
     let green = Color::from_rgba(198, 255, 61, 255);
     ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
-    let max = if g.venue.hard() { 200 } else { 60 };
+    let max = if g.venue.hard() { 200 } else { 80 };
     let down = |a: KeyCode, b: KeyCode| is_key_down(a) || is_key_down(b);
     let ctrl = down(KeyCode::LeftControl, KeyCode::RightControl);
     let sup = down(KeyCode::LeftSuper, KeyCode::RightSuper);
@@ -2689,7 +2685,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
             g.venue.term.clear();
             g.venue.term_sel = None;
         } else if ctrl && !shift && is_key_pressed(KeyCode::C) && !has_sel {
-            let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+            let who = g.venue.term_user();
             let shown: String = if pw { "*".repeat(chars.len()) } else { chars.iter().collect() };
             g.venue.term.push(if pw { format!("password: {shown}^C") } else { format!("{who}@pc7:~$ {shown}^C") });
             g.venue.term_pw = false;
@@ -2733,7 +2729,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
                         cur += 1;
                     }
                 } else if get_time() - g.venue.term_tab < 1.0 {
-                    let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+                    let who = g.venue.term_user();
                     let line: String = chars.iter().collect();
                     g.venue.term.push(format!("{who}@pc7:~$ {line}"));
                     g.venue.term.push(options.join("  "));
@@ -2903,7 +2899,7 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         ui_rect(x + w - tw - 3.0, y + 3.0, tw, 11.0, Color::from_rgba(255, 214, 110, 255));
         ui_text(&t, x + w - tw + 1.0, y + 11.0, 8.0, Color::from_rgba(8, 8, 14, 255));
     }
-    let who = if g.venue.hard() { "leon" } else if g.venue.term_goose { "goose" } else { "guest" };
+    let who = g.venue.term_user();
     let (prompt, body, at): (String, Vec<char>, usize) = if let Some((q, skip, before)) = &g.venue.term_search {
         let found: Vec<&String> = g.venue.term_hist.iter().rev().filter(|l| !q.is_empty() && l.contains(q.as_str())).collect();
         let shown = found.get(*skip).map(|s| s.to_string()).unwrap_or_else(|| if q.is_empty() { before.clone() } else { String::new() });
@@ -2911,6 +2907,8 @@ fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed:
         let body: Vec<char> = shown.chars().collect();
         let at = body.len();
         (format!("({label})`{q}': "), body, at)
+    } else if g.venue.term_level == 0 {
+        ("difficulty (1-3)> ".to_string(), g.venue.term_in.chars().collect(), g.venue.term_cur)
     } else if g.venue.term_pw {
         ("password: ".to_string(), "*".repeat(g.venue.term_in.chars().count()).chars().collect(), g.venue.term_cur)
     } else {

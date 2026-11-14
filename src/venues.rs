@@ -126,6 +126,9 @@ pub(crate) struct VenueState {
     pub(crate) term_search: Option<(String, usize, String)>,
     pub(crate) term_tab: f64,
     pub(crate) term_exit: bool,
+    pub(crate) term_level: u8,
+    pub(crate) ctf_pick: Option<u8>,
+    pub(crate) claimed: bool,
     pub(crate) term_flash: (String, f64),
     pub(crate) term_sel: Option<((usize, usize), (usize, usize))>,
     pub(crate) term_drag: bool,
@@ -235,6 +238,26 @@ pub(crate) fn tidy_code(input: &str) -> Option<String> {
 
 pub(crate) const CHAT_KEEP: usize = 2000;
 
+pub(crate) const CTF_NAMES: [&str; 3] = ["the goose's files", "the log hunt", "the cipher"];
+
+pub(crate) const LEVELS: [&str; 4] = ["", "easy", "medium", "hard"];
+
+const ALPHABET_CHARS: [char; 24] = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'M', 'N', 'P', 'Q', 'R', 'T', 'U', 'V', 'W', 'X', 'Y', '3', '4', '7', '9'];
+
+pub(crate) fn ctf_day() -> u32 {
+    ((crate::clock::now() + crate::clock::offset()) / 86400.0).floor().max(0.0) as u32
+}
+
+pub(crate) fn caesar(text: &str, shift: i32) -> String {
+    text.chars()
+        .map(|c| match c {
+            'a'..='z' => (((c as u8 - b'a') as i32 + shift).rem_euclid(26) as u8 + b'a') as char,
+            'A'..='Z' => (((c as u8 - b'A') as i32 + shift).rem_euclid(26) as u8 + b'A') as char,
+            _ => c,
+        })
+        .collect()
+}
+
 pub(crate) fn clean_key(text: &str) -> String {
     text.chars()
         .map(|c| match c {
@@ -308,8 +331,312 @@ struct Hard {
 }
 
 impl VenueState {
-    pub(crate) fn hard(&self) -> bool {
+    pub(crate) fn leon(&self) -> bool {
         matches!(self.name.trim().to_lowercase().as_str(), "leon" | "neomole")
+    }
+
+    pub(crate) fn hard(&self) -> bool {
+        self.term_level == 3 && self.ctf_type() == 0
+    }
+
+    pub(crate) fn ctf_type(&self) -> u8 {
+        self.ctf_pick.unwrap_or((ctf_day() % 3) as u8)
+    }
+
+    pub(crate) fn term_user(&self) -> &'static str {
+        if self.hard() && self.leon() {
+            "leon"
+        } else if self.term_goose {
+            "goose"
+        } else {
+            "guest"
+        }
+    }
+
+    pub(crate) fn term_intro(&self) -> Vec<String> {
+        let puzzle = CTF_NAMES[self.ctf_type() as usize];
+        if self.term_level == 0 {
+            vec![
+                "quack 95 terminal.".to_string(),
+                format!("today's puzzle: {puzzle}. there's a new one every day."),
+                "choose a difficulty:  1 easy   2 medium   3 hard".to_string(),
+                "type a number and press enter.".to_string(),
+            ]
+        } else {
+            vec![format!("quack 95 terminal. {puzzle}, {}.", LEVELS[self.term_level as usize]), "type help. 'level' picks another difficulty.".to_string()]
+        }
+    }
+
+    pub(crate) fn reveal_lines(&self, r: &Rave) -> Vec<String> {
+        match (self.ctf_type(), self.term_level) {
+            (0, 3) => vec![r.code.bytes().map(|b| format!("{b:02x}")).collect()],
+            (0, 1) => vec![format!("tonight: {}", r.title), format!("code, scrambled: {}", rot13(&r.code)), "every letter moved 13 along. rot13 it back.".to_string()],
+            (0, _) => vec![
+                format!("tonight: {}", r.title),
+                format!("code, scrambled twice: {}", goose_scramble(&r.code)),
+                "the goose rot13'd it, then base64'd that.".to_string(),
+                "undo it: base64 -d first, then rot13.".to_string(),
+            ],
+            _ => vec!["the goose's list says yes: the files are open now.".to_string(), "read them again.".to_string()],
+        }
+    }
+
+    fn ctf_files(&self) -> Vec<(&'static str, bool, Vec<String>)> {
+        let code = self.secret.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+        let day = ctf_day();
+        let mut rng = self.secret.as_ref().map(|r| r.seed).unwrap_or(7) ^ day.wrapping_mul(0x9e37_79b9) ^ self.term_level as u32;
+        let parts: Vec<String> = code.split('-').map(|p| p.to_string()).collect();
+        let noise = |rng: &mut u32, n: usize| -> Vec<String> {
+            let who = ["mina", "rex", "kim", "duckling", "tabby", "otter"];
+            (0..n)
+                .map(|i| {
+                    let t = format!("{:02}:{:02}", 22 + (i * 4 / 60) % 6, (i * 4) % 60);
+                    let w = who[(next(rng) % who.len() as u32) as usize];
+                    match next(rng) % 6 {
+                        0 => format!("{t} door: {w} came in"),
+                        1 => format!("{t} door: {w} left for a breather"),
+                        2 => format!("{t} booth: bpm set to {}", 124 + next(rng) % 16),
+                        3 => format!("{t} bar: {} sodas sold", 1 + next(rng) % 9),
+                        4 => format!("{t} lights: strobe {}", if next(rng) % 2 == 0 { "on" } else { "off" }),
+                        _ => format!("{t} {w}: honk"),
+                    }
+                })
+                .collect()
+        };
+        let fake = |rng: &mut u32| -> String { (0..3).map(|_| ALPHABET_CHARS[(next(rng) % ALPHABET_CHARS.len() as u32) as usize]).collect() };
+        let scatter = |rng: &mut u32, mut lines: Vec<String>, extra: Vec<String>| -> Vec<String> {
+            for e in extra {
+                let at = (next(rng) as usize) % (lines.len() + 1);
+                lines.insert(at, e);
+            }
+            lines
+        };
+        match (self.ctf_type(), self.term_level) {
+            (1, 1) => {
+                let base = noise(&mut rng, 120);
+                let lines = scatter(&mut rng, base, vec![format!("03:31 goose: tonight's code is {code}")]);
+                vec![("door.log", false, lines), ("notes.txt", false, vec!["kim: the goose logs everything at the door.".to_string(), "door.log is far too long to read. grep it.".to_string()])]
+            }
+            (1, 2) => {
+                let mut extra: Vec<String> = parts.iter().enumerate().map(|(k, p)| format!("[night {day}] goose: part {}/3 {p}", k + 1)).collect();
+                for back in [1u32, 2] {
+                    for k in 0..3 {
+                        extra.push(format!("[night {}] goose: part {}/3 {}", day - back, k + 1, fake(&mut rng)));
+                    }
+                }
+                let base = noise(&mut rng, 150);
+                let lines = scatter(&mut rng, base, extra);
+                vec![
+                    ("door.log", false, lines),
+                    ("notes.txt", false, vec!["kim: the goose splits the code in three and logs the parts.".to_string(), "he never cleans up old nights. 'date' says which night it is.".to_string(), "put the parts together and: submit XXX-XXX-XXX".to_string()]),
+                ]
+            }
+            (1, _) => {
+                let mut door = noise(&mut rng, 110);
+                let mut bar = noise(&mut rng, 110);
+                for k in 0..3 {
+                    let real = format!("goose~ {}", b64_encode(format!("{}/3:{}", k + 1, parts.get(k).cloned().unwrap_or_default()).as_bytes()));
+                    let old = format!("goose: {}", b64_encode(format!("{}/3:{}", k + 1, fake(&mut rng)).as_bytes()));
+                    let noisy = format!("kim: {}", b64_encode(format!("{}{}", fake(&mut rng), fake(&mut rng)).as_bytes()));
+                    let target = if next(&mut rng) % 2 == 0 { &mut door } else { &mut bar };
+                    let at = (next(&mut rng) as usize) % (target.len() + 1);
+                    target.insert(at, real);
+                    for extra in [old, noisy] {
+                        let target = if next(&mut rng) % 2 == 0 { &mut door } else { &mut bar };
+                        let at = (next(&mut rng) as usize) % (target.len() + 1);
+                        target.insert(at, extra);
+                    }
+                }
+                vec![
+                    ("door.log", false, door),
+                    ("bar.log", false, bar),
+                    ("notes.txt", false, vec!["kim: three parts, base64'd, in the .log files.".to_string(), "the goose signs his own lines with a ~. nobody else does.".to_string(), "grep takes more than one file. then: submit XXX-XXX-XXX".to_string()]),
+                ]
+            }
+            (2, 1) => vec![("cipher.txt", false, vec!["kim: i hid tonight's code with caesar. every letter moved 3 along.".to_string(), caesar(&code, 3)])],
+            (2, 2) => {
+                let shift = loop {
+                    let s = 1 + next(&mut rng) % 25;
+                    if s != 13 {
+                        break s as i32;
+                    }
+                };
+                vec![("cipher.txt", false, vec!["kim: caesar again. i forgot the shift. somewhere from 1 to 25.".to_string(), caesar(&code, shift)])]
+            }
+            _ => {
+                let key: String = (0..4).map(|_| (b'a' + (next(&mut rng) % 26) as u8) as char).collect();
+                let hexed: String = code.bytes().zip(key.bytes().cycle()).map(|(a, b)| format!("{:02x}", a ^ b)).collect();
+                vec![
+                    ("vault.hex", false, vec![hexed]),
+                    ("notes.txt", false, vec!["kim: the vault is xor'd with a short key.".to_string(), "the key lives with the other settings, encoded. ls -a.".to_string()]),
+                    (".env", true, vec!["PORT=8080".to_string(), "THEME=duck".to_string(), format!("VAULT_KEY={}", b64_encode(key.as_bytes()))]),
+                ]
+            }
+        }
+    }
+
+    fn ctf_help(&self) -> Vec<&'static str> {
+        let tools = match self.ctf_type() {
+            1 => "tools: ls  cat  grep [-i] <word> <files>  head/tail [-n N] <file>  wc -l  base64 -d  date  submit",
+            _ => match self.term_level {
+                1 => "tools: ls  cat  caesar <shift> <text>  submit",
+                2 => "tools: ls  cat  caesar <shift|all> <text>  submit",
+                _ => "tools: ls [-a]  cat  base64 -d <text>  xor <key> <hex>  submit",
+            },
+        };
+        vec![tools, "goal: tonight's rave code. start with ls.", "'level' picks another difficulty. tab completes, ctrl+r searches."]
+    }
+
+    fn run_ctf(&mut self, line: &str) -> bool {
+        self.term.push(format!("guest@pc7:~$ {line}"));
+        let line = line.trim();
+        let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
+        let files = self.ctf_files();
+        let locked = self.live_list && !self.claimed;
+        let secret_file = |name: &str| matches!(name, "door.log" | "bar.log" | "cipher.txt" | "vault.hex");
+        let find = |name: &str| files.iter().find(|f| f.0 == name.trim_start_matches("./")).cloned();
+        let mut out: Vec<String> = Vec::new();
+        let mut fallback = false;
+        let mut won = false;
+        let mut ask = false;
+        let pick_files = |list: &[&str]| -> Vec<(&'static str, bool, Vec<String>)> {
+            let mut got = Vec::new();
+            for name in list {
+                if name.contains('*') {
+                    let ext = name.trim_start_matches('*');
+                    got.extend(files.iter().filter(|f| f.0.ends_with(ext) && !f.1).cloned());
+                } else if let Some(f) = find(name) {
+                    got.push(f);
+                }
+            }
+            got
+        };
+        match cmd {
+            "" => {}
+            "help" => out.extend(self.ctf_help().into_iter().map(|s| s.to_string())),
+            "ls" => {
+                let all = arg.contains('a');
+                out.push(files.iter().filter(|f| all || !f.1).map(|f| f.0).collect::<Vec<_>>().join("  "));
+            }
+            "date" => out.push(format!("night {}. the rave is tonight.", ctf_day())),
+            "cat" | "head" | "tail" | "wc" => {
+                let words: Vec<&str> = arg.split_whitespace().collect();
+                let n = words.iter().position(|w| *w == "-n").and_then(|i| words.get(i + 1)).and_then(|v| v.parse::<usize>().ok()).unwrap_or(10);
+                let name = words.iter().rev().find(|w| !w.starts_with('-') && w.parse::<usize>().is_err()).copied().unwrap_or("");
+                match find(name) {
+                    None if name.is_empty() => out.push(format!("{cmd}: which file? try ls")),
+                    None => out.push(format!("{cmd}: {name}: no such file")),
+                    Some(_) if locked && secret_file(name) => {
+                        out.push("asking the goose's list...".to_string());
+                        ask = true;
+                    }
+                    Some((_, _, lines)) => match cmd {
+                        "wc" => out.push(format!("{} {name}", lines.len())),
+                        "head" => out.extend(lines.iter().take(n).cloned()),
+                        "tail" => out.extend(lines.iter().skip(lines.len().saturating_sub(n)).cloned()),
+                        _ if lines.len() > 25 => out.push(format!("{name} is {} lines. too long to read here. try grep, head or tail.", lines.len())),
+                        _ => out.extend(lines),
+                    },
+                }
+            }
+            "grep" => {
+                let words: Vec<&str> = arg.split_whitespace().collect();
+                let insensitive = words.contains(&"-i");
+                let rest: Vec<&str> = words.into_iter().filter(|w| !w.starts_with('-')).collect();
+                if rest.len() < 2 {
+                    out.push("usage: grep [-i] <word> <file> [more files]".to_string());
+                } else {
+                    let pattern = rest[0].trim_matches(|c| c == '"' || c == '\'');
+                    let chosen = pick_files(&rest[1..]);
+                    if chosen.is_empty() {
+                        out.push(format!("grep: {}: no such file", rest[1]));
+                    } else if locked && chosen.iter().any(|f| secret_file(f.0)) {
+                        out.push("asking the goose's list...".to_string());
+                        ask = true;
+                    } else {
+                        let many = chosen.len() > 1;
+                        for (name, _, lines) in chosen {
+                            for l in lines {
+                                let hit = if insensitive { l.to_lowercase().contains(&pattern.to_lowercase()) } else { l.contains(pattern) };
+                                if hit {
+                                    out.push(if many { format!("{name}:{l}") } else { l });
+                                }
+                            }
+                        }
+                        if out.is_empty() {
+                            out.push("(no matches)".to_string());
+                        }
+                    }
+                }
+            }
+            "base64" if arg.starts_with("-d") => {
+                let text = arg.trim_start_matches("-d").trim().trim_matches(|c| c == '\'' || c == '"');
+                out.push(b64_decode(text).map(|b| String::from_utf8_lossy(&b).to_string()).unwrap_or_else(|| "base64: invalid input".to_string()));
+            }
+            "base64" => out.push(if arg.is_empty() { "base64: give it some text".to_string() } else { b64_encode(arg.as_bytes()) }),
+            "rot13" => out.push(rot13(arg)),
+            "caesar" => {
+                let (how, text) = arg.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((arg, ""));
+                if text.is_empty() {
+                    out.push("usage: caesar <shift> <text>   (or caesar all <text>)".to_string());
+                } else if how == "all" && self.term_level >= 2 {
+                    for s in 1..26 {
+                        out.push(format!("{s:>2}: {}", caesar(text, -s)));
+                    }
+                } else if let Ok(s) = how.parse::<i32>() {
+                    out.push(caesar(text, -s));
+                } else {
+                    out.push("caesar: the shift is a number".to_string());
+                }
+            }
+            "xor" => {
+                let (key, hexed) = arg.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((arg, ""));
+                let digits: String = hexed.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+                if key.is_empty() || digits.len() < 2 {
+                    out.push("usage: xor <key> <hex>".to_string());
+                } else {
+                    let bytes: Vec<u8> = (0..digits.len() / 2).filter_map(|i| u8::from_str_radix(&digits[i * 2..i * 2 + 2], 16).ok()).collect();
+                    let plain: Vec<u8> = bytes.iter().zip(key.bytes().cycle()).map(|(a, b)| a ^ b).collect();
+                    out.push(String::from_utf8_lossy(&plain).chars().map(|c| if c.is_control() { '.' } else { c }).collect());
+                }
+            }
+            "submit" => {
+                let ok = tidy_code(arg).filter(|c| self.secret.as_ref().map(|r| &r.code == c).unwrap_or(false));
+                if ok.is_none() {
+                    out.push(if locked { "the goose's list hasn't let you in yet. read the files first.".to_string() } else { "nope. that's not tonight's code.".to_string() });
+                }
+            }
+            "whoami" => out.push("guest".to_string()),
+            "clear" => {}
+            _ => fallback = true,
+        }
+        if fallback {
+            out.extend(self.shell("guest", cmd, arg));
+        }
+        if ask {
+            self.ask = true;
+        }
+        let code = self.secret.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+        let captured = !code.is_empty()
+            && !locked
+            && (matches!(cmd, "caesar" | "xor" | "base64" | "rot13") && out.iter().any(|l| l.split_whitespace().any(|w| tidy_code(w).as_deref() == Some(code.as_str())))
+                || (cmd == "grep" && self.term_level == 1 && out.iter().any(|l| l.contains(&code)))
+                || (cmd == "submit" && tidy_code(arg).as_deref() == Some(code.as_str())));
+        self.term.extend(out);
+        if captured {
+            self.term.push("flag captured. the goose will know this code.".to_string());
+            self.learn(&code);
+            self.flag = true;
+            won = true;
+        }
+        if cmd == "clear" {
+            self.term.clear();
+        }
+        let n = self.term.len();
+        if n > 60 {
+            self.term.drain(..n - 60);
+        }
+        won
     }
 
     fn hard_setup(&self) -> Hard {
@@ -324,7 +651,8 @@ impl VenueState {
 
     fn run_hard(&mut self, line: &str) -> bool {
         let h = self.hard_setup();
-        self.term.push(format!("leon@pc7:~$ {line}"));
+        let user = self.term_user();
+        self.term.push(format!("{user}@pc7:~$ {line}"));
         let line = line.trim();
         let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
         let mut out: Vec<String> = Vec::new();
@@ -347,7 +675,7 @@ impl VenueState {
                 say("2. a token is three base64url parts. read them.");
                 say("3. look at how app.js trusts the header.");
             }
-            ("whoami", _) => say("leon (the goose has heard of you)"),
+            ("whoami", _) => say(if user == "leon" { "leon (the goose has heard of you)" } else { "guest (the goose hasn't heard of you yet)" }),
             ("ls", "-a") | ("ls", "-la") | ("ls", "-al") => say(".  ..  .git  .env  app.js  notes.txt"),
             ("ls", _) => say("app.js  notes.txt"),
             ("clear", _) => {}
@@ -461,7 +789,7 @@ impl VenueState {
                 let text = String::from_utf8_lossy(&bytes).to_string();
                 say(&text);
                 if let Some(code) = tidy_code(&text).filter(|c| self.secret.as_ref().map(|r| &r.code == c).unwrap_or(false)) {
-                    say("flag captured. respect, leon. the goose will know this code.");
+                    say(if user == "leon" { "flag captured. respect, leon. the goose will know this code." } else { "flag captured. respect. the goose will know this code." });
                     self.learn(&code);
                     self.flag = true;
                     won = true;
@@ -471,7 +799,7 @@ impl VenueState {
             _ => hard_fallback = true,
         }
         if hard_fallback {
-            out.extend(self.shell("leon", cmd, arg));
+            out.extend(self.shell(user, cmd, arg));
         }
         self.term.extend(out);
         if cmd == "clear" {
@@ -486,10 +814,21 @@ impl VenueState {
 
     pub(crate) fn term_words(&self) -> (Vec<&'static str>, Vec<&'static str>) {
         let shell = ["pwd", "echo", "history", "cd", "exit", "uname", "date", "man", "sudo"];
+        if self.term_level == 0 {
+            return (vec!["easy", "medium", "hard"], Vec::new());
+        }
+        if self.ctf_type() != 0 {
+            let mut cmds = vec!["ls", "cat", "grep", "head", "tail", "wc", "base64", "rot13", "caesar", "xor", "date", "submit", "help", "whoami", "clear", "level"];
+            cmds.extend(shell);
+            cmds.sort();
+            cmds.dedup();
+            let files = self.ctf_files().into_iter().map(|f| f.0).collect();
+            return (cmds, files);
+        }
         let (mut cmds, files): (Vec<&'static str>, Vec<&'static str>) = if self.hard() {
-            (vec!["ls", "cat", "git", "base64", "curl", "xxd", "hint", "help", "whoami", "clear"], vec!["app.js", "notes.txt", ".env", ".git"])
+            (vec!["ls", "cat", "git", "base64", "curl", "xxd", "hint", "help", "whoami", "clear", "level"], vec!["app.js", "notes.txt", ".env", ".git"])
         } else {
-            (vec!["ls", "cat", "su", "rot13", "base64", "help", "whoami", "clear"], vec!["notes.txt", ".rave", "goose"])
+            (vec!["ls", "cat", "su", "rot13", "base64", "help", "whoami", "clear", "level"], vec!["notes.txt", ".rave", "goose"])
         };
         cmds.extend(shell);
         cmds.sort();
@@ -519,11 +858,38 @@ impl VenueState {
     }
 
     pub(crate) fn run(&mut self, line: &str) -> bool {
+        let said = line.trim().to_lowercase();
+        if self.term_level == 0 {
+            let pick = match said.as_str() {
+                "1" | "e" | "easy" => 1,
+                "2" | "m" | "medium" => 2,
+                "3" | "h" | "hard" => 3,
+                _ => 0,
+            };
+            if pick == 0 {
+                self.term.push(format!("> {line}"));
+                self.term.push("type 1, 2 or 3.".to_string());
+                return false;
+            }
+            self.term_level = pick;
+            self.term = self.term_intro();
+            return false;
+        }
+        if matches!(said.as_str(), "level" | "difficulty") && !self.term_pw {
+            self.term_level = 0;
+            self.term_goose = false;
+            self.term = self.term_intro();
+            return false;
+        }
+        if self.ctf_type() != 0 {
+            return self.run_ctf(line);
+        }
         if self.hard() {
             return self.run_hard(line);
         }
         let user = if self.term_goose { "goose" } else { "guest" };
         let mut fallback = false;
+        let mut reveal: Option<Rave> = None;
         if self.term_pw {
             self.term_pw = false;
             self.term.push("password: ***".to_string());
@@ -546,6 +912,7 @@ impl VenueState {
                 say("commands: ls  ls -a  cat <file>  su <user>");
                 say("          base64 -d <text>  rot13 <text>");
                 say("          whoami  pwd  echo  history  clear  exit");
+                say("'level' picks another difficulty.");
                 say("keys: tab completes. ctrl+a/e start/end. ctrl+u/k/w cut.");
                 say("ctrl+y pastes the cut. ctrl+r searches history. ctrl+l clears.");
                 say("ctrl+c cancels the line. ctrl+d on an empty line exits.");
@@ -569,10 +936,7 @@ impl VenueState {
                     self.ask = true;
                 } else if user == "goose" {
                     let r = self.secret.clone().unwrap();
-                    say(&format!("tonight: {}", r.title));
-                    say(&format!("code, scrambled twice: {}", goose_scramble(&r.code)));
-                    say("the goose rot13'd it, then base64'd that.");
-                    say("undo it: base64 -d first, then rot13.");
+                    reveal = Some(r);
                 } else {
                     say("permission denied. this file belongs to goose.");
                     say("try: su goose");
@@ -584,6 +948,15 @@ impl VenueState {
                 self.term_pw = true;
             }
             ("su", _) => say("no such user. the goose runs this place."),
+            ("base64", a) if a.starts_with("-d") => {
+                let text = a.trim_start_matches("-d").trim().trim_matches(|c| c == '\'' || c == '"');
+                match b64_decode(text) {
+                    Some(bytes) => say(&String::from_utf8_lossy(&bytes)),
+                    None => say("base64: invalid input"),
+                }
+            }
+            ("base64", "") => say("base64: give it some text"),
+            ("base64", a) => say(&b64_encode(a.trim_matches(|c| c == '\'' || c == '"').as_bytes())),
             ("rot13", "") => say("rot13 what?"),
             ("rot13", text) => {
                 let out = rot13(text);
@@ -601,6 +974,10 @@ impl VenueState {
         if fallback {
             let out = self.shell(user, cmd, arg);
             self.term.extend(out);
+        }
+        if let Some(r) = reveal {
+            let lines = self.reveal_lines(&r);
+            self.term.extend(lines);
         }
         if cmd == "clear" {
             self.term.clear();
@@ -624,7 +1001,7 @@ impl VenueState {
         let code = make_code(&mut v.rng);
         let seed = next(&mut v.rng);
         v.secret = Some(Rave { code, title: "the long waddle".to_string(), seed, sound: 1, bpm: 132.0, expired: false });
-        v.term = vec![if v.hard() { "ravenet dev box. hard mode. type help.".to_string() } else { "quack 95 terminal. type help.".to_string() }];
+        v.term = v.term_intro();
         v.token = ((next(&mut v.rng) as u64) << 32) | next(&mut v.rng) as u64 | 1;
         v
     }
@@ -1025,6 +1402,115 @@ mod tests {
         let step1 = String::from_utf8(b64_decode(&shown).unwrap()).unwrap();
         assert_eq!(step1, "ZXI-ZST-LQI");
         assert_eq!(rot13(&step1), code);
+    }
+
+    fn player(kind: u8, level: u8) -> VenueState {
+        let mut v = VenueState { ctf_pick: Some(kind), term_level: level, name: "mina".to_string(), ..Default::default() };
+        v.secret = Some(Rave { code: "MKV-MFG-YDV".to_string(), title: "test night".to_string(), seed: 42, sound: 0, bpm: 132.0, expired: false });
+        v
+    }
+
+    fn last_with(v: &VenueState, needle: &str) -> String {
+        v.term.iter().rev().find(|l| l.contains(needle)).cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn every_puzzle_can_be_solved_at_every_level() {
+        let mut v = player(0, 1);
+        v.run("su goose");
+        v.run("132");
+        v.run("cat .rave");
+        let scrambled = last_with(&v, "scrambled:").rsplit(' ').next().unwrap().to_string();
+        assert!(v.run(&format!("rot13 {scrambled}")), "goose's files, easy");
+
+        let mut v = player(0, 2);
+        v.run("su goose");
+        v.run("132");
+        v.run("cat .rave");
+        let twice = last_with(&v, "scrambled twice:").rsplit(' ').next().unwrap().to_string();
+        v.run(&format!("base64 -d {twice}"));
+        let once = v.term.last().unwrap().clone();
+        assert!(v.run(&format!("rot13 {once}")), "goose files, medium: {:?}", v.term);
+
+        let mut v = player(0, 3);
+        v.run("help");
+        assert!(v.term.iter().any(|l| l.contains("hard mode")) || v.term.iter().any(|l| l.contains("git")), "goose's files, hard runs the api hunt");
+
+        let mut v = player(1, 1);
+        assert!(v.run("grep code door.log"), "log hunt, easy");
+
+        let mut v = player(1, 2);
+        v.run("date");
+        let night = last_with(&v, "night ").split_whitespace().nth(1).unwrap().trim_end_matches('.').to_string();
+        v.run(&format!("grep night.{night} door.log"));
+        v.run(&format!("grep {night}] door.log"));
+        let mut parts: Vec<(String, String)> = v.term.iter().filter(|l| l.starts_with(&format!("[night {night}]"))).map(|l| {
+            let w: Vec<&str> = l.split_whitespace().collect();
+            (w[w.len() - 2].to_string(), w[w.len() - 1].to_string())
+        }).collect();
+        parts.sort();
+        parts.dedup();
+        assert_eq!(parts.len(), 3);
+        let code = parts.iter().map(|p| p.1.clone()).collect::<Vec<_>>().join("-");
+        assert!(v.run(&format!("submit {code}")), "log hunt, medium");
+
+        let mut v = player(1, 3);
+        v.run("grep ~ *.log");
+        let signed: Vec<String> = v.term.iter().filter(|l| l.contains("goose~")).map(|l| l.rsplit(' ').next().unwrap().to_string()).collect();
+        assert_eq!(signed.len(), 3);
+        let mut parts: Vec<String> = signed.iter().map(|s| String::from_utf8(b64_decode(s).unwrap()).unwrap()).collect();
+        parts.sort();
+        let code = parts.iter().map(|p| p.split(':').nth(1).unwrap().to_string()).collect::<Vec<_>>().join("-");
+        assert!(v.run(&format!("submit {code}")), "log hunt, hard");
+
+        let mut v = player(2, 1);
+        v.run("cat cipher.txt");
+        let hidden = v.term.last().unwrap().clone();
+        assert!(v.run(&format!("caesar 3 {hidden}")), "cipher, easy");
+
+        let mut v = player(2, 2);
+        v.run("cat cipher.txt");
+        let hidden = v.term.last().unwrap().clone();
+        assert!(v.run(&format!("caesar all {hidden}")), "cipher, medium");
+
+        let mut v = player(2, 3);
+        v.run("ls -a");
+        assert!(v.term.last().unwrap().contains(".env"));
+        v.run("cat .env");
+        let key64 = last_with(&v, "VAULT_KEY=").split('=').nth(1).unwrap().to_string();
+        v.run(&format!("base64 -d {key64}"));
+        let key = v.term.last().unwrap().clone();
+        v.run("cat vault.hex");
+        let hexed = v.term.last().unwrap().clone();
+        assert!(v.run(&format!("xor {key} {hexed}")), "cipher, hard");
+        assert!(v.flag);
+    }
+
+    #[test]
+    fn on_rave_nights_the_files_wait_for_the_goose_list() {
+        let mut v = player(1, 1);
+        v.live_list = true;
+        assert!(!v.run("grep code door.log"));
+        assert!(v.ask);
+        v.ask = false;
+        v.claimed = true;
+        assert!(v.run("grep code door.log"));
+    }
+
+    #[test]
+    fn everyone_picks_a_difficulty_first() {
+        let mut v = VenueState { name: "leon".to_string(), ctf_pick: Some(0), ..Default::default() };
+        v.term = v.term_intro();
+        assert!(v.term.iter().any(|l| l.contains("1 easy")));
+        v.run("hello");
+        assert_eq!(v.term_level, 0);
+        v.run("2");
+        assert_eq!(v.term_level, 2);
+        assert!(!v.hard());
+        v.run("level");
+        v.run("hard");
+        assert!(v.hard());
+        assert_eq!(v.term_user(), "leon");
     }
 
     #[test]

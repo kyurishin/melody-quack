@@ -175,7 +175,12 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 
 - **rave.exe** books a rave: name, sound, tempo, and you get a code and a pixel flyer.
 - **quacknet** is the town's web; a tiny dot on the home page leads underground, where the flyers hang.
-- **terminal** hides a capture the flag whose flag is tonight's rave code. Type `help`. (Players called leon or neomole get a harder hunt: git history, a JSON web token and an API.) It behaves like a real shell, but it only lives inside the game and never touches your computer:
+- **terminal** hides a capture the flag whose flag is tonight's rave code. Every day brings a different kind of puzzle, the same for everyone, and you choose easy, medium or hard when the terminal opens (`level` changes it later):
+  - **the goose's files:** a hidden file and a password, then rot13 (easy), base64 and rot13 (medium), or a git history, a JSON web token and an API (hard).
+  - **the log hunt:** a log too long to read. grep for the code (easy), for three parts among old nights' decoys (medium), or for base64'd parts signed by the goose across two logs (hard).
+  - **the cipher:** caesar with the shift given (easy), with the shift unknown (medium), or an XOR vault whose key hides in `.env` (hard).
+
+  Type `help` to start. It behaves like a real shell, but it only lives inside the game and never touches your computer:
   - Tab completes commands and file names (twice lists the choices).
   - Ctrl+A/E jump to the start and end, and Ctrl+B/F or the arrows move by a letter.
   - Alt+B/F (Option on a Mac) move by a word.
