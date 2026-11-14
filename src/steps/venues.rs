@@ -3232,12 +3232,19 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     } else {
         "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
     });
-    if g.venue.overlay == Overlay::None {
+    let over_decks = g.venue.overlay == Overlay::Decks;
+    if g.venue.overlay == Overlay::None || over_decks {
         let now = get_time();
-        let open = g.venue.chat_open;
+        let open = g.venue.chat_open && !over_decks;
         let cw = 190.0f32.min(low_w() - 12.0);
         let base = low_h() - 36.0;
-        let visible = if open { ((((base - 12.0) - 58.0) / 10.0).floor().max(3.0) as usize).min(10) } else { 5 };
+        let visible = if open {
+            ((((base - 12.0) - 58.0) / 10.0).floor().max(3.0) as usize).min(10)
+        } else if over_decks {
+            (((base - 2.0) - ((low_h() + 150.0) / 2.0)) / 10.0).floor().clamp(1.0, 5.0) as usize
+        } else {
+            5
+        };
         if open {
             let (top, bottom) = (base - 12.0 - (visible as f32 - 1.0) * 10.0, base);
             if is_mouse_button_pressed(MouseButton::Left) && fr.ux > 6.0 && fr.ux < 6.0 + cw && fr.uy > top && fr.uy < bottom {
@@ -3311,7 +3318,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             if (time * 2.0).fract() < 0.6 {
                 ui_rect(11.0 + ui_measure(&tail, 8.0), base + 3.0, 1.0, 7.0, ink());
             }
-        } else if radio::touch_ui() {
+        } else if radio::touch_ui() && !over_decks {
             if button(fr, "chat", 6.0, base, 34.0, 13.0, false) {
                 g.venue.chat_open = true;
                 g.venue.chat_draft.clear();
