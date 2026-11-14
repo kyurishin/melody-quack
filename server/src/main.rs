@@ -13,6 +13,7 @@ const ALPHABET: &str = "ACDEFGHJKMNPQRTUVWXY3479";
 const IDLE_MS: i64 = 6 * 60 * 60 * 1000;
 const MAX_ROOMS: usize = 2000;
 const MAX_LINE: usize = 240;
+const MAX_BULK: usize = 140 * 1024;
 const ROOM_CAP: u32 = 100;
 
 const LEAD_MS: i64 = 30 * 60 * 1000;
@@ -403,7 +404,8 @@ impl Hub {
     }
 
     fn handle(&mut self, id: u32, line: &str, now: i64) {
-        if line.len() > MAX_LINE || !self.clients.contains_key(&id) {
+        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ");
+        if (line.len() > MAX_LINE && !bulky) || line.len() > MAX_BULK || !self.clients.contains_key(&id) {
             return;
         }
         let (cmd, rest) = line.split_once(' ').unwrap_or((line, ""));
@@ -1123,13 +1125,15 @@ mod tests {
         let session = line.split(' ').nth(1).unwrap().to_string();
         h.handle(a, "cloudget", 2);
         assert_eq!(said(&mut h, a), vec!["cloud -".to_string()]);
-        h.handle(a, "cloudput QUJD", 20_000);
+        let big = accounts::b64url(format!("melody-quack-save 1\n{}", "tiles 1:0,".repeat(600)).as_bytes());
+        assert!(big.len() > 5000);
+        h.handle(a, &format!("cloudput {big}"), 20_000);
         h.handle(a, "cloudput REVG", 21_000);
         assert_eq!(said(&mut h, a), vec!["cloudok".to_string()]);
         h.handle(b, &format!("resume {session}"), 22_000);
         assert_eq!(said(&mut h, b), vec![format!("account {session} steam steam-5 old")]);
         h.handle(b, "cloudget", 22_000);
-        assert_eq!(said(&mut h, b), vec!["cloud QUJD".to_string()]);
+        assert_eq!(said(&mut h, b), vec![format!("cloud {big}")]);
         h.handle(b, "logout", 23_000);
         h.handle(a, &format!("resume {session}"), 24_000);
         assert_eq!(said(&mut h, b), vec!["noaccount".to_string()]);
@@ -1151,7 +1155,7 @@ mod tests {
         first.handle(dj, "golive stream", 1);
         assert!(said(&mut first, fan).contains(&"live 1 audio https://rave.example/live/ACDEFGHJK.mp3 admin".to_string()));
         first.handle(fan, &format!("aud {}", accounts::b64url(b"sneaky")), 1);
-        first.handle(dj, &format!("aud {}", accounts::b64url(b"ID3-early")), 1);
+        first.handle(dj, &format!("aud {}", accounts::b64url(format!("ID3-early{}", "x".repeat(4000)).as_bytes())), 1);
         let hub = Arc::new(Mutex::new(first));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
