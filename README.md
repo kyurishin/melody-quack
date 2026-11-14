@@ -1,608 +1,275 @@
 # Melody Quack
 
-A cosy little game about two animal friends making music in the woods. One of you stays home and plays, the other fetches sticks from the forest, and then you sit by the campfire and jam together. Written in Rust with [macroquad](https://macroquad.rs), rendered as chunky low-res 3D at 320×240 for that early-3D-console feel. Every block, flame and meow is generated in code — no models, textures or audio files besides the icon.
+![St. Bassilica, the chapel rave, with friends chatting](web/shots/chapel.webp)
+
+A cosy pixel game about animal friends making music. Your animal's voice is your instrument: jam by the campfire, fish on the beat, cook percussion, decorate your home, and at night find the secret code to the rave at St. Bassilica, where friends dance together online and DJs play live sets, from the in-game decks or straight from Serato.
+
+Written in Rust with [macroquad](https://macroquad.rs). The world is chunky low-res 3D (about 360×270) with sharp full-resolution text on top. Every block, flame and meow is generated in code: no models, textures or sound files besides the icon.
+
+**Play now:** https://kyurishin.github.io/melody-quack/
+
+## Contents
+
+- [Play](#play)
+- [Controls](#controls)
+- [Characters and your companion](#characters-and-your-companion)
+- [Life at home](#life-at-home)
+- [Making music](#making-music)
+- [The town at night: PC bang, the post and the chapel](#the-town-at-night-pc-bang-the-post-and-the-chapel)
+- [DJs](#djs)
+- [Your name, saving and accounts](#your-name-saving-and-accounts)
+- [Radio and the Serato bridge](#radio-and-the-serato-bridge)
+- [Running the server](#running-the-server)
+- [Building](#building)
+- [How it's made](#how-its-made)
 
 ## Play
 
-- **In the browser:** open the GitHub Pages link for this repo
-- **Locally:** `cargo run --release`
-- **With your Serato tracks on the decks:** start the bridge and open http://localhost:4747 (see [Live](#live-show-your-serato-tracks-on-the-decks))
+| Where | How |
+| --- | --- |
+| **Browser** | https://kyurishin.github.io/melody-quack/ (keyboard, or touch controls on phones and tablets) |
+| **macOS** | `Melody-Quack-<version>.dmg`, for Apple Silicon and Intel. Drag the duck into Applications. It isn't notarised by Apple, so the first time: right-click the app, Open, Open (or System Settings, Privacy & Security, Open Anyway). If macOS says it is damaged, run `xattr -dr com.apple.quarantine "/Applications/Melody Quack.app"` |
+| **Linux, any distro** | `Melody-Quack-<version>-x86_64.AppImage`: `chmod +x` it and run it. Or unpack `melody-quack-<version>-linux-x86_64.tar.gz` and run `./install.sh` (game, icon and menu entry under `~/.local`) |
+| **Arch Linux** | `sudo pacman -U melody-quack-<version>-1-x86_64.pkg.tar.zst` |
+| **From source** | `cargo run --release` |
 
-On a phone or tablet, the web version starts with a simpler set of controls: a stick on the left for movement, six note buttons and a large E action button on the right, plus a mode switch. Tap **more** to reveal recording, loop clearing, character selection, help, building tools, echo and tape; tap **less** to hide them. Shorter portrait screens use smaller buttons. Turn the phone sideways for the best view.
+The packages come from the Packages workflow ([Building](#building)); the Linux ones are for 64-bit Intel/AMD and need ALSA, X11 and OpenGL, which desktop systems have.
 
-**Sticks and stones.** A few random trees have a stick lying at their foot, marked with a little sparkle. Whoever gets there first (player 1 with E, player 2 with O, or your friend) picks it up, and a new stick appears somewhere else after a while. Carry it to the logs by the fire. E or O on a rock picks up a stone. Trees without a stick get shaken for acorns instead.
+Every version connects to the rave server by itself. Without a connection everything still works offline: you just rave on your own.
 
-## Characters
+On a phone, the web version shows a stick on the left, six note buttons and a big E on the right, plus **mode**, **emoji**, **back** (the same as Esc) and **more** for the rest. Turn the phone sideways for the best view.
 
-Press V (or start the game) to choose who you are, and who your friend is. Each one has its own voice, so the six note keys sound completely different:
+## Controls
+
+**One rule for every menu:** Esc closes whatever is open, and only pauses (or leaves the PC bang and the chapel) when nothing is. Clicking outside a panel closes it too. **E** does things, **M** is always your bag, and **Enter** is for typing (chat, codes, the terminal, your name). Typing never sets off game keys. Every panel's hint says how to close it, and **H** lists every key in the game.
+
+| Key | Player 1 | Player 2 |
+| --- | --- | --- |
+| move | WASD (or arrows when alone) | IJKL (or arrows) |
+| sing / cast | 1 2 3 4 5 6 (notes D E F# A B C) | 7 8 9 0 - = |
+| act: sit, pick up, fish, cook, build, use furniture | E | O |
+| build tool outdoors; turn or move furniture indoors | X | U |
+| bag, quests, stored furniture | M | Backspace |
+| pixel emoji | Z | . |
+| close what's open, or pause | Esc | |
+| help | H | |
+
+| Key | Music and more |
+| --- | --- |
+| Tab | spell mode / music mode |
+| R | record into the loop |
+| C | clear the loop (player 2: Y clears only theirs); Shift+C makes your friend forget every tune |
+| Q | quantise: off / soft / tight |
+| B | beat on / off |
+| F | follow: lock the tempo to music heard by the microphone |
+| G | echo: notes repeat on the beat like a dub delay |
+| T | tape: record everything you hear, T again saves a .wav |
+| V | choose characters |
+| P | one or two players (split screen outdoors) |
+| N twice | fresh world |
+
+**The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice)**, **dj set (J)**, **karaoke (K)**, **companion (C)** and **account (A)**.
+
+## Characters and your companion
+
+Press V (or start a new game) to choose who you are and who your friend is. W/S picks the row, A/D the character, E or Esc when done. Each animal has its own voice, so the six notes sound completely different:
 
 | Character | Voice |
 | --- | --- |
 | cream cat | the classic soft meow |
-| russian blue | a gentle, muffled meow (with yellow-green eyes) |
+| russian blue | a gentle, muffled meow |
 | ginger tabby | a bright, short meow |
 | black cat | a deep meow, an octave lower |
 | labrador | a round woof |
-| cream pup | a little yap (no tail, teal collar) |
+| cream pup | a little yap |
 | shiba | an "awoo" howl |
 | duck | a buzzy quack |
-| owl | a vocoder "hoo-hoo", like a vocal machine, with headphones on |
+| owl | a vocoder "hoo-hoo", with DJ headphones |
 | fox | a hoarse, breathy bellow (with a teal scarf and a big bushy tail) |
-| sea otter | smashes a shell on his belly with a rock, so every note is a tuned clack |
+| sea otter | smashes a shell on his belly, so every note is a tuned clack |
 
-In the picker, W/S picks the row (you or your friend), A/D changes the character, and E starts.
+**Your companion** is a little AI bandmate. It fetches sticks for the fire, wood and stones for building and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
 
-On a fresh world, a short first-play guide helps you sing your first note, visit the campfire with your friend, and earn a star from playing together. The guide is not shown when loading an existing save and starts again if you create a fresh world. Your saved game format is unchanged.
+Want to play alone? Pause and press **C** (or click the companion button): your friend goes to rest, disappears, and you fetch your own sticks. Playing by the fire on your own still earns stars. C again brings it back; the choice is saved. **P** turns the friend into a second player instead (see [Two players](#two-players)).
 
-## Controls
+New players get a short guide in banners: sing your first note, find the fire, make a memory, and then **the rave tour**: open the envelope, go to the PC bang and sit at a computer, find tonight's code, take it to the chapel door, and say hello in the chat. Gold arrows float over the doors and the nearest computer, and a compass on the banner points the way. "skip" ends it.
 
-| Key | Action |
-| --- | --- |
-| P | switch between **1 player** and **2 players** (split screen) |
-| V | choose characters |
-| WASD | walk player 1 (arrows work too in 1-player mode) |
-| 1 – 6 | sing on D, E, F#, A, B, C in your character's voice (and cast a spell in spell mode) |
-| E | player 1: interact, sit, cook, cast and catch fish, build, use home furniture or open the catalogue |
-| X | player 1: switch building tools outdoors; inside, rotate or move furniture or close the catalogue |
-| IJKL or arrows | walk player 2 (2-player mode) |
-| 7 8 9 0 - = | player 2 sings on the same six notes |
-| O | player 2: interact, sit, cook, cast and catch fish, build, use home furniture or open the catalogue |
-| U | player 2: switch building tools outdoors; inside, rotate or move furniture or close the catalogue |
-| Tab | switch between **spell mode** and **music mode** |
-| R | start / stop recording into the loop |
-| C | clear the loop (in 2-player mode only player 1's notes) |
-| Y | player 2: clear only player 2's notes from the loop |
-| Shift+C | clear the partner's songbook: he forgets every tune and starts writing from scratch |
-| Q | quantise: **off** / **soft** / **tight** |
-| B | beat on / off (kick, clap and hats) |
-| F | follow: listen through the microphone and lock the tempo to the music around you. A blinking amber light means syncing, a green light means synced (the browser asks for the microphone the first time) |
-| G | echo: every note repeats on the beat (dotted eighths), each repeat softer and darker, like a dub delay |
-| T | tape: start recording everything you hear (you, your friend, beat, echoes); T again saves it as a .wav |
-| N | press twice to start a fresh world |
-| click the game / Esc | pause, with a mixer: you, your friend, beat & pot, world and master volume (tap the game on a phone). The pause menu also has **restart the game**: press it (or R) twice and the game saves, then starts again from your save |
-| H | show / hide help: three pages (basics, music, world), left/right arrows or tap a tab to switch, H or Esc to close |
-| M (or Enter) | open / close the bag: your things, today's quests and stored furniture (player 2: Backspace) |
+## Life at home
 
-### Home and the campfire
+### The campfire
 
-The cat starts at home by his log cottage. While he makes music, the dog trots off into the forest, sniffs around the trees and comes back with a stick in his mouth. The first stick lights the campfire, and he keeps fetching until there's a good pile.
+A few trees have a stick at their foot, marked with a sparkle. Pick it up (E) and carry it to the logs by the fire; the first stick lights it, and each burns for about 45 seconds. Your friend keeps fetching. Sit by the fire with E: the sky turns to dusk, the windows glow, and you jam. E again puts the pot on (see [Cooking](#cooking-percussion)). Ember (1, in spell mode) relights the fire, rain (3) puts it out.
 
-Walk up to the fire and press E to sit on the log. The sky slowly turns to dusk, the cottage windows and lanterns glow, and the fire lights up everyone nearby. Once the dog has brought enough sticks he comes and sits on the other log and plays along: a soft woof bass line that follows the chords, a shaker, and little echoes of whatever the cat just meowed, an octave lower. Move to stand up.
+### Stars and the diary
 
-Your friend doesn't just follow along. Like a little AI bandmate, at the start of every two bars he decides whether to take a turn: sometimes he plays bass under you, sometimes he improvises his own phrase, wandering around the scale and now and then borrowing notes you just played. He's more likely to answer when you've just played something, and he won't hog the spotlight for long. When he solos, it's your cue to answer back.
-
-He also writes songs as you go. A fresh game starts with an empty songbook, so his first tune is only a couple of notes, built from scratch out of what you just played. Each time he solos he either writes a new tune, grows one he already knows (adds a note, bends one, shifts it up or down), or plays a favourite again. Tunes get longer the more you jam together, up to eight in his songbook. The songbook is saved with the game. Shift+C makes him forget every tune and start again from scratch, and so does a fresh world (N twice).
-
-Each stick burns for about 45 seconds, so the dog heads back to the forest when the fire gets low. Ember (1) on the fire relights it, and rain (3) nearby puts it out.
-
-### Building together
-
-The dog doesn't only fetch firewood. Once the fire has enough, he brings wood from the trees and stones from the rocks, and drops them by the fire. Walk around the yard, face an empty square and press E to build: wood walls, stone walls (stack up to three high) and plank floors. X switches tools, and remove gives the material back. Every block plays a note as it goes up, a marimba for wood and a bell for stone.
+Play together by the fire (both players, or you with your companion, or you alone with the companion resting) and keep the notes coming: 30 seconds earns one star, a minute two, three minutes three. Short pauses are fine. After 8 seconds of quiet, the jam goes in the diary with the date, who played, how long and the stars. Every jam is recorded note by note: pick one in the diary and the record player plays it back (the last 10 keep their recordings).
 
 ### Fishing on the beat
 
-Walk to the end of the dock and press E (player 1) or O (player 2) to cast. A ring shrinks around the bobber and closes on every second beat. Press E as it touches the bobber (you have about a fifth of a second either side), three times, to land one of 120 kinds of fish, from a bluegill to a dragon koi.
+At the end of the dock, E casts. A ring shrinks around the bobber and closes on every second beat: press E as it touches the bobber, three times, to land one of 120 fish. A miss costs one of three tries; mashing locks you out of the ring. "perfect!", "nice!" and "too early" pop up above the ring. Your first fish comes with a lesson and can't get away. In two-player mode either player hitting a ring counts, and hitting it together counts double. The beat follows the loop tempo, so with F you can fish in time with the music around you.
 
-- **Three tries:** a miss costs one try; the fish only gets away after three misses. Pressing far too early locks you out of that ring, so mashing E does not work.
-- **Feedback:** a little "perfect!" (with sparkles) or "nice!" pops up right above the ring; "too early" appears when you jump the gun.
-- **A bit unpredictable:** after the lesson, each ring gets a slightly tighter window by a random amount, and some rings start smaller or wait a little longer before closing, so you have to watch rather than count.
-- **Your first fish** comes with a little lesson from your friend: a card shows how the ring works, a big E! or O! prompt pops up for the player who cast, and you cannot lose that fish, however many you miss.
-- **Co-op (2 players):** either player can start fishing from the end of the dock. The other can join from nearby, and both play the same rings. Either player hitting a ring counts, so you cover for each other. Hit the same ring together ("together!") and it counts double.
-- **With your friend (1 player):** when your friend sits on the dock with you, they sometimes tug the line and save a ring you missed, and sometimes catch a fish of their own.
+**The fishdex** (pause menu, F) has all 120 species, #001 to #120: common, uncommon, rare and legendary (the koi family and the big ocean fish). Perfect timing makes rarer fish more likely. Type a name or number to search; uncaught fish are dark shapes.
 
-The beat comes from the loop tempo, so with F (mic sync) you can fish in time with the music you're listening to.
+### Mushrooms
 
-### The fishdex: 120 fish
-
-Every fish you land goes into the **fishdex**. There are 120 species, each with its own number (#001 to #120), pixel picture and rarity:
-
-- **common** (#001-#050), **uncommon** (#051-#090), **rare** (#091-#112) and **legendary** (#113-#120, the koi family and the big ocean fish)
-- perfect timing makes rarer fish more likely; hitting rings together in 2-player mode helps too
-- a card pops up for every catch, with a "new!" tag the first time
-
-Open it from the pause menu (Esc, click or tap the game, then **fishdex**, or F while paused) or from the catalogue in your house (the third tab). Left/right arrows (or Tab) switch between fishdex and mushrooms, and from the catalogue on to the diary and catalogue tabs; on a phone, tap the tab names. Type a name or a number to search ("koi", "#102", "17"); on a phone, tap the search bar. Fish you have not caught yet show as a dark shape with "???", and name searches only find fish you have caught.
-
-### Mushrooms: 120 to find
-
-Mushrooms grow on the grass around the trees. Walk up to one and press E (player 2: O) to pick it.
-
-- **Seven a day:** each real day, seven of the 120 species grow, picked at random for that date. Come back tomorrow for a different seven. Rain makes them grow faster, and up to ten grow at once.
-- **The mushroom dex:** every species has a number (M001 to M120), a pixel picture and a rarity (common, uncommon, rare, legendary, from the button mushroom to the melody truffle). It is the fourth tab next to the fishdex.
-- **Look, don't eat:** some, like the fly agaric, are logged in the dex but never go into the basket. In real life, never eat a wild mushroom an expert has not identified.
-- Edible ones go into your basket for cooking (see the bag with Enter).
-
-### Real time, seasons and weather
-
-The world follows your real clock: morning, day, a pink-orange sunset, dusk and night with stars and a moon, in the world and inside your house and loft (the rooms get darker at night unless the lamps are on).
-
-- **Seasons** follow the date: blossom-pink trees in spring, green in summer, orange in autumn, darker in winter.
-- **Weather:** clear, cloudy, rain (falling streaks, more mushrooms) or snow (flakes and white ground). On localhost:4747 and GitHub Pages the game asks for your location (or uses Hamburg if you say no) and reads the live forecast from [Open-Meteo](https://open-meteo.com), free and without an account, every 20 minutes, including the exact sunrise and sunset. The game shared as a Claude link can't reach websites, so there the weather is made up to suit the season, and the desktop version does the same.
-- The time, season, weather and temperature show under the top bar.
-
-### Pixel emoji
-
-Send a little pixel emoji bubble above your head: **Z** for player 1, **.** (full stop) for player 2, or the **emoji** button on a phone. Press it again to step through the 12 emojis (heart, smile, laugh, wow, sad, sleepy, music, star, fish, acorn, fire, huh); after a second it sends. You can also click or tap one in the row. Playing alone, your friend answers with an emoji of its own.
+Seven of 120 species grow near the trees each real day (more when it rains). Pick them with E. The mushroom dex (next to the fishdex) logs them all; some, like the fly agaric, are for looking only. Edible ones go in your basket for cooking. In real life, never eat a wild mushroom an expert hasn't identified.
 
 ### Cooking percussion
 
-While you're sitting by the fire, press E or O again and the pot goes on. Either seated player can cook on the beat. Keys 1 to 4 for player 1 and 7 to 0 for player 2 become a kitchen drum kit: 1 kick, 2 pot lid, 3 chopping, 4 sizzle. They record into the loop like any other note. Every hit that lands on the beat fills the pot, and when it's full you get a dish depending on what you caught: campfire tea, grilled fish, fish stew, or golden koi soup. Collect all four. The dog keeps playing bass while you cook, and you both get little hearts when it's ready.
+Sitting by the fire, E puts the pot on and 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, sizzle. Every hit on the beat fills the pot; a full pot makes a dish from what you caught: campfire tea, grilled fish, fish stew, golden koi soup, and mushroom dishes. Serve them on your table at home.
+
+### Building
+
+Outdoors, face an empty square and press E to build: wood walls, stone walls (up to three high) and plank floors. X switches tools; remove gives the material back. Every block plays a note as it goes up.
+
+### Your home and acorns
+
+Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming, fishing, cooking and from your friend's errands, then spend them at the **catalogue** in the corner (E): W/S switches tabs (catalogue, diary, fishdex, mushrooms), A/D browses, E buys, Esc closes. E places what you bought, X turns it; face a piece and X picks it up to move it (or sell it back for half at the catalogue). Wallpaper and floors cost 10 acorns once, then switch for free. Everything is saved.
+
+**Make it bigger:** bigger room (80 acorns), even bigger room (160), penthouse loft (250, with stairs, a glass railing and a window over a harbour city that follows the real clock and weather), bigger penthouse (400).
+
+**Furniture** (face it and press E):
+
+- **lamp**, **red light**: on and off; every light that's on lights the room
+- **bed**: sleep (the game saves); your friend hops in on the other side
+- **sofa**, **concrete bench**: sit
+- **plant**: water it once a day; it grows, blooms, and withers if forgotten
+- **table**: serve a dish you cooked
+- **bookshelf**: eight books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust), ten pages of short true stories each. A/D choose and turn pages, E opens, Esc goes back
+- **piano**, **drum kit**: sit and play with 1-6
+- **record player**: plays your friend's tunes or a diary jam
+- **wind chime**, **speaker** (bigger echo), **subwoofer** (heavier kick), **steel pillar** (clang), **rug** (a little dance)
+- **dj booth**: first person on two turntables with a 132 bpm beat; 1-6 play pads, W/S tempo, A/D pattern (techno, house, breaks, classic, off), R records, Esc leaves. In two-player mode player 2 joins b2b with O
+- **mirror ball** (300), **dance arcade** (500: arrows from the music on your mic, or the game's beat), **wall tv** (1000: five pixel visual channels), **sampler** (180: a 16-step grid, Space records your own sound into a row)
+- **techno club set** (free): one tap turns the room into a concrete club
+
+**Putting things away:** while carrying a piece, M puts it in your bag. In the bag at home, W/S picks a stored piece, E takes it out, X twice packs everything. Room upgrades store pieces that are in the way.
+
+**Daily quests:** three a day (fish, mushrooms, cooking, watering, sticks, notes, emojis, stars, dancing), in your bag with their acorn rewards.
+
+### Real time, seasons and weather
+
+The world follows your clock: morning, day, sunset, dusk and night with stars and a moon. Seasons follow the date (blossom, green, orange, snow). In the browser the weather comes live from [Open-Meteo](https://open-meteo.com) for your location (or Hamburg if you say no), with real sunrise and sunset; the desktop version makes up weather to suit the season.
+
+### Pixel emoji
+
+Z (player 2: .) shows a pixel emoji above your head; press again to step through twelve, and it sends after a second (or click one).
 
 ### Two players
 
-Press P and the second animal is controlled by another player. The screen splits down the middle so each of you gets your own camera and shares the same world, inventory, house, music loop and diary. Both players can gather sticks, stones and acorns, build, sit by the fire and cook on the beat. Either player can cast a line at the dock; the other can help catch fish, and hitting a ring together counts double. Either player can enter or leave the cottage, bringing both players through the shared doorway. Inside, player 1 uses E and X and player 2 uses O and U to interact with all furniture, sit on a sofa or bench, lie on a bed, play instruments, water plants, serve food, and move or place items. Both players can sit or sleep at the same time, with their positions offset so they do not overlap. Both can access the shared catalogue. Player 2 uses J/L for tabs, I/K for selection, O to choose and U to close. The house holds one piece of furniture at a time while it is being moved or placed. The two DJ decks also remain available for b2b. Player 1 notes show in colour on the loop grid; player 2 notes in golden brown. Player 2's cooking hits use newly appended note IDs (28-31), so Y clears them without touching player 1's percussion. Existing note IDs, furniture indices, and saved lines are unchanged. The two-player mode is designed for keyboard-controlled local co-op; mobile touch controls for two players have not been validated.
+Press P for local co-op on one keyboard: the screen splits outdoors, and you share the world, bag, house, loop and diary. Both can gather, build, sit, cook, fish (hit rings together for double), use every piece of furniture and go b2b at the DJ booth. Player 2's notes show in golden brown on the loop grid.
 
-### Spells
+## Making music
 
-| Key | Note | Spell |
-| --- | --- | --- |
-| 1 | D | **ember** — set the tile ahead on fire |
-| 2 | E | **bloom** — ash → grass → flowers → sprout → tree |
-| 3 | F# | **rain** — soak the area around you and put out fires |
-| 4 | A | **gust** — wind in the direction you face; fire races downwind |
-| 5 | B | **frost** — freeze water into walkable ice |
-| 6 | C | **sun** — dry everything nearby and melt ice |
+- **Notes:** 1-6 sing in your animal's voice (D, E, F#, A, B, C), so anything you play sounds good together.
+- **The loop:** two bars of 16ths. R records, and recording again layers more on top. Loops keep playing while you explore.
+- **Quantise (Q):** off (pure you), soft (recordings pulled halfway to the grid, the default), tight (snapped to the grid).
+- **Beat (B), echo (G), tape (T):** kick, clap and hats; a dub delay on the beat; a .wav of everything you hear (desktop: `~/Music/melody-quack/`, browser: a download). A tape stops itself after five minutes.
+- **Mic sync (F):** the game listens, finds the tempo (80-160 bpm) and locks the loop to the music in the room, usually within five seconds. Amber means syncing, green means synced.
+- **Spells (Tab):** in spell mode the notes are ember, bloom, rain, gust, frost and sun. Fire spreads to dry grass downwind and leaves ash, wet tiles don't burn, frost makes water walkable, sun melts ice. Nothing is scripted: puzzles come from how the rules combine.
 
-### Looping
+## The town at night: PC bang, the post and the chapel
 
-The loop is two bars of 16th notes. Press R and play: every meow snaps to the nearest 16th and repeats on the next pass, and recording again layers more notes on top. Loops play in both modes, so you can build a groove in music mode and then go back to exploring while it plays. Notes coming from the loop never cast spells.
+**The PC bang** is the dark building with the neon sign. Sit at a computer (E) to use Quack 95:
 
-### Quantise
+- **rave.exe** books a rave: name, sound, tempo, and you get a code and a pixel flyer.
+- **quacknet** is the town's web; a tiny dot on the home page leads underground, where the flyers hang.
+- **terminal** hides a capture the flag whose flag is tonight's rave code. Type `help`. (Players called leon or neomole get a harder hunt: git history, a JSON web token and an API.) Drag to select text, click a word to copy it, Ctrl/Cmd+C copies, Ctrl/Cmd+V or right-click pastes, and up/down bring back commands.
+- Mr. Kim at the counter has opinions.
 
-Q cycles how strictly your timing gets corrected in music mode:
+**The post:** the envelope at the top left has the goose's announcement of tonight's secret rave, with a countdown to the millisecond. A red 1 means news.
 
-- **off** — pure you: notes play the instant you press and loop exactly where you played them
-- **soft** (default) — live notes are untouched, recorded notes get pulled halfway to the nearest 16th, so the loop tightens up but keeps your feel
-- **tight** — recorded notes snap fully to the grid; live notes within 30 ms after a 16th play instantly, anything earlier waits for the next 16th so it lands on the beat
+**The secret rave:** the goose writes the code down exactly 30 minutes before doors. The 30 players who sit down at a PC bang computer closest to that moment (within ten seconds, one try, the game says how far off you were) get the first go at it in the terminal. Five minutes later the terminal gives it to 70 more. The goose lets nobody in before the start, and the chapel holds 100.
 
-### Mic sync
+**St. Bassilica**, the concrete chapel at the end of the forest path: the board outside carries flyers (old torn ones no longer work). Give the goose a code at the door (type it, paste it, or click one you've seen). Inside: a generated techno set seeded by the rave, a dancing crowd, and everyone who came, with names over their heads (blue ravers, purple DJs, the admin in gold with a star). You hear each other sing, and the set is in sync for everyone.
 
-Press F and the game listens through your computer's microphone. It finds the onsets in the sound (mostly the kick), works out which beat length repeats most strongly between 80 and 160 BPM, and then nudges the loop so its downbeats land on the music's beats. It usually locks within about five seconds. The loop, the beat and the cat's head-bob all follow, so you can play a record and meow along in time. Press F again to stop listening and keep the tempo it found.
+**Chat:** Enter opens it, Enter sends, Esc closes; phones have a "chat" button. Messages fade after about fifteen seconds and coloured names match the name tags. Offline, your message only shows on your screen, with a note saying so.
 
-While it listens, a light by the loop shows how it is going: blinking amber with "syncing..." while it searches, green with "synced 128 bpm" once it has locked on. It works in the browser too; the first press asks for microphone permission. On macOS the desktop version asks for permission for your terminal app.
+## DJs
 
-## The chemistry
+DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from the admin.
 
-Nothing is scripted. Every tile follows a few rules, and puzzles come from how they combine:
+- **Signing in:** on the name screen (the first time, or after restart), press "become a dj" and type the key. DJs show as "dj name" in purple.
+- **Asking to play:** in the chapel, E at the booth opens the decks; ask to play the rave that's on. The request goes to the admin's post, and every yes is good for one set and earns the DJ 1 euro of credit, shown at the decks.
+- **Playing:**
+  - **in-game decks:** beat and melody on or off, the sound, the tempo, and six pads; everyone in the room hears the same mix.
+  - **from this computer** (desktop app): click "input" until it shows the input carrying your sound, then "from this computer". The game streams it (128 kbps MP3) through the server to everyone in the room, in the browser and the desktop apps, a couple of seconds behind like any radio. A meter shows your level. To play **Serato DJ Pro**: many controllers show their master output as a recording input; otherwise route Serato through a loopback device (BlackHole on the Mac is free) and pick that.
+  - **a stream link:** paste any https stream under "real audio".
+- **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
+- **Practice:** offline, anyone can practise on the decks; only you hear it.
 
-- Fire spreads to dry grass, flowers and trees, faster downwind, and leaves ash
-- Wet tiles don't burn, and fire on a wet tile turns to steam
-- Fire next to ice melts it back into water
-- Ash slowly grows back into grass
-- Water blocks your path until you freeze it
+![The jungle at sunset](web/shots/jungle.webp)
 
-## Home: decorate with acorns
+**The admin** signs in with the admin key in the same box and shows as a gold name with a star.
 
-Walk up to the cottage door (or press E there) to go inside. The room is yours to furnish, and your friend comes in with you and pads around.
+- The decks in any room are yours straight away, without asking; going live takes over from a DJ who is playing.
+- The envelope gets three tabs:
+  - **post:** the goose's news.
+  - **requests:** "yes +1" or "no" for each DJ request, and "paid" to clear credit you've paid out.
+  - **djs:** type a name and press "new dj key" to make a key (with a copy button); "remove" (click twice) takes a DJ off the list.
+- In chat, `/mute <name>` and `/unmute <name>`; nobody else can use the admin's name.
 
-**Earning acorns**
-- shake a tree in the forest with E, or O for player 2 (each tree needs a rest before it drops more)
-- jam by the fire: every loop where you play along earns one
-- catch fish (2 for common, 4 uncommon, 8 rare, 15 legendary) and cook dishes (5, or 10 for a new one)
-- your friend brings acorns home when there is nothing else to fetch, and fishes next to you on the dock, sometimes catching one of his own
+The game never moves money: credit is a number the admin settles by hand.
 
-**Decorating**
-- E or O at the lectern in the back corner opens the catalogue and the diary: player 1 uses A/D tabs, W/S selection, E to buy and X to close; player 2 uses J/L tabs, I/K selection, O to buy and U to close
-- E / O places what its player bought, X / U turns it. Face a piece and press X / U to pick it up and move it, or press E / O at the catalogue while holding it to sell it back for half
-- wallpaper (cream, mint, rose, night) and floors (oak, cherry, checker) cost 10 acorns once, then switch for free
+## Your name, saving and accounts
 
-**Furniture that makes music**
-- piano: E or O to sit; player 1 plays with 1-6 and player 2 with 7-=
-- drum kit: E or O to sit; 1-6 / 7-= play kick, clap, hat, lid, chop and sizzle
-- record player: plays your friend's tunes from the songbook while you're home (E to switch it off)
-- wind chime: rings by itself now and then
-- speaker: makes the echo (G) bigger, inside and out
-- lamp: warm light
+- **Your name** is asked once, before anything else. Friends see it above your head; a second player on the same keyboard shows as "name +1".
+- **Saving** happens by itself every few seconds and when you close the game (desktop: `~/.melody-quack/save.txt`, browser: local storage).
+- **Restart** (pause menu, R twice) erases the game on this device and starts again from the name screen, keeping only your DJ key and sign-in.
+- **Sign in** (name screen, or pause menu A) with Google, Steam or Apple to keep your game on the server: it survives a lost computer and moves between computers. On the name screen a saved game loads straight away; in the middle of a game it asks first whether to load the saved game or keep this one. While signed in, the game is saved to your account about every 30 seconds. (Which sign-ins appear depends on the server; Proton Mail has no sign-in for other apps.)
 
-**Brutalist / club corner**
-- concrete wall and concrete floor (board-formed, with tie holes and seams)
-- dj booth: two turntables and a mixer. Face it and press E to get on the decks: the view goes first person and a 132 bpm techno beat starts
-  - 1-6 play pads: kick, clap, hi hat, open, low tom, rim
-  - W/S tempo (80-170 bpm), A/D pattern (techno, house, breaks, classic, off), R records your pads into the loop, X leaves
-  - in 2 player mode, player 2 walks up and presses O to go b2b: 7 8 9 0 - = play bass, chord, vox, shaker, bell, snare, O leaves
-  - the records only spin while the beat is on, and the track name from the radio or the live Serato bridge shows on the deck panel
-- subwoofer stack: the kick gets heavier, and the cones pump with the beat
-- red light: the whole room goes dark red and throbs on the beat
-- concrete bench and steel pillar
-- **techno club set** (free, at the bottom of the catalogue): one tap turns the room concrete, fills it with the club pieces that fit, and starts the beat at 132 bpm. Switch the wall and floor back any time, since styles you own are free
+## Radio and the Serato bridge
 
-Everything you buy and where you put it is saved.
+**The radio** sits under the web version. Pick a station and press play; the track name shows in the game's top bar. SoundCloud stations name their tracks themselves; Mixcloud mixes use a tracklist with start times, and a BPM locks the game's beat to the mix. The station list is `web/sets.js` (`MELODY_SETS`); listeners can add their own under "add a mix".
 
-### Make your home bigger
+**The Serato bridge** (`bridge/serato_live.py`) shows the tracks loaded in Serato on your laptop in the game: in the top bar, under the game and on your home DJ booth. It can also listen to your speakers, recognise the song (like Shazam), suggest tracks that go with it, and show synced karaoke lyrics from [LRCLIB](https://lrclib.net). It works with the game at http://localhost:4747 (served by the bridge) and your GitHub Pages site.
 
-The first row of the catalogue sells the next step for your home:
+1. Open Serato and load a track.
+2. In the game folder, run `python3 bridge/serato_live.py` (for recognising songs use Python 3.10 or newer with `pip install shazamio sounddevice`, for example `python3.12 bridge/serato_live.py`).
+3. Open http://localhost:4747, go home, and press E at the DJ booth.
 
-1. **bigger room** (80 acorns): 9 x 6 tiles
-2. **even bigger room** (160 acorns): 11 x 7 tiles
-3. **penthouse loft** (250 acorns): a staircase at the back right leads up to a loft along the back wall, with a glass railing and a floor-to-ceiling window over a harbour city
-4. **bigger penthouse** (400 acorns): 11 x 9 tiles, and the loft upstairs is twice as deep (4 rows instead of 2)
+Options: `--debug` (what it sees in Serato), `--list-devices` and `--device` (which input to listen on, e.g. a BlackHole loopback), `--listen-every`, `--no-listen`, `--offline` (keep track names on your laptop; otherwise they're sent to your Pages site through [ntfy.sh](https://ntfy.sh) on the channel in `MELODY_LIVE.topic`), `--database` / `--serato` (an unusual library location). The pause menu's **DJ set** switch (J) shows both Serato decks; **karaoke** (K) shows the lyrics. The bridge shows names only; the music plays from Serato.
 
-The city outside the penthouse window follows the real clock and weather: blue sky by day, a pink-orange sunset, lit windows, stars and a moon at night, clouds, rain or snow falling past the glass, and red lights blinking on the harbour cranes after dark.
+## Running the server
 
-Your furniture stays where it is when the walls slide out. With the penthouse, anything along the back wall ends up on the loft. Walk up the stairs to reach it, and place furniture up there like anywhere else. The tile at the top of the stairs stays free so you can always get off. If something stands where the stairs go, or across the loft edge, the catalogue asks you to move it first.
+Online play needs the small server in `server/`: rooms, chat, the timed rave, DJs, live audio, sign-in and cloud saves. The live one runs on Fly.io as `willow-coral-204` (`wss://willow-coral-204.fly.dev`); `server/SETUP.md` explains setting up and updating it, and `server/fly.toml` is ready to use. Builds connect to it by default: the packages and web workflows use the repository variable `MQ_SERVER` if it is set, otherwise that address. On one computer you can point the game elsewhere with `MELODY_QUACK_SERVER` or `~/.melody-quack/server.txt`.
 
-### Using your furniture
-
-Face a piece and press E (player 1) or O (player 2):
-
-- **lamp** and **red light**: switch the light on or off. Every light that is on glows and lights up the room around it, so several lamps make the room brighter
-- **bed**: lie down under the quilt and sleep; the screen fades out and the game saves. Player 1 always takes the left side and player 2 the right. Playing alone, your friend hops in on the right with you
-- **sofa** and **concrete bench**: sit down; move to get up
-- **plant**: water it once a day; it grows twice and then blooms. Miss a whole day and it withers (brown, drooping); water it again to bring it back
-- **bookshelf**: pick one of six books (experience design, software development, electronic music, AI, UI/UX design, and Melody Quack's own cook & quack) with A/D and open it with E. You read it in first person, an open book in your paws: A/D turn the pages, X goes back to the shelf, X again leaves. Each book has 10 pages of short true stories. On a phone, tap the left or right side to choose or turn, the middle to open
-- **table**: serve one of the dishes you have cooked by the fire; press again for the next one, and once more to clear the table
-- **speaker** and **subwoofer**: switch them on or off (bigger echo, heavier kick)
-- **steel pillar**: knock on it for a metal clang
-- **rug**: a little dance
-- **piano**, **drum kit**, **record player**, **wind chime**, **dj booth**: play them, as before
-- **mirror ball** (300 acorns): hangs from the ceiling, spins and throws coloured light spots across the room; E switches it on or off
-- **dance arcade** (500 acorns): stand in front and press E to dance. Arrows in four colours scroll up the right side of the screen; step when one reaches the outline at the top. Player 1 uses the arrow keys or WASD, player 2 joins with O and steps with J K I L. X (player 2: U) or Esc stops. The arcade turns on the microphone: kicks become left arrows, snares and claps down, melodies right and hi-hats up, placed one bar ahead on the beat grid so your steps land in time with the music. With no mic (or silence), the arrows follow the game's own beat and your loop. Timing gives perfect, great or good, and a combo builds up
-- **wall tv** (1000 acorns): hangs on the wall behind its spot. E switches through five pixel visual channels (spectrum, tunnel, plasma, rain, scope) and off. They move with the music from the microphone when it is on, otherwise with the beat and your notes
-- **sampler** (180 acorns): E opens a step grid with four rows (kick, clap, hat, your animal's voice) and 16 steps that play in time with the beat while you're in the house. Arrow keys or WASD move, E turns a step on or off, X or Esc closes (player 2: IJKL, O, U). Space records 1.5 seconds from the microphone into the selected row so it plays your own sound; Space again goes back to the built-in sound. Record only your own voice or sounds: recordings stay in memory on this device while the game is open, are never uploaded, and are left out of tape (.wav) exports. Your step pattern is saved
-
-### Putting furniture away
-
-- While carrying a piece (X on it), press **M** to put it in your bag.
-- Open the bag (M) inside the house: W/S choose a stored piece, E takes it out to place it, and X twice packs **all** furniture into the bag.
-- When you buy a bigger room, any furniture in the way of the new stairs or loft edge goes into your bag automatically instead of blocking the upgrade.
-
-### Daily quests
-
-Every real day brings three random quests, like catching fish, picking mushrooms, cooking, watering a plant, picking up sticks, singing notes, sending emojis, earning a star or dancing on the arcade. They're listed in your bag with their progress and acorn reward, and pay out the moment you finish them. Quests that need a plant or the dance arcade only appear once you own one.
-
-## Stars and the diary
-
-Jam together by the campfire (both players in 2P, or you with your partner in 1P) and keep the notes coming. A timer shows how long you've played together:
-
-- 30 seconds: 1 star
-- 1 minute: 2 stars
-- 3 minutes: 3 stars
-
-Short pauses are fine. When you stop for more than 8 seconds, the jam is written in the diary: the date, who played, how long, and the stars. The diary is the second tab on the lectern inside the cottage (A/D switches tabs). Every jam is recorded note by note, so pick one in the diary, press E, and the record player plays it back. The last 10 jams keep their recordings in the save.
-
-## Radio: play your mixes in the game
-
-On the web version a radio sits under the game. Pick a station and press play on the player. The track name shows under the game and in the game's top bar, with a "now playing" message whenever the track changes, so everyone listening knows what's on.
-
-- **SoundCloud:** a profile, a playlist or a single track. The player says which track is playing, so names come through by themselves.
-- **Mixcloud:** a mix plus a tracklist with start times. The game follows the mix's position and switches the name at each start time.
-- **BPM:** give a mix a BPM and the game's beat, echo and fishing lock to it.
-
-The station list everyone sees lives in `web/sets.js`:
-
-```js
-window.MELODY_SETS = [
-  { title: "cayennepfeffa on SoundCloud", source: "soundcloud", url: "https://soundcloud.com/cayennepfeffa" },
-  {
-    title: "my mixcloud mix",
-    source: "mixcloud",
-    url: "https://www.mixcloud.com/USER/MIX-NAME/",
-    bpm: 128,
-    tracklist: `0:00 artist - title
-4:12 artist - title
-1:02:30 artist - title`
-  }
-];
+```
+cd server
+cargo run --release -- --port 7777 --djs djs.txt --admin '<admin key>' --admin-name <name> --public-url https://your.server
 ```
 
-Listeners can also add a mix for themselves under "add a mix" (kept in their browser). The radio needs the players from soundcloud.com and mixcloud.com, so it works on GitHub Pages or any normal web host, not inside pages that block other sites.
+| Option | Variable | What it is |
+| --- | --- | --- |
+| `--port` | `PORT` | port for websockets and the web pages (default 7777) |
+| `--public-url` | `MQ_PUBLIC_URL` | the server's https address; needed for sign-in and live audio links |
+| `--admin` | `MQ_ADMIN` | the admin key |
+| `--admin-name` | `MQ_ADMIN_NAME` | the name the admin shows as |
+| `--djs` | `MQ_DJS` | the DJ list, `name = key` per line (the admin's djs tab edits it) |
+| `--credits` | `MQ_CREDITS` | where DJ credit is kept |
+| `--patreon` | `MQ_PATREON` | the page "join on patreon" opens |
+| `--accounts` | `MQ_ACCOUNTS` | folder for sign-ins and cloud saves |
+| `--google-id`, `--google-secret` | `MQ_GOOGLE_ID`, `MQ_GOOGLE_SECRET` | Google sign-in (an OAuth "web application" client with redirect `https://your.server/auth/google`) |
+| `--apple-id`, `--apple-team`, `--apple-key-id`, `--apple-key` | `MQ_APPLE_*` | Apple sign-in (Apple Developer Program: a Services ID with return URL `https://your.server/auth/apple` and a `.p8` key) |
+| `--every`, `--rave`, `--rave-in` | | when the secret rave starts: every N minutes (default 240, on the hour UTC), at a unix time, or in N seconds |
 
-## Live: show your Serato tracks on the decks
+Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the host's secrets, never in this repository. The server also answers plain web requests on the same port: `/login/...` and `/auth/...` for sign-in, and `/live/<code>.mp3` for a room's live audio.
 
-While you DJ in Serato, a small script on your laptop (the **bridge**) reads which tracks are loaded on your decks and shows them in the game: in the top bar, under the game, and on the panel when you stand at the DJ booth in your house (deck 1 on the left, deck 2 on the right).
+## Building
 
-The track names only reach two places:
+- **Desktop:** `cargo run --release`. On Linux you need the ALSA, X11 and OpenGL development packages (`libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev` on Debian/Ubuntu) and a C compiler (for the MP3 encoder).
+- **Web:** `cargo build --release --target wasm32-unknown-unknown`, then copy the `.wasm` into `web/` next to `index.html`. Pushing to `main` builds and deploys GitHub Pages (`.github/workflows/pages.yml`).
+- **Packages:** `.github/workflows/packages.yml` builds the macOS .dmg (`packaging/macos/make-dmg.sh`), the Linux tarball and AppImage (`packaging/linux/make-linux.sh`) and the Arch package (`packaging/arch/PKGBUILD`) on every push. Starting it by hand puts them in a draft release; pushing a `v*` tag publishes a release.
+- **Server:** `cd server && cargo test` and `cargo build --release`; `server/Dockerfile` builds an image.
+- **Tests:** `cargo test` (game), `cd server && cargo test` (server), `python3 -m unittest discover -s tests -v` (source checks).
 
-| where you play | shows your tracks? |
-| --- | --- |
-| **http://localhost:4747** (the game served by the bridge on your laptop) | yes |
-| your GitHub Pages site | yes, and anyone else watching it sees them too |
-| the game shared as a Claude link | no: that page is not allowed to talk to your laptop or to other sites |
-| the desktop version (`cargo run`) | no |
-
-### Step by step (Mac)
-
-**Once, before your first time**
-
-1. Check that Python 3 is there: open Terminal and type `python3 --version`. If a version number comes back, you are set. If macOS offers to install the developer tools, say yes and wait for it to finish.
-2. Unzip the newest `melody-quack.zip`. If you unzip a newer copy later, use the new folder: the bridge serves the game from whichever folder you start it in.
-
-**Every time you play**
-
-1. Open Serato and load a track on a deck.
-2. Open Terminal and go into the game folder (or type `cd `, drag the folder into the Terminal window, and press enter):
-   ```
-   cd ~/Downloads/melody-quack
-   ```
-3. Start the bridge and leave this window open while you play:
-   ```
-   python3 bridge/serato_live.py
-   ```
-   It prints `now playing: ...` with one line per deck whenever you load a track.
-4. Open **http://localhost:4747** in Safari or Chrome. If you have played it before, reload with cmd+shift+R so you get the newest version.
-5. In the game, go into your house, walk up to the DJ booth and press **E**. The panel above the turntables shows what is loaded on each deck in Serato.
-6. When you are done, click the Terminal window and press **ctrl+c**.
-
-**If no track names show up**
-
-- Make sure the address bar says `localhost:4747`, not a Claude link.
-- Check what the bridge can see in Serato:
-  ```
-  python3 bridge/serato_live.py --debug
-  ```
-  It lists the decks it found. If it finds nothing, send that output to whoever helps you.
-- `can't open file .../bridge/serato_live.py` means Terminal is not in the game folder: do step 2 again.
-- If your Serato library is somewhere unusual, point the bridge at it with `--database /path/to/master.sqlite` (Serato DJ Pro 4) or `--serato /path/to/_Serato_` (older versions).
-
-### Recognise what plays on your speakers, and get track ideas
-
-The bridge can also listen to your laptop's microphone, recognise the song coming out of your speakers (the same way the Shazam app does), and show:
-
-- the **artist** and **track**, with links to find them on SoundCloud and Shazam (under the game, below the decks)
-- **goes well with**: a short list of tracks that fit with it, on the DJ booth panel and as SoundCloud links under the game
-
-It works with or without Serato. Without Serato running, the heard song becomes "now playing".
-
-**Once, before your first time**
-
-1. This needs a newer Python than the one that comes with the Mac. With Homebrew: `brew install python@3.12`, then install the helpers with `python3.12 -m pip install --break-system-packages shazamio sounddevice` and skip to step 3. Check with `python3 --version`: it must say 3.10 or higher. If it says 3.9, install Python 3.12 from [python.org/downloads](https://www.python.org/downloads/) (open the .pkg and click through, then double-click **Install Certificates.command** in the window that opens), then close and reopen Terminal and check with `python3.12 --version`.
-2. Install the two helpers:
-   ```
-   python3.12 -m pip install shazamio sounddevice
-   ```
-3. The first time the bridge listens, macOS asks whether Terminal may use the microphone. Click **Allow**. If you clicked no by mistake: System Settings → Privacy & Security → Microphone → turn on Terminal.
-
-**Every time**
-
-Start the bridge with the newer Python: `python3.12 bridge/serato_live.py` (plain `python3` may still be the old 3.9, which shows Serato but can't listen). It prints `listening to your speakers every 20 seconds` and then, a few seconds into a song, `heard: ...` and the `goes well with: ...` lines.
-
-**Two switches: DJ set mode and karaoke**
-
-Both live in the pause menu (Esc: **J** for DJ set, **K** for karaoke) and as buttons above the decks under the game. The game remembers them.
-
-- **DJ set mode off** (the default): the game shows the song heard on your speakers as a small yellow tag over the game, in the top bar and on the booth panel. Serato's decks stay hidden.
-- **DJ set mode on**: the top bar and the booth panel show your Serato decks in two columns, as before, with the heard song in blue underneath.
-- **Karaoke on**: when the heard song has synced lyrics, they appear over the game like subtitles, filling in yellow as the line is sung, with the next line underneath. At the DJ booth they move to the top of the screen; they hide in the pause menu and the fishdex.
-
-How karaoke keeps time: Shazam reports how far into the song your recording was, the lyrics come from [LRCLIB](https://lrclib.net) (free, community-made, with timestamps), and the page counts on from there. Every recognition (every 20 seconds) re-syncs it, so if you pitch a track up or down it drifts a little and then snaps back. Not every song has synced lyrics; Terminal says `karaoke lyrics: none found for this song` when there are none. Lyrics only show on localhost:4747, not on GitHub Pages.
-
-**What Terminal tells you**
-
-- `*** listening to your speakers is OFF ***`: the bridge was started with the old Python, or the helpers are missing. It says which, and the exact command to type.
-- `the microphone hears almost nothing`: turn the speakers up, allow Terminal under Microphone in Privacy & Security, or pick another input with `--device`.
-- `heard sound but Shazam did not know the song`: Shazam doesn't have that track (common with unreleased promos and edits).
-- `heard: Artist - Title`: it worked.
-
-**Options**
-
-- `--list-devices` lists the inputs it can listen on. If you DJ through headphones or an audio interface, the microphone cannot hear the music: pick the interface's input, or a loopback device such as [BlackHole](https://existential.audio/blackhole/), with `--device 2` (the number from the list) or `--device "BlackHole 2ch"`.
-- `--listen-every 30` listens less often (the default is every 20 seconds, 8 seconds at a time; `--listen-seconds` changes that).
-- `--no-listen` turns listening off and goes back to Serato only.
-
-**Where the suggestions come from:** Shazam recognises the song and is asked first for similar tracks. When Shazam has none, the bridge asks Deezer's free public API for artists related to the one it heard and takes each one's top track. Terminal says which one it used (`goes well with (from Deezer)`). SoundCloud's API needs a registered developer app with a secret key and has no "related tracks" feature, so every artist and track links to a SoundCloud search instead, one click away.
-
-### Good to know
-
-- Serato writes a track into its history as soon as you load it, so a deck shows the new name when you load it, a little before you mix it in.
-- The bridge reads both kinds of Serato history: the library database of Serato DJ Pro 4 (`~/Library/Application Support/Serato/Library/master.sqlite` on a Mac, `%LOCALAPPDATA%\Serato\Library` on Windows) and the older `Music/_Serato_/History/Sessions` files.
-- The bridge also sends each track to anyone with your GitHub Pages site open, through [ntfy.sh](https://ntfy.sh) (free, no account). Add `--offline` to keep it on your laptop only, for example while you practise. The channel name is in `web/sets.js` (`MELODY_LIVE.topic`); it works like a private radio frequency, so keep it to yourself or change it in both places.
-- Put a stream link (Mixcloud Live, Twitch, YouTube) in `MELODY_LIVE.listen` in `web/sets.js`, and a "listen live" link appears next to the track on GitHub Pages.
-- The game only shows the names. The music itself plays from Serato.
-
-## Saving
-
-The game saves by itself every few seconds and when you close it, and picks up where you left off: your walls and floors, wood, stone, fish, dishes, both characters, the loop, the beat, the tempo and the echo setting. Press N twice for a fresh world.
-
-- desktop: the save lives in `~/.melody-quack/save.txt`
-- browser: the save lives in that browser's local storage
-
-Press T to roll the tape and T again to stop. Your jam is mixed into a 44.1 kHz .wav:
-
-- desktop: `~/Music/melody-quack/jam-01.wav`, `jam-02.wav`... (or `~/melody-quack-jams/` if there is no Music folder)
-- browser: downloaded as `melody-quack-jam-01.wav`
-
-A tape stops and saves itself after 5 minutes, or when you close the game.
+Notes for contributors are in `HANDOFF.md`. The game's MP3 encoder is LAME (LGPL); with the source public, anyone can rebuild it with their own LAME.
 
 ## How it's made
 
-- The world renders into a roughly 360×270 texture with depth, then scales up with nearest-neighbour filtering for crisp pixels, UI included
-- Everything is built from coloured boxes every frame: the cat, the dog, the cottage, the campfire, the dock, your walls, even the fishing line and the ring around the bobber
-- Blocks are shaded per face from a fixed light direction, with distance fog for a soft, misty look
-- Lighting is done per box: an evening tint at dusk plus a flickering warm light from the campfire
-- The 3D world renders at roughly 360×270 for the chunky look, but all text and menus are drawn afterwards at full window resolution with a soft shadow, so they stay sharp and easy to read
-- Trees and tall walls between the camera and the cat turn see-through so you never lose sight of her
-- Each meow, woof, drum, pot lid, sizzle, splash and fire crackle is synthesised at startup and played through a tiny built-in mixer on desktop, or the browser's Web Audio on the web
-- Mic sync finds onsets in the low end, autocorrelates them to find the tempo, then phase-locks the loop to the detected beats
-- Pushing to `main` builds the WebAssembly version and deploys it to GitHub Pages
-
-
-## recent changes
-
-- Furniture can go into the bag (one piece or everything), and room upgrades store pieces in the way; M opens the bag. Daily quests for acorns. Plants need water once a day.
-- 3D preview in the character picker, a sampler with a step grid and your own mic sounds, the techno club set (renamed), and emoji pixel fixes.
-
-- Bigger catalogue preview; a paged, easier-to-read help (H or Esc to close); E picks up a stick or mushroom before shaking the tree.
-- New furniture: mirror ball, dance arcade (DDR on four mic-driven lanes) and wall tv with five visual channels.
-- Bigger penthouse upgrade with a deeper loft, and the penthouse window city follows the real clock and weather.
-
-- The emoji picker draws crisp, even pixels on a light card, and the question mark emoji is black.
-
-- 120 mushrooms (seven species a day, near trees), mushroom dishes, a mushroom dex tab, and tab switching that works from the dexes.
-- Real-time day and night with sunsets, seasons, and live local weather (rain, snow, clouds, clear).
-- Trees only block at their trunks, so you can walk between and under them.
-- Fishing: small perfect/nice pops above the ring and slightly less predictable rings. Three stars now take 3 minutes of playing together.
-- The Claude link shows the game only, full screen. The cook & quack book joins the shelf, and books are read from straight above.
-
-- The bookshelf opens a first-person reading view with five books of facts on 3D page spreads.
-- The catalogue's 3D preview is no longer upside down.
-
-- DJ set mode (J) and karaoke (K) switches; the heard song shows as a tag over the game; synced karaoke lyrics from LRCLIB fill in as they are sung.
-- The DJ booth panel shows the heard song in blue, and suggestions fall back to Deezer's related artists when Shazam has none. The bridge explains in plain words when listening is off, the mic hears nothing, or it is already running.
-- The bridge can recognise the song playing on your speakers, shows the artist and track with SoundCloud links, and suggests tracks that go well with it, on the DJ booth panel and under the game.
-
-- In the house, 2-player mode now stays on one shared camera instead of splitting the screen.
-- Enter opens the inventory bag on keyboard, and the web touch controls have a bag button in the expanded panel.
-- Cooking and gathering now have first-time onboarding cards, and their lesson flags are saved after the original fishing lesson flag.
-
-- The bed is now a wider double bed, with a softer sleeping pose for lounging together.
-- The table is now a longer family-style dining table.
-- The catalogue now shows a floating 3D furniture preview with description text underneath, and uses left/right browse controls while up/down switches tabs.
-
-- The catalogue 3D preview now renders into its own texture before the screen UI is drawn, so opening the shop no longer redirects the UI to an off-screen render target.
-
-## Catalogue smoke test
-
-1. Compile and run the updated Rust code. The prebuilt `web/melody-quack.wasm` is from an earlier build and does not contain these changes.
-2. Enter the house, stand near the catalogue in the corner and press E. The catalogue heading, 3D furniture preview, price and item description should all appear.
-3. Press A/D to browse items, W/S to switch between catalogue and diary, and X to close. Check that the scene, buttons and labels are still visible after closing.
-4. Press P to enable two-player mode. Use Player 2's I/J/K/L keys to reach the catalogue, O to open it, J/L to browse, I/K to change tabs, and U to close.
-5. Check that the double bed, family table, inventory and save/load behaviour still work. Repeat at a narrow browser window size after rebuilding WebAssembly.
-
-Run the source-order regression checks with `python3 -m unittest discover -s tests -v`. These checks do not replace a real Rust build or an on-screen gameplay test.
-
-## The PC bang and the chapel rave
-
-- **PC bang:** the dark building with the neon sign, east of the cottage. Walk to the door and press E. Sit at any computer (E) to use Quack 95.
-  - **rave.exe** books a rave: type a name, pick a sound and tempo, and you get a code and a flyer.
-  - **quacknet** is the town's web. A tiny dot at the bottom of the home page leads underground, where the flyers hang.
-  - **terminal** hides a small capture the flag. Type `help` to start; the flag is the code of a secret rave.
-  - Mr. Kim at the counter has opinions.
-- **St. Bassilica:** the concrete chapel at the end of the forest path. The board outside carries flyers (E to read, A/D to flip); old torn ones have codes that no longer work.
-- **The goose** at the door wants a code. Type it, or click one you have already seen.
-- **Inside:** a generated techno set seeded by your rave, a duck on the decks and a dancing crowd. WASD to move, 1-6 to sing over the set, Esc or the door to leave. When the radio is playing a live set, the chapel shows that instead of its own.
-
-## Raving together online
-
-Friends can meet in the same chapel rave over the internet. It needs one small server that everyone points at.
-
-- **Run the server:** `cd server && cargo run --release` (port 7777, or `--port N` / the `PORT` variable). `server/Dockerfile` builds it for any host that runs containers. It only relays messages between players in the same rave; it keeps nothing on disk.
-- **Point the game at it:**
-  - Browser: set `server` in `web/sets.js`, for example `server: "wss://quack.example.com"`. A page served over https needs a `wss://` address.
-  - Desktop: put the address in `~/.melody-quack/server.txt`, or set `MELODY_QUACK_SERVER`.
-- **Host:** book a rave with rave.exe as usual. While you are connected it is announced to the server, so its code works for everyone.
-- **Join:** give the goose a friend's code. He checks the list.
-- **Inside:** friends carry a small turquoise marker above their heads, so you can tell them from the crowd. You see each other move and hear each other sing, and the set is synced so everyone hears the same bar. The corner of the screen shows how many are here.
-- With no server set, or when it cannot be reached, everything works offline as before.
-
-## Your name, the post and the secret rave
-
-- **Your name:** the game asks for it once, before anything else. Friends see it above your head in the chapel; a second player on the same keyboard shows as "name +1". Both players are sent to friends.
-- **The envelope:** click it for the goose's announcement about tonight's secret rave, with a countdown to the millisecond. A red 1 means there is news.
-- **The first 30:** the goose writes the code down exactly 30 minutes before doors. Sit down at a PC bang computer as close to that moment as you can; a banner in the PC bang counts down to it. You get one attempt, it has to be within ten seconds either side, and the game tells you how far off you were. The 30 closest are on his list.
-- **The other 70:** five minutes later the terminal gives the code to anyone, until 70 more have it.
-- **Getting the code:** in the terminal, `su goose` (the password is on the underground page), then `cat .rave`, then `rot13` what it gives you.
-- **Doors:** the goose lets nobody in before the start time, and the chapel holds 100 players at most, both of you counted if you are two.
-- **Offline:** with no server there is no schedule; the terminal gives you a secret rave of your own, as before.
-
-The server picks the start time: by default every four hours on the hour (UTC). `--rave <unix seconds>` sets one exact time, `--every <minutes>` changes the rhythm, and `--rave-in <seconds>` is for trying things out.
-
-## The controls, in one rule
-
-- **Esc closes whatever is open**: the bag, help, the shop, the fishdex, the bookshelf, the sampler, the DJ booth, the arcade, the character picker, the post, flyers, the door, the decks, the account panel, a PC window, the chat. With nothing open, Esc pauses (or leaves the PC bang and the chapel).
-- **Clicking outside a panel closes it** too, and the panels in the PC bang and chapel have a close button.
-- **E does things** (act, sit, choose, confirm). **M is always the bag.** **Enter** is for typing: chat, the door code, the terminal, your name.
-- Typing never sets off game keys (no emoji when you type a z).
-- The fishdex and the account panel, opened from the pause menu, go back to the pause menu when closed.
-- Every panel's hint ends with how to close it. The web page's footer shows the main keys and an "all controls" button; H in the game lists every key.
-
-## Playing without the companion
-
-Pause (Esc) and press C, or click the companion button, to send the dog (or whichever friend you picked) to rest. It disappears, stops fetching sticks, fishing and answering your tunes, and you fetch your own sticks for the fire. Playing on your own by the fire still earns stars. Press C again to bring it back. The choice is saved.
-
-## Copy and paste
-
-- In the PC bang terminal: drag over text to select and copy it, click a word to copy just that word, shift+click to copy the whole line. Ctrl+c (cmd+c on a Mac) copies the selection, or the last answer. Right-click pastes. Up and down bring back earlier commands.
-- Ctrl+v (cmd+v) pastes in the terminal, at the chapel door, in the chat, and in the name, DJ key and stream link boxes.
-
-## Putting the server online
-
-Chat, the decks for everyone, the timed rave and sign-in need the rave server on the internet. `server/SETUP.md` has the steps (Fly.io is ready to go with `server/fly.toml`). Once it runs, set the repository variable `MQ_SERVER` to its `wss://` address and new builds connect by themselves.
-
-Offline, the decks still work as practice: only you hear them.
-
-## Chat without a server
-
-Enter always opens the chat in the chapel. Without a game server the message only shows on your own screen, with a note saying so. The downloadable apps don't have a server address built in yet; until one is set up, everyone plays offline.
-
-## Restart and accounts
-
-**Restart** (pause menu, R twice) erases the game on this device and starts again from the name screen. Only the DJ key and the sign-in are kept.
-
-**Signing in** keeps the game on the server, so it survives a lost computer and moves between computers. The buttons are on the name screen and in the pause menu (A). After signing in:
-
-- on the name screen, a saved game on the account loads straight away;
-- in the middle of a game, it asks first: load the saved game, or keep this one and save it to the account.
-
-While signed in, the game is saved to the account every 30 seconds or so.
-
-Which buttons show depends on what is set up on the server. All of them need the server on a public https address, given with `--public-url https://your.server` (or `MQ_PUBLIC_URL`). Accounts and saves are kept in `--accounts <folder>` (`MQ_ACCOUNTS`, default `accounts`, `/data/accounts` in the Docker image).
-
-- **Steam** works as soon as `--public-url` is set. It uses Steam's OpenID sign-in, which needs no keys.
-- **Google / Gmail**: in the Google Cloud console, create an OAuth client ID of type "web application" with the redirect URI `https://your.server/auth/google`. Start the server with `--google-id` and `--google-secret` (`MQ_GOOGLE_ID`, `MQ_GOOGLE_SECRET`).
-- **Apple ID** needs the paid Apple Developer Program. Create a Services ID with Sign in with Apple turned on and the return URL `https://your.server/auth/apple`, and a Sign in with Apple key (a `.p8` file). Start the server with `--apple-id <services id> --apple-team <team id> --apple-key-id <key id> --apple-key <path to the .p8>` (or the `MQ_APPLE_*` variables).
-- **Proton Mail** has no "sign in with Proton" for other apps, so it can't be offered.
-
-Keep the secrets in environment variables or files on the server, never in this repository.
-
-## Books
-
-The bookshelf at home has eight books, including computer science and learning rust.
-
-## The hard CTF
-
-Players called leon or neomole get a harder terminal at the PC bang: a web bug hunt through git history, a JSON web token and an API, instead of rot13.
-
-## The rave tour
-
-After the first three steps (sing, find the fire, make a memory) a second chapter leads new players to the rave, in the same banners:
-
-1. open the envelope
-2. go to the PC bang and sit at a computer
-3. find tonight's code in rave.exe or the terminal
-4. take it to the chapel door
-5. say hello in the chat
-
-A gold arrow floats over the door you're heading for, and over the nearest computer inside the PC bang. A small compass on the banner points the way when the door is off screen. "skip" on the banner ends the tour. Players who already had a save see the tour once too; once finished or skipped it doesn't come back.
-
-## Becoming a DJ
-
-The arena has a membership for DJs: 5 euros a month on Patreon. Patreon takes care of the payment, the receipts and cancelling. Every paying member gets a DJ key from the admin.
-
-- **Where you type the key.** On the very first screen, and again every time you press restart in the pause menu, there is a "become a dj" button under the name box. It opens a box for the key and a link to the Patreon page. The key is saved with your game.
-- **Asking to play.** In the chapel, walk up to the booth and press E for the decks. A DJ can ask to play the rave that is running. The request goes to the admin's post.
-- **The admin says yes or no in the game.** The admin types the admin key into the same box. Their envelope then has a "dj requests" page with "yes +1" and "no" next to each request. Every yes is good for one set and adds 1 euro of credit to that DJ, shown at the decks. "paid" clears a DJ's credit once it has been paid out or taken off the next month.
-- **Playing.** After a yes the decks offer two ways to play. *In-game decks*: switch the beat and the melody on and off, change the sound and the tempo, and hit the six pads; everyone in the chapel hears the same thing. *Real audio*: paste the https link of your own live stream (Serato or any other input sent through a streaming service); the browser version plays it in the chapel, the desktop version shows a "listen in your browser" button.
-- DJs have a purple name with "dj" in front of it.
-- **The look of the room.** While live, the DJ can change the arena for everyone with the "look" button at the decks: the gothic chapel, a jungle at sunset, a terrace with a view of San Francisco (the bridge, the skyline, fog coming in), or a kinky party in black, red, neon and chains. The room goes back to the chapel when the set ends.
-
-- **The admin plays whenever they like.** Signed in with the admin key, the decks in any chapel room go straight to "in-game decks" or "real audio", without asking. If a DJ is already playing, going live takes over from them.
-- **Playing your own Serato DJ Pro set from the desktop app.** At the decks, click the "input" button until it shows the input that carries Serato's sound, then "from this computer". The game sends that input to the server as a live stream and everyone in the room hears it, in the browser and in the desktop apps. A meter shows your level; if it stays empty, nothing is coming in on that input.
-  - To get Serato onto an input: many controllers show their master output as a recording input. Otherwise use a loopback tool (BlackHole on the Mac is free) and set Serato's output to it.
-  - The stream is 128 kbps MP3 and arrives a couple of seconds late, like any radio stream.
-- **Or play a stream you already have.** Paste any https stream link under "real audio" and press "go live with this link".
-- **Handing out DJ keys.** Signed in as the admin, open the envelope and choose the "djs" tab. Type the DJ's name (up to 12 letters, numbers, - _ or .), press "new dj key" or Enter, and send them the key that appears ("copy" puts it on the clipboard). The same tab lists every DJ with a "remove" button (click twice). Making a key for a name that already has one replaces the old key.
-
-On the server: `--djs <file>` is the list of members, one `name = key` per line, and can be edited while the server runs. `--admin <key>` is the admin's key, `--patreon <url>` is the page the game links to, and `--credits <file>` is where the credit is kept. The same four can be set as `MQ_DJS`, `MQ_ADMIN`, `MQ_PATREON` and `MQ_CREDITS`.
-
-The game doesn't move any money. The credit is a number the admin settles by hand.
-
-## Chat
-
-Everyone in the chapel can talk. Press Enter to open the chat box, type, Enter to send, Esc to close it without sending. On a phone or tablet there is a "chat" button. Messages fade after about fifteen seconds; opening the box shows the last few again.
-
-- Names are coloured like the name tags: blue for ravers, purple with "dj" for DJs, gold with a star for the admin.
-- One message every 0.6 seconds at most, 120 characters each.
-- Nobody else can take the admin's name: anyone who tries shows up as "not <name>".
-- The admin can type `/mute <name>` and `/unmute <name>`. A muted player still sees their own messages, so they don't notice.
-
-On the server, `--admin-name <name>` (or `MQ_ADMIN_NAME`) is the name the admin appears under. The admin signs in with the admin key, in the DJ key box, as before.
-
-## Downloads: macOS, Linux and Arch
-
-The Packages workflow (`.github/workflows/packages.yml`) builds all of these on every push; find them under the run's Artifacts. Pushing a `v*` tag attaches them to a GitHub Release.
-
-- **macOS:** `Melody-Quack-<version>.dmg`, for Apple Silicon and Intel. Open it and drag the game to Applications. It is not notarised by Apple, so the first time macOS refuses to open it: go to System Settings, Privacy & Security, and press Open Anyway, or run `xattr -dr com.apple.quarantine "/Applications/Melody Quack.app"`.
-- **Linux, any distro:** `Melody-Quack-<version>-x86_64.AppImage`. Make it executable (`chmod +x`) and run it. Or unpack `melody-quack-<version>-linux-x86_64.tar.gz` and run `./install.sh`, which puts the game, its icon and a menu entry under `~/.local`.
-- **Arch Linux:** `melody-quack-<version>-1-x86_64.pkg.tar.zst`. Install with `sudo pacman -U <file>`. To build it yourself, `packaging/arch/PKGBUILD` expects a source tarball named `melody-quack-<version>.tar.gz` beside it.
-
-Linux needs ALSA, X11 and OpenGL, which desktop systems already have.
-
+- The world renders into a roughly 360×270 texture with depth and scales up with nearest-neighbour filtering; text and menus are drawn afterwards at full resolution so they stay sharp.
+- Everything is built from coloured boxes every frame: the animals, the cottage, the fire, the chapel, the crowd, even the fishing line.
+- Faces are shaded from a fixed light, with distance fog, an evening tint and flickering campfire light; trees and walls between the camera and you turn see-through.
+- Every meow, woof, drum, sizzle, splash and crackle is synthesised at startup and mixed by a tiny built-in mixer (desktop) or Web Audio (browser).
+- Mic sync finds onsets in the low end, autocorrelates them for the tempo and phase-locks the loop.
+- The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, and streams DJs' audio.

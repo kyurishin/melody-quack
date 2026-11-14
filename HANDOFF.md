@@ -267,3 +267,10 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - `net` (native and web stubs): `inputs`, `can_cast`, `casting`, `cast_level`, `cast_start`, `cast_stop`; native `can_listen` is now true. A DJ's own stream is not played back to them.
 - Server: `golive stream` (needs `--public-url`) announces `live <id> audio <public>/live/<CODE>.mp3 <name>`; `aud` from the live DJ goes into a per-room broadcast channel plus 48 KB of recent bytes; `GET /live/<CODE>.mp3` streams it (chunked) until the set ends; 404 otherwise.
 - Tested: a unit test encodes a 440 Hz tone, serves it over chunked HTTP and checks the decoded stream (pitch and level); server tests cover the relay over HTTP and that only the live DJ's audio is relayed; the decks panel live from the dummy input of a machine without a sound card. Not tested: a real input device or hearing it (no sound card here). LAME is LGPL; the source is public, so it can be relinked.
+
+## Catalogue smoke test (moved from the README)
+
+1. Build and run the game; inside the house, stand at the catalogue in the corner and press E. The heading, the 3D preview, price and description should appear.
+2. A/D browse, W/S switch tabs (catalogue, diary, fishdex, mushrooms), Esc closes; the scene and labels should still be visible afterwards.
+3. With P (two players), player 2 reaches the catalogue with IJKL, opens it with O, browses with J/L, switches tabs with I/K, closes with U.
+4. Check the double bed, the table, the bag and saving still work, and repeat in a narrow browser window after rebuilding the WebAssembly.
