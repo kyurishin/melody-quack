@@ -439,6 +439,7 @@ fn online(g: &mut Game, dt: f32) {
                     g.venue.dj_name = Some(name);
                 } else {
                     g.venue.dj_name = None;
+                    g.venue.key_refused = !g.venue.admin;
                     g.toasts.push(("that dj key isn't on the list".to_string(), 5.0));
                 }
             }
@@ -870,7 +871,7 @@ fn sign_in_buttons(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32) -> bool
 }
 
 fn account_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
-    let (w, h) = (250.0f32.min(low_w() - 12.0), 120.0);
+    let (w, h) = (250.0f32.min(low_w() - 12.0), 168.0);
     let x = ((low_w() - w) / 2.0).round();
     let y = ((low_h() - h) / 2.0).round();
     ui_rect(x + 3.0, y + 3.0, w, h, ink());
@@ -914,7 +915,10 @@ fn account_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             sign_in_buttons(g, fr, x + 10.0, y + 64.0, w - 20.0);
         }
     }
-    if g.venue.cloud_offer.is_none() && button(fr, "close", x + w - 60.0, y + h - 24.0, 50.0, 16.0, false) {
+    if g.venue.cloud_offer.is_none() {
+        key_box(g, fr, fresh, x, y + 96.0, w);
+    }
+    if g.venue.cloud_offer.is_none() && button(fr, "close", x + w - 60.0, y + h - 22.0, 50.0, 16.0, false) {
         close = true;
     }
     if fresh {
@@ -923,6 +927,70 @@ fn account_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if (close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h))) && g.venue.cloud_offer.is_none() {
         g.venue.overlay = Overlay::None;
         fr.click = false;
+    }
+}
+
+fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
+    let soft = Color::new(1.0, 0.97, 0.88, 0.75);
+    ui_rect(x + 10.0, y, w - 20.0, 1.0, Color::new(1.0, 1.0, 1.0, 0.14));
+    let status = if g.venue.admin {
+        format!("signed in as the admin: {}", g.venue.admin_name)
+    } else if let Some(n) = &g.venue.dj_name {
+        format!("on the dj list as {n}")
+    } else if g.venue.key_refused {
+        "that key isn't on the list".to_string()
+    } else if !g.venue.dj_key.is_empty() && g.venue.key_sent {
+        "checking your key...".to_string()
+    } else {
+        "dj or admin key".to_string()
+    };
+    ui_text(&status, x + 10.0, y + 13.0, 9.0, if g.venue.admin || g.venue.dj_name.is_some() { Color::from_rgba(140, 230, 160, 255) } else { soft });
+    let (fx, fy, fw, fh) = (x + 10.0, y + 19.0, w - 84.0, 16.0);
+    if fresh {
+        g.venue.acct_key = false;
+        g.venue.key_draft.clear();
+        while get_char_pressed().is_some() {}
+    } else if fr.click && hit(fr, fx, fy, fw, fh) {
+        g.venue.acct_key = true;
+    }
+    let on = g.venue.acct_key;
+    let mut apply = false;
+    if on && !fresh {
+        paste_into(&mut g.venue.key_draft, 40, |c| c != ' ');
+        while let Some(ch) = get_char_pressed() {
+            if !shortcut_held() && !ch.is_control() && ch != ' ' && g.venue.key_draft.chars().count() < 40 {
+                g.venue.key_draft.push(ch);
+            }
+        }
+        if is_key_pressed(KeyCode::Backspace) {
+            g.venue.key_draft.pop();
+        }
+        apply = is_key_pressed(KeyCode::Enter);
+    }
+    ui_rect(fx, fy, fw, fh, if on { Color::from_rgba(176, 92, 255, 255) } else { ink() });
+    ui_rect(fx + 1.0, fy + 1.0, fw - 2.0, fh - 2.0, cream());
+    let shown: String = g.venue.key_draft.chars().rev().take(26).collect::<Vec<char>>().into_iter().rev().collect();
+    if shown.is_empty() && !on {
+        ui_text("tap here and type your key", fx + 5.0, fy + 11.5, 9.0, Color::from_rgba(150, 146, 140, 255));
+    }
+    ui_text(&shown, fx + 5.0, fy + 11.5, 9.0, ink());
+    if on && (fr.time * 2.0).fract() < 0.6 {
+        ui_rect(fx + 6.0 + ui_measure(&shown, 9.0), fy + 3.0, 1.0, fh - 6.0, ink());
+    }
+    if button(fr, "use key", x + w - 68.0, fy, 58.0, 16.0, false) && !fresh {
+        apply = true;
+        fr.click = false;
+    }
+    if apply && !g.venue.key_draft.trim().is_empty() {
+        g.venue.dj_key = g.venue.key_draft.trim().to_string();
+        g.venue.dj_page = true;
+        g.venue.key_sent = false;
+        g.venue.dj_name = None;
+        g.venue.admin = false;
+        g.venue.key_refused = false;
+        g.venue.key_draft.clear();
+        g.venue.acct_key = false;
+        g.save_clock = 99.0;
     }
 }
 
@@ -953,7 +1021,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             fr.click = false;
         }
     } else if g.venue.dj_name.is_none() && !g.venue.practice && !g.venue.admin {
-        say(&["the decks are for djs.", "to become one: esc, restart, then 'become a dj'.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
+        say(&["the decks are for djs.", "got a key? esc, account, then type it in.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
     } else if my_set(g) {
         let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
         if audio {

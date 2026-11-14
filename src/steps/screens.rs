@@ -470,6 +470,9 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             g.paused = false;
             g.restart_confirm = 0.0;
             g.venue.overlay = venues::Overlay::Account;
+            g.venue.key_draft.clear();
+            g.venue.acct_key = false;
+            while get_char_pressed().is_some() {}
             g.back_to_pause = true;
             fr.click = false;
         }

@@ -190,7 +190,7 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 
 DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from the admin.
 
-- **Signing in:** on the name screen (the first time, or after restart), press "become a dj" and type the key. DJs show as "dj name" in purple.
+- **Signing in:** any time from the pause menu: Esc, **account (A)**, then type the key into "dj or admin key" and press enter or "use key". The panel says who you signed in as. On a fresh game you can also press "become a dj" on the name screen. DJs show as "dj name" in purple.
 - **Asking to play:** in the chapel, E at the booth opens the decks; ask to play the rave that's on. The request goes to the admin's post, and every yes is good for one set and earns the DJ 1 euro of credit, shown at the decks.
 - **Playing:**
   - **in-game decks:** beat and melody on or off, the sound, the tempo, and six pads; everyone in the room hears the same mix.
