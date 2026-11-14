@@ -1245,7 +1245,7 @@ fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
 
 fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     if radio::touch_ui() && !g.two_player {
-        ((low_w() / 2.0 - 11.0).round(), 20.0, 22.0, 15.0)
+        (6.0, (low_h() - 22.0).round(), 22.0, 15.0)
     } else if g.two_player && g.venue.at == Venue::None {
         (6.0, 40.0, 22.0, 15.0)
     } else if g.venue.at == Venue::None {

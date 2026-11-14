@@ -133,6 +133,7 @@ fn window_conf() -> Conf {
         window_title: "Melody Quack".to_owned(),
         window_width: (VIEW_W * 3) as i32,
         window_height: (VIEW_H * 3) as i32,
+        high_dpi: cfg!(target_arch = "wasm32"),
         icon: Some(miniquad::conf::Icon {
             small: icon_pixels(include_bytes!("../assets/icon16.png")),
             medium: icon_pixels(include_bytes!("../assets/icon32.png")),
@@ -558,6 +559,7 @@ async fn main() {
     loop {
         let mut fr = Frame::default();
         steps::input::begin_frame(&mut g, &mut fr);
+        steps::radio_step::report_screen(&g);
         if steps::venues::frame(&mut g, &mut fr) {
             next_frame().await;
             continue;

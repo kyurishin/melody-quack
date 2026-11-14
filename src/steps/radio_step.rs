@@ -75,3 +75,25 @@ pub(crate) fn report_and_radio(g: &mut Game, _fr: &mut Frame) {
         g.radio_bpm = bpm;
     }
 }
+
+static LAST_SCREEN: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+pub(crate) fn report_screen(g: &Game) {
+    let menu = g.paused
+        || g.venue.name.is_empty()
+        || g.venue.welcome
+        || g.dex_open
+        || g.shelf_open
+        || g.show_help
+        || g.venue.pc_open
+        || g.venue.chat_open
+        || g.venue.overlay != crate::venues::Overlay::None;
+    let typing = steps::venues::typing(g) && !g.dex_open;
+    let report = format!("screen={}|type={}", if menu { "menu" } else { "play" }, typing as u8);
+    if let Ok(mut last) = LAST_SCREEN.lock() {
+        if *last != report {
+            radio::report(&report);
+            *last = report;
+        }
+    }
+}
