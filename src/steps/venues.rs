@@ -533,6 +533,19 @@ fn online(g: &mut Game, dt: f32) {
                 retime(g, bpm);
                 g.venue.mix = (parts[1] == "1", parts[2] == "1", parts[3].parse::<usize>().unwrap_or(0) % 3, bpm);
             }
+            "heardclear" => {
+                g.venue.chat_log.clear();
+                g.venue.chat_scroll = 0;
+            }
+            "heard" if parts.len() >= 3 => {
+                let rest = parts[2..].join(" ");
+                if let Some((name, text)) = rest.split_once('|') {
+                    g.venue.chat_log.push((parts[1].parse().unwrap_or(0), name.to_string(), text.to_string(), get_time() - 3600.0));
+                    if g.venue.chat_log.len() > CHAT_KEEP {
+                        g.venue.chat_log.remove(0);
+                    }
+                }
+            }
             "said" if parts.len() >= 3 => {
                 let rest = parts[2..].join(" ");
                 if let Some((name, text)) = rest.split_once('|') {

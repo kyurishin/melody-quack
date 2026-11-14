@@ -153,10 +153,13 @@ impl Event {
     }
 }
 
+const CHAT_HISTORY: usize = 200;
+
 struct Room {
     info: String,
     born: i64,
     seen: i64,
+    chat: std::collections::VecDeque<String>,
 }
 
 struct Ask {
@@ -682,6 +685,12 @@ impl Hub {
                     self.say(id, line);
                     return;
                 }
+                if let Some(room) = self.clients.get(&id).and_then(|c| c.room.clone()).and_then(|code| self.rooms.get_mut(&code)) {
+                    room.chat.push_back(format!("{kind} {name}|{text}"));
+                    while room.chat.len() > CHAT_HISTORY {
+                        room.chat.pop_front();
+                    }
+                }
                 let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
                 for one in all {
                     self.say(one, line.clone());
@@ -754,7 +763,7 @@ impl Hub {
                     return;
                 }
                 if !self.rooms.contains_key(code) && self.rooms.len() < MAX_ROOMS {
-                    self.rooms.insert(code.to_string(), Room { info: clean(info, 80), born: now, seen: now });
+                    self.rooms.insert(code.to_string(), Room { info: clean(info, 80), born: now, seen: now, chat: Default::default() });
                 }
             }
             "find" | "join" => {
@@ -765,7 +774,7 @@ impl Hub {
                         return;
                     }
                     if !self.rooms.contains_key(code) {
-                        self.rooms.insert(code.to_string(), Room { info: self.event.info(), born: self.event.start, seen: now });
+                        self.rooms.insert(code.to_string(), Room { info: self.event.info(), born: self.event.start, seen: now, chat: Default::default() });
                     }
                 }
                 if !self.rooms.contains_key(code) {
@@ -823,6 +832,11 @@ impl Hub {
                 }
                 self.say(id, reply);
                 if cmd == "join" {
+                    let history: Vec<String> = self.rooms.get(code).map(|r| r.chat.iter().cloned().collect()).unwrap_or_default();
+                    self.say(id, "heardclear".to_string());
+                    for line in history {
+                        self.say(id, format!("heard {line}"));
+                    }
                     if let Some((line, mix, look)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone(), l.look.clone())) {
                         self.say(id, line);
                         if !mix.is_empty() {
@@ -1228,6 +1242,31 @@ mod tests {
             got.push(m.to_string());
         }
         assert!(got.contains(&"providers steam".to_string()));
+    }
+
+    #[test]
+    fn people_who_arrive_late_get_the_room_chat_history() {
+        let mut h = hub();
+        let (a, b, c) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(a, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        h.handle(a, "join ACD-EFG-HJK 1 0 0 mina", 1);
+        let first = said(&mut h, a);
+        assert!(first.contains(&"heardclear".to_string()) && !first.iter().any(|l| l.starts_with("heard ")));
+        for n in 0..(CHAT_HISTORY + 5) {
+            h.handle(a, &format!("say line {n}"), 1000 + n as i64 * 1000);
+        }
+        h.handle(c, "host CDE-FGH-JKM 1|132|9|other", 0);
+        h.handle(c, "join CDE-FGH-JKM 1 0 0 rex", 1);
+        h.handle(c, "say elsewhere", 5000);
+        h.handle(b, "join ACD-EFG-HJK 1 0 0 late", 900_000);
+        let got = said(&mut h, b);
+        let heard: Vec<&String> = got.iter().filter(|l| l.starts_with("heard ")).collect();
+        assert_eq!(heard.len(), CHAT_HISTORY);
+        assert_eq!(heard[0], "heard 0 mina|line 5");
+        assert_eq!(heard.last().unwrap().as_str(), format!("heard 0 mina|line {}", CHAT_HISTORY + 4));
+        assert!(!got.iter().any(|l| l.contains("elsewhere")));
+        let clear = got.iter().position(|l| l == "heardclear").unwrap();
+        assert!(got.iter().position(|l| l.starts_with("heard ")).unwrap() > clear);
     }
 
     #[test]
