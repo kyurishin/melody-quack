@@ -89,6 +89,9 @@ pub(crate) struct VenueState {
     pub(crate) key_draft: String,
     pub(crate) key_sent: bool,
     pub(crate) acct_key: bool,
+    pub(crate) chat_scroll: usize,
+    pub(crate) chat_drag: Option<(f32, usize)>,
+    pub(crate) chat_room: String,
     pub(crate) cast_note: String,
     pub(crate) key_refused: bool,
     pub(crate) dj_name: Option<String>,
@@ -224,6 +227,8 @@ pub(crate) fn tidy_code(input: &str) -> Option<String> {
     }
     Some(s)
 }
+
+pub(crate) const CHAT_KEEP: usize = 2000;
 
 pub(crate) fn clean_key(text: &str) -> String {
     text.chars()

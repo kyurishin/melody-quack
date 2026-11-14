@@ -107,7 +107,12 @@ fn enter(g: &mut Game, venue: Venue) {
     g.venue.look = 0;
     g.venue.chat_open = false;
     g.venue.chat_draft.clear();
-    g.venue.chat_log.clear();
+    g.venue.chat_scroll = 0;
+    let room = g.venue.now.as_ref().map(|r| r.code.clone()).unwrap_or_default();
+    if venue != Venue::Chapel || room != g.venue.chat_room {
+        g.venue.chat_log.clear();
+        g.venue.chat_room = if venue == Venue::Chapel { room } else { String::new() };
+    }
     g.venue.asked = false;
     if venue == Venue::Chapel {
         if let Some(r) = g.venue.now.clone() {
@@ -532,8 +537,11 @@ fn online(g: &mut Game, dt: f32) {
                 let rest = parts[2..].join(" ");
                 if let Some((name, text)) = rest.split_once('|') {
                     g.venue.chat_log.push((parts[1].parse().unwrap_or(0), name.to_string(), text.to_string(), get_time()));
-                    if g.venue.chat_log.len() > 40 {
+                    if g.venue.chat_log.len() > CHAT_KEEP {
                         g.venue.chat_log.remove(0);
+                    }
+                    if g.venue.chat_scroll > 0 {
+                        g.venue.chat_scroll += 1;
                     }
                 }
             }
@@ -836,8 +844,8 @@ fn say_to_room(g: &mut Game, text: &str, online: bool) {
     let why = if net::server().is_none() { "only you can see this: no game server is set up, so you're playing offline." } else { "only you can see this: you're offline right now." };
     g.venue.chat_log.push((3, String::new(), why.to_string(), now));
     let n = g.venue.chat_log.len();
-    if n > 40 {
-        g.venue.chat_log.drain(..n - 40);
+    if n > CHAT_KEEP {
+        g.venue.chat_log.drain(..n - CHAT_KEEP);
     }
 }
 
@@ -2920,18 +2928,42 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             say_to_room(g, &text, can_chat);
             chat_done = true;
         }
+        let wheel = mouse_wheel().1;
+        let s = g.venue.chat_scroll;
+        g.venue.chat_scroll = if wheel > 0.0 {
+            s + 3
+        } else if wheel < 0.0 {
+            s.saturating_sub(3)
+        } else if is_key_pressed(KeyCode::Up) {
+            s + 1
+        } else if is_key_pressed(KeyCode::Down) {
+            s.saturating_sub(1)
+        } else if is_key_pressed(KeyCode::PageUp) {
+            s + 8
+        } else if is_key_pressed(KeyCode::PageDown) {
+            s.saturating_sub(8)
+        } else if is_key_pressed(KeyCode::Home) {
+            usize::MAX / 2
+        } else if is_key_pressed(KeyCode::End) {
+            0
+        } else {
+            s
+        };
         if is_key_pressed(KeyCode::Escape) {
             chat_done = true;
         }
     } else if !fresh && g.venue.overlay == Overlay::None && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) {
         g.venue.chat_open = true;
         g.venue.chat_draft.clear();
+        g.venue.chat_scroll = 0;
         while get_char_pressed().is_some() {}
     }
     let busy = g.venue.overlay != Overlay::None || g.venue.chat_open;
     if chat_done {
         g.venue.chat_open = false;
         g.venue.chat_draft.clear();
+        g.venue.chat_scroll = 0;
+        g.venue.chat_drag = None;
     }
     walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, busy);
     let local = g.players[0].pos - CH_ORIGIN;
@@ -3192,11 +3224,28 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let open = g.venue.chat_open;
         let cw = 190.0f32.min(low_w() - 12.0);
         let base = low_h() - 36.0;
+        let visible = if open { ((((base - 12.0) - 58.0) / 10.0).floor().max(3.0) as usize).min(10) } else { 5 };
+        if open {
+            let (top, bottom) = (base - 12.0 - (visible as f32 - 1.0) * 10.0, base);
+            if is_mouse_button_pressed(MouseButton::Left) && fr.ux > 6.0 && fr.ux < 6.0 + cw && fr.uy > top && fr.uy < bottom {
+                g.venue.chat_drag = Some((fr.uy, g.venue.chat_scroll));
+            }
+            if !is_mouse_button_down(MouseButton::Left) {
+                g.venue.chat_drag = None;
+            }
+            if let Some((y0, s0)) = g.venue.chat_drag {
+                let moved = ((fr.uy - y0) / 10.0).round() as i64;
+                g.venue.chat_scroll = (s0 as i64 + moved).max(0) as usize;
+            }
+        }
+        let want = if open { g.venue.chat_scroll.saturating_add(visible + 1) } else { visible };
         let mut rows: Vec<(Color, String, String, f32, bool)> = Vec::new();
+        let mut all_read = true;
         for (kind, name, text, at) in g.venue.chat_log.iter().rev() {
             let age = (now - *at) as f32;
             let alpha = if open { 1.0 } else { (1.0 - (age - 14.0) / 3.0).clamp(0.0, 1.0) };
-            if alpha <= 0.0 || rows.len() >= if open { 9 } else { 5 } {
+            if alpha <= 0.0 || rows.len() >= want {
+                all_read = alpha <= 0.0 && !open;
                 break;
             }
             let (colour, shown) = match kind {
@@ -3211,13 +3260,35 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 rows.push((colour, if i == 0 { shown.clone() } else { String::new() }, part.clone(), alpha, *kind == 3));
             }
         }
-        for (i, (colour, name, text, alpha, notice)) in rows.iter().enumerate() {
+        let more_above = open && (!all_read || rows.len() > g.venue.chat_scroll + visible);
+        if open {
+            let most = rows.len().saturating_sub(visible);
+            if all_read && g.venue.chat_scroll > most {
+                g.venue.chat_scroll = most;
+            }
+        }
+        let skip = if open { g.venue.chat_scroll } else { 0 };
+        let shown_rows: Vec<_> = rows.iter().skip(skip).take(visible).collect();
+        if open && !rows.is_empty() {
+            let top = base - 12.0 - (visible as f32 - 1.0) * 10.0;
+            if more_above {
+                let t = if radio::touch_ui() { "^ drag down for older" } else { "^ older: scroll or page up" };
+                ui_text(t, 9.0, top - 3.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
+            }
+        }
+        for (i, (colour, name, text, alpha, notice)) in shown_rows.into_iter().enumerate() {
             let ry = base - 12.0 - i as f32 * 10.0;
             let lead = if name.is_empty() { if *notice { 0.0 } else { 8.0 } } else { ui_measure(name, 8.0) + 5.0 };
             ui_rect(6.0, ry, cw, 10.0, Color::new(0.08, 0.06, 0.16, 0.6 * alpha));
             ui_text(name, 9.0, ry + 7.5, 8.0, Color::new(colour.r, colour.g, colour.b, *alpha));
             let ink_c = if *notice { Color::new(colour.r, colour.g, colour.b, *alpha) } else { Color::new(1.0, 0.97, 0.88, *alpha) };
             ui_text(text, 9.0 + lead, ry + 7.5, 8.0, ink_c);
+        }
+        if open && g.venue.chat_scroll > 0 {
+            let t = if radio::touch_ui() { "newer below" } else { "newer below: end" };
+            let tw = ui_measure(t, 7.0);
+            ui_rect(6.0 + cw - tw - 6.0, base - 9.0, tw + 4.0, 8.0, Color::from_rgba(255, 214, 110, 230));
+            ui_text(t, 6.0 + cw - tw - 4.0, base - 3.0, 7.0, ink());
         }
         if open {
             ui_rect(6.0, base, cw, 13.0, ink());
@@ -3229,10 +3300,10 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             }
         } else if radio::touch_ui() {
             if button(fr, "chat", 6.0, base, 34.0, 13.0, false) {
-                if let Some(text) = radio::ask_text("say something to the room", "") {
-                    let text: String = text.chars().filter(|c| !c.is_control()).take(120).collect();
-                    say_to_room(g, text.trim(), can_chat);
-                }
+                g.venue.chat_open = true;
+                g.venue.chat_draft.clear();
+                g.venue.chat_scroll = 0;
+                while get_char_pressed().is_some() {}
                 fr.click = false;
             }
         }
