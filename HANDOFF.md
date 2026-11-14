@@ -254,3 +254,9 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 - Server: admin-only `newdj <name>` (makes `mq-xxxxx-xxxxx-xxxxx-xxxxx`, replaces an existing key for that name and signs that DJ out, writes the `--djs` file, replies `djkey <name> <key>`) and `removedj <name>`; `djs <names...>` goes to admins on sign-in and after each change; `djerror <text>` on a bad name or a missing/unwritable file. Names: 1-12 of a-z 0-9 - _ . (lowercased).
 - Client: `admin_tab` (0 post, 1 requests, 2 djs) replaces `post_tab`; `dj_names`, `new_dj`, `made_key`, `dj_note`, `remove_armed` in `VenueState`. The djs tab is in `mail`; E doesn't close the envelope while typing there.
 - Tested: server unit test, and the tab in the game against a local server (make, copy shown, the new key signs in, remove with confirm).
+
+## Admin on the decks
+
+- Server `golive`: the admin (shown as `--admin-name`) needs no DJ key or grant, and takes over a room where someone else is live (`off_air` of the current DJ first). `admin ok <name>` now carries the admin's display name.
+- Client: `VenueState.admin_name`; `my_set` recognises the admin's own set; the decks panel goes straight to the play choices for the admin, with a note when it takes over. The admin's own name tag shows "* <admin name>" in gold. Typing into the stream link is ignored for 0.25 s after the panel opens.
+- Real audio still means a stream link (web plays it in an audio element, desktop opens the browser).

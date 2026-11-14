@@ -442,6 +442,7 @@ fn online(g: &mut Game, dt: f32) {
             }
             "admin" => {
                 g.venue.admin = true;
+                g.venue.admin_name = parts.get(2).map(|n| n.to_string()).unwrap_or_default();
                 g.toasts.push(("signed in as the admin. requests come by post.".to_string(), 5.0));
             }
             "request" if parts.len() >= 4 => {
@@ -791,7 +792,8 @@ fn play_pad(g: &Game, i: usize) {
 }
 
 fn my_set(g: &Game) -> bool {
-    g.venue.practice || g.venue.joined && g.venue.dj_name.is_some() && g.venue.on_air.as_ref().map(|o| Some(&o.name) == g.venue.dj_name.as_ref()).unwrap_or(false)
+    let me = if g.venue.admin { Some(g.venue.admin_name.clone()) } else { g.venue.dj_name.clone() };
+    g.venue.practice || g.venue.joined && me.is_some() && g.venue.on_air.as_ref().map(|o| Some(&o.name) == me.as_ref()).unwrap_or(false)
 }
 
 fn send_mix(g: &mut Game) {
@@ -939,7 +941,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             g.venue.on_air = Some(OnAir { audio: false, url: String::new(), name: "you".to_string() });
             fr.click = false;
         }
-    } else if g.venue.dj_name.is_none() && !g.venue.practice {
+    } else if g.venue.dj_name.is_none() && !g.venue.practice && !g.venue.admin {
         say(&["the decks are for djs.", "to become one: esc, restart, then 'become a dj'.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
     } else if my_set(g) {
         let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
@@ -1001,10 +1003,15 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             g.venue.look = (g.venue.look + 1) % 4;
             net::send(&format!("look {}", g.venue.look));
         }
-    } else if let Some(o) = g.venue.on_air.clone() {
+    } else if let Some(o) = g.venue.on_air.clone().filter(|_| !g.venue.admin) {
         say(&[&format!("dj {} is on. wait for the set to end.", o.name)]);
-    } else if g.venue.granted.iter().any(|c| *c == code) {
-        say(&["the admin said yes. this counts as one set.", "how do you want to play?"]);
+    } else if g.venue.admin || g.venue.granted.iter().any(|c| *c == code) {
+        if g.venue.admin {
+            let other = g.venue.on_air.clone().map(|o| format!("going live takes over from dj {}.", o.name)).unwrap_or_else(|| "no need to ask. how do you want to play?".to_string());
+            say(&["you're the admin: the decks are yours.", &other]);
+        } else {
+            say(&["the admin said yes. this counts as one set.", "how do you want to play?"]);
+        }
         if button(fr, "in-game decks", x + 10.0, y + 64.0, 84.0, 16.0, false) {
             net::send("golive decks");
         }
@@ -1014,8 +1021,9 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let shown: String = g.venue.stream.chars().rev().take(46).collect::<Vec<char>>().into_iter().rev().collect();
         ui_text(if shown.is_empty() { "click to paste, or type" } else { &shown }, x + 14.0, y + 108.5, 8.0, if shown.is_empty() { Color::from_rgba(150, 146, 140, 255) } else { BLACK });
         if !fresh {
+            let settled = get_time() - g.venue.opened_at > 0.25;
             while let Some(ch) = get_char_pressed() {
-                if !ch.is_control() && ch != ' ' && g.venue.stream.len() < 190 && !shortcut_held() {
+                if settled && !ch.is_control() && ch != ' ' && g.venue.stream.len() < 190 && !shortcut_held() {
                     g.venue.stream.push(ch);
                 }
             }
@@ -2774,6 +2782,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let at_decks = local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
     if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
         g.venue.overlay = Overlay::Decks;
+        g.venue.opened_at = get_time();
         while get_char_pressed().is_some() {}
         return;
     }
@@ -2937,8 +2946,14 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, colour));
     }
     if net::state() == 2 {
-        let mine = if g.venue.dj_name.is_some() { format!("dj {}", g.venue.name) } else { g.venue.name.clone() };
-        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
+        let mine = if g.venue.admin && !g.venue.admin_name.is_empty() {
+            format!("* {}", g.venue.admin_name)
+        } else if g.venue.dj_name.is_some() {
+            format!("dj {}", g.venue.name)
+        } else {
+            g.venue.name.clone()
+        };
+        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() && !g.venue.admin { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
         if g.two_player {
             tags.push((vec3(g.players[1].pos.x, 1.75, g.players[1].pos.y), format!("{} +1", g.venue.name), Color::from_rgba(255, 214, 110, 255)));
         }

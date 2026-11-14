@@ -429,7 +429,8 @@ impl Hub {
                 }
                 if self.admin_key.as_deref() == Some(key) {
                     self.clients.get_mut(&id).unwrap().admin = true;
-                    self.say(id, "admin ok".to_string());
+                    let line = format!("admin ok {}", self.admin_name);
+                    self.say(id, line);
                     self.brief(id);
                     return;
                 }
@@ -559,7 +560,9 @@ impl Hub {
                 self.brief(id);
             }
             "golive" => {
-                let (Some(dj), Some(code)) = (self.clients[&id].dj.clone(), self.clients[&id].room.clone()) else {
+                let admin = self.clients[&id].admin;
+                let who = if admin { Some(self.admin_name.clone()) } else { self.clients[&id].dj.clone() };
+                let (Some(dj), Some(code)) = (who, self.clients[&id].room.clone()) else {
                     return;
                 };
                 let (mode, url) = rest.split_once(' ').unwrap_or((rest, ""));
@@ -569,9 +572,12 @@ impl Hub {
                     "audio" => url.starts_with("https://") && url.len() < 200 && !url.contains(' '),
                     _ => false,
                 };
-                if !fine || self.live.contains_key(&code) || !self.grants.remove(&(dj.clone(), code.clone())) {
+                if !fine || (self.live.contains_key(&code) && !admin) || (!admin && !self.grants.remove(&(dj.clone(), code.clone()))) {
                     self.say(id, "nolive".to_string());
                     return;
+                }
+                if let Some(by) = self.live.get(&code).map(|l| l.by) {
+                    self.off_air(by);
                 }
                 let line = format!("live {id} {mode} {} {dj}", if mode == "audio" { url } else { "-" });
                 self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new(), look: String::new() });
@@ -1146,7 +1152,7 @@ mod tests {
         h.admin_key = Some("boss".to_string());
         let (admin, dj, fan) = (h.connect(None), h.connect(None), h.connect(None));
         h.handle(admin, "dj boss", 0);
-        assert!(said(&mut h, admin).contains(&"admin ok".to_string()));
+        assert!(said(&mut h, admin).contains(&"admin ok admin".to_string()));
         h.handle(fan, "dj wrong", 0);
         assert_eq!(said(&mut h, fan), vec!["dj no".to_string()]);
         h.handle(dj, "dj k1", 0);
@@ -1207,6 +1213,21 @@ mod tests {
         said(&mut h, again);
         h.handle(again, "golive audio https://example.com/live", 12);
         assert_eq!(said(&mut h, again), vec!["nolive".to_string()]);
+        let boss = h.connect(None);
+        h.handle(boss, "dj boss", 20);
+        let room_fan = h.connect(None);
+        h.handle(room_fan, "join ACD-EFG-HJK 1 2 0 zed", 20);
+        h.handle(boss, "join ACD-EFG-HJK 1 0 0 whoever", 20);
+        h.grants.insert(("priori".to_string(), "ACD-EFG-HJK".to_string()));
+        h.handle(again, "golive decks", 20);
+        said(&mut h, room_fan);
+        said(&mut h, again);
+        h.handle(boss, "golive audio https://stream.example/live.mp3", 21);
+        let took = said(&mut h, room_fan);
+        assert_eq!(took[0], "live 0");
+        assert!(took[1].ends_with("audio https://stream.example/live.mp3 boss9000"), "{took:?}");
+        h.handle(again, "mix 1 1 0 130", 22);
+        assert!(said(&mut h, room_fan).is_empty());
     }
 
     #[test]

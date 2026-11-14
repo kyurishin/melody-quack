@@ -102,6 +102,8 @@ pub(crate) struct VenueState {
     pub(crate) welcome: bool,
     pub(crate) dj_page: bool,
     pub(crate) admin_tab: u8,
+    pub(crate) admin_name: String,
+    pub(crate) opened_at: f64,
     pub(crate) dj_names: Vec<String>,
     pub(crate) new_dj: String,
     pub(crate) made_key: Option<(String, String)>,
