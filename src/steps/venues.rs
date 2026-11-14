@@ -1154,6 +1154,7 @@ fn tour_layout(g: &Game, y: f32) -> Option<(&'static str, Vec<String>, f32, f32,
         return None;
     }
     let (heading, message) = match g.venue.tour {
+        1 if radio::touch_ui() => ("the rave - 1/5", "post came. tap the envelope at the bottom left"),
         1 => ("the rave - 1/5", "post came. click the envelope at the top left"),
         2 if g.venue.at == Venue::PcBang => ("the pc bang - 2/5", "walk to the computer under the gold arrow and press E to sit down"),
         2 => ("the pc bang - 2/5", "follow the gold arrow to the pc bang and walk in through the door"),
@@ -1177,15 +1178,25 @@ fn tour_skip_rect(x: f32, y: f32, w: f32) -> (f32, f32, f32, f32) {
     (x + w - sw - 12.0, y + 2.0, sw + 8.0, 12.0)
 }
 
-fn outdoor_banner_y(fr: &Frame) -> f32 {
-    if fr.touch_ui && fr.portrait { 52.0 } else { 44.0 }
+fn outdoor_banner_y(g: &Game) -> f32 {
+    if steps::overlays::first_steps_shown(g) { 76.0 } else { 42.0 }
+}
+
+pub(crate) fn below_banners(g: &Game) -> f32 {
+    let y = outdoor_banner_y(g);
+    if g.venue.at == Venue::None && !g.inside {
+        if let Some((_, _, _, ty, _, th)) = tour_layout(g, y) {
+            return ty + th + 4.0;
+        }
+    }
+    y
 }
 
 fn tour_click(g: &mut Game, fr: &mut Frame) {
     if !fr.click || g.venue.at != Venue::None || g.inside {
         return;
     }
-    if let Some((_, _, x, y, w, h)) = tour_layout(g, outdoor_banner_y(fr)) {
+    if let Some((_, _, x, y, w, h)) = tour_layout(g, outdoor_banner_y(g)) {
         if hit(fr, x, y, w, h) {
             let (sx, sy, sw, sh) = tour_skip_rect(x, y, w);
             if hit(fr, sx, sy, sw, sh) {
@@ -1245,7 +1256,7 @@ fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
 
 fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     if radio::touch_ui() && !g.two_player {
-        (6.0, (low_h() - 22.0).round(), 22.0, 15.0)
+        (6.0, (low_h() - 44.0).round(), 22.0, 15.0)
     } else if g.two_player && g.venue.at == Venue::None {
         (6.0, 40.0, 22.0, 15.0)
     } else if g.venue.at == Venue::None {
@@ -1269,7 +1280,7 @@ fn mail_key(g: &Game) -> (String, u8, u8) {
 
 pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
     if g.venue.at == Venue::None && !g.inside {
-        let by = outdoor_banner_y(fr);
+        let by = outdoor_banner_y(g);
         tour_banner(g, fr, by);
     }
     if !mail_visible(g) {

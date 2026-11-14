@@ -3,8 +3,12 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
+pub(crate) fn first_steps_shown(g: &Game) -> bool {
+    !g.picking && !g.show_help && g.first_steps > 0 && g.first_steps < 4
+}
+
 pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
-    if !g.picking && !g.show_help && g.first_steps > 0 && g.first_steps < 4 {
+    if first_steps_shown(g) {
         let (heading, message) = match g.first_steps {
             1 => ("your first song - 1/3", "press any note 1-6 to sing"),
             2 if g.camp.lit => ("find the fire - 2/3", "walk to the campfire and press E to sit"),
@@ -13,7 +17,7 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         };
         let w = (low_w() - 16.0).min(250.0);
         let x = (low_w() - w) / 2.0;
-        let y = if fr.touch_ui && fr.portrait { 27.0 } else { 21.0 };
+        let y = 42.0;
         ui_rect(x, y, w, 30.0, Color::new(0.1, 0.08, 0.2, 0.83));
         ui_text(heading, x + 8.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
         let line = ui_wrap(message, 10.0, w - 16.0);

@@ -7,9 +7,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     fr.ink = Color::from_rgba(40, 30, 60, 255);
     fr.touch_ui = radio::touch_ui() && !g.two_player;
     fr.portrait = low_h() > low_w();
-    fr.edge = if fr.touch_ui && !fr.portrait { (low_w() * 0.235).round() } else { 0.0 };
+    fr.edge = 0.0;
     fr.right_edge = low_w() - fr.edge;
-    fr.bar_y = if fr.touch_ui && fr.portrait { 58.0 } else if fr.touch_ui { low_h() - 2.0 } else { low_h() - 32.0 };
+    fr.bar_y = if fr.touch_ui { low_h() - 2.0 } else { low_h() - 32.0 };
     
     
     if fr.touch_ui {
@@ -344,13 +344,13 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     }
     if !fr.hint.is_empty() && !g.picking {
         let w = ui_measure(&fr.hint, 12.0);
-        let hy = if fr.touch_ui && fr.portrait { (low_h() * 0.56).round() } else if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
+        let hy = if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
         ui_rect((low_w() - w) / 2.0 - 4.0, hy - 9.0, w + 8.0, 12.0, Color::new(0.1, 0.08, 0.2, 0.5));
         ui_text(&fr.hint, (low_w() - w) / 2.0, hy, 12.0, Color::from_rgba(255, 236, 200, 255));
     }
+    let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
         let a = life.min(1.0);
-        let toast_y = if fr.touch_ui && fr.portrait { 70.0 } else { 40.0 };
         ui_text(text, fr.edge + 8.0, toast_y + k as f32 * 11.0, 12.0, Color::new(1.0, 0.95, 0.85, a));
     }
 }
@@ -369,7 +369,7 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
         let furn_rows = if g.stored.is_empty() { 1 } else { g.stored.len().min(shown_items) };
         let h = 30.0 + lines.len() as f32 * 11.0 + 16.0 + g.quests.list.len() as f32 * 11.0 + 16.0 + furn_rows as f32 * 11.0 + 18.0;
         let x = 8.0;
-        let y = if fr.touch_ui && fr.portrait { 86.0 } else { 22.0 };
+        let y = if fr.touch_ui && fr.portrait { 42.0 } else { 22.0 };
         let h = h.min(low_h() - y - 4.0);
         ui_rect(x, y, w, h, Color::new(0.08, 0.06, 0.16, 0.92));
         ui_text(if g.two_player { if g.bag_owner == 0 { "bag - player 1" } else { "bag - player 2" } } else { "bag" }, x + 8.0, y + 13.0, 12.0, Color::from_rgba(255, 226, 150, 255));
