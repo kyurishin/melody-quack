@@ -327,17 +327,12 @@ fn online(g: &mut Game, dt: f32) {
             }
             "nocode" if parts.len() >= 2 => {
                 let ms = parts.get(2).and_then(|n| n.parse::<f64>().ok()).unwrap_or(0.0);
-                match parts[1] {
-                    "early" => {
-                        g.venue.term.push("the goose hasn't written tonight's code yet.".to_string());
-                        g.venue.term.push("check your mail for when he does.".to_string());
-                    }
-                    "list" => {
-                        g.venue.term.push("the first 30 have it. you weren't one of them.".to_string());
-                        g.venue.term.push(format!("open to everyone else in {}.", clock(ms)));
-                    }
-                    _ => g.venue.term.push("the list is full. a hundred is a hundred.".to_string()),
-                }
+                let why = match parts[1] {
+                    "early" => "the goose hasn't written tonight's code yet.".to_string(),
+                    "list" => format!("the first 30 have tonight's code. it opens to everyone in {}.", clock(ms)),
+                    _ => "tonight's list is full. a hundred is a hundred.".to_string(),
+                };
+                g.venue.spare(&why);
             }
             "early" if parts.len() >= 3 => {
                 if finding(g, parts[1]) {

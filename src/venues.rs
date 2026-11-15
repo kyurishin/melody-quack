@@ -769,7 +769,7 @@ impl VenueState {
                             } else if !payload.contains(r#""role":"admin""#) {
                                 say("HTTP/1.1 403 Forbidden");
                                 say("{\"error\":\"admins only\"}");
-                            } else if self.live_list {
+                            } else if self.live_list && !self.claimed {
                                 say("HTTP/1.1 200 OK");
                                 say("asking the goose's list...");
                                 self.ask = true;
@@ -865,6 +865,22 @@ impl VenueState {
             }
         }
         won
+    }
+
+    pub(crate) fn spare(&mut self, why: &str) {
+        self.term.push(why.to_string());
+        self.term.push("so he hands you a spare code: his own little rave, open any time.".to_string());
+        self.claimed = true;
+        if let Some(r) = self.secret.clone() {
+            let lines = self.reveal_lines(&r);
+            self.term.extend(lines);
+        }
+        if self.term_level == 1 && !self.flag {
+            let last = self.term.iter().rev().find_map(|l| l.split_once("@pc7:~$ ").map(|(_, c)| c.to_string())).unwrap_or_default();
+            if let Some(tip) = self.easy_tip(&last) {
+                self.term.push(format!("tip: {tip}"));
+            }
+        }
     }
 
     fn easy_tip(&self, line: &str) -> Option<String> {
@@ -991,7 +1007,7 @@ impl VenueState {
                 say("it at the bottom of the underground page.");
             }
             ("cat", ".rave") => {
-                if user == "goose" && self.live_list {
+                if user == "goose" && self.live_list && !self.claimed {
                     say("asking the goose's list...");
                     self.ask = true;
                 } else if user == "goose" {
@@ -1561,6 +1577,28 @@ mod tests {
             }
             assert!(won, "type {kind} easy wasn't solved by following tips: {:?}", v.term);
             assert!(steps <= 6, "type {kind} took {steps} steps");
+        }
+    }
+
+    #[test]
+    fn when_tonights_code_is_not_ready_the_goose_hands_out_a_spare() {
+        for kind in 0..3u8 {
+            let mut v = player(kind, 0);
+            v.live_list = true;
+            let mut won = v.run("1");
+            let mut steps = 0;
+            while !won && steps < 12 {
+                if v.ask {
+                    v.ask = false;
+                    v.spare("the goose hasn't written tonight's code yet.");
+                }
+                let tip = v.term.iter().rev().find(|l| l.starts_with("tip: ")).cloned().unwrap_or_default();
+                let next = tip.split("type: ").nth(1).map(|t| t.to_string()).unwrap_or_else(|| if tip.contains("132") { "132".to_string() } else { "ls".to_string() });
+                won = v.run(&next);
+                steps += 1;
+            }
+            assert!(won, "type {kind}: no spare path: {:?}", v.term);
+            assert!(!v.term.iter().any(|l| l.contains("check your mail")));
         }
     }
 
