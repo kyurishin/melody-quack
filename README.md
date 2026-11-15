@@ -64,7 +64,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | B | beat on / off |
 | F | follow: lock the tempo to music heard by the microphone |
 | G | echo: notes repeat on the beat like a dub delay |
-| T | tape: record everything you hear, T again saves a .wav |
+| T | tape: record everything you hear. T again opens "save your jam as": type a name and press enter (Esc keeps the suggested name) |
 | V | choose characters |
 | P | one or two players (split screen outdoors) |
 | N twice | fresh world |

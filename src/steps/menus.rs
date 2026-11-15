@@ -210,19 +210,17 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
 pub(crate) fn tape_and_fresh_start(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::T) {
         if g.audio.tape_seconds().is_some() {
-            let msg = match g.audio.stop_tape().and_then(|mix| store::save_jam(&wav_bytes(&mix))) {
-                Some(place) => format!("jam saved: {place}"),
-                None => "could not save the jam".to_string(),
-            };
-            g.toasts.push((msg, 4.0));
-        } else {
+            if let Some(mix) = g.audio.stop_tape() {
+                steps::venues::open_save_as(wav_bytes(&mix), "");
+            }
+        } else if !steps::venues::saving_as() {
             g.audio.start_tape();
             g.toasts.push(("tape rolling - T again to stop and save".to_string(), 2.5));
         }
     }
     if g.audio.tape_seconds().map_or(false, |t| t > TAPE_LIMIT) {
-        if let Some(place) = g.audio.stop_tape().and_then(|mix| store::save_jam(&wav_bytes(&mix))) {
-            g.toasts.push((format!("tape full (5 min) - jam saved: {place}"), 4.0));
+        if let Some(mix) = g.audio.stop_tape() {
+            steps::venues::open_save_as(wav_bytes(&mix), "the tape is full (5 minutes).");
         }
     }
     g.fresh_confirm = (g.fresh_confirm - get_frame_time()).max(0.0);

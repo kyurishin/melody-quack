@@ -560,6 +560,10 @@ async fn main() {
         let mut fr = Frame::default();
         steps::input::begin_frame(&mut g, &mut fr);
         steps::radio_step::report_screen(&g);
+        if steps::venues::save_as(&mut g, &mut fr) {
+            next_frame().await;
+            continue;
+        }
         if steps::venues::frame(&mut g, &mut fr) {
             next_frame().await;
             continue;
@@ -586,6 +590,7 @@ async fn main() {
         steps::radio_step::report_and_radio(&mut g, &mut fr);
         steps::saving::autosave(&mut g, &mut fr);
         if fr.quitting || g.restart_now {
+            steps::venues::flush_save_as();
             if let Some(mix) = g.audio.stop_tape() {
                 store::save_jam(&wav_bytes(&mix));
             }

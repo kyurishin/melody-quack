@@ -35,19 +35,42 @@ pub fn restart() {
     }
 }
 
-pub fn save_jam(bytes: &[u8]) -> Option<String> {
+fn jam_dir() -> (std::path::PathBuf, &'static str) {
     let music = home().join("Music");
-    let (dir, shown) = if music.is_dir() {
+    if music.is_dir() {
         (music.join("melody-quack"), "Music/melody-quack")
     } else {
         (home().join("melody-quack-jams"), "melody-quack-jams")
-    };
-    std::fs::create_dir_all(&dir).ok()?;
+    }
+}
+
+pub fn jam_place() -> String {
+    jam_dir().1.to_string()
+}
+
+pub fn jam_name() -> String {
+    let (dir, _) = jam_dir();
     let mut n = 1;
     while dir.join(format!("jam-{n:02}.wav")).exists() {
         n += 1;
     }
-    let name = format!("jam-{n:02}.wav");
-    std::fs::write(dir.join(&name), bytes).ok()?;
-    Some(format!("{shown}/{name}"))
+    format!("jam-{n:02}")
+}
+
+pub fn save_jam(bytes: &[u8]) -> Option<String> {
+    save_jam_as(bytes, &jam_name())
+}
+
+pub fn save_jam_as(bytes: &[u8], name: &str) -> Option<String> {
+    let (dir, shown) = jam_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let base = crate::ui::file_stem(name);
+    let mut file = format!("{base}.wav");
+    let mut n = 2;
+    while dir.join(&file).exists() {
+        file = format!("{base} {n}.wav");
+        n += 1;
+    }
+    std::fs::write(dir.join(&file), bytes).ok()?;
+    Some(format!("{shown}/{file}"))
 }

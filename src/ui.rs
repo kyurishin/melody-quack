@@ -164,3 +164,11 @@ pub(crate) fn ui_star(x: f32, y: f32, size: f32, color: Color) {
     ui_rect(x, y + a * 2.0, size, a, color);
     ui_rect(x + a, y + a, a * 3.0, a * 3.0, color);
 }
+
+pub(crate) fn file_stem(name: &str) -> String {
+    let name = name.trim();
+    let name = name.strip_suffix(".wav").or_else(|| name.strip_suffix(".WAV")).unwrap_or(name);
+    let clean: String = name.chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.' | '(' | ')')).take(48).collect();
+    let clean = clean.trim().trim_start_matches('.').trim().to_string();
+    if clean.is_empty() { "jam".to_string() } else { clean }
+}

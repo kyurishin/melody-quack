@@ -1375,7 +1375,7 @@ fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
 }
 
 pub(crate) fn typing(g: &Game) -> bool {
-    g.venue.name.is_empty() || g.venue.welcome || g.venue.chat_open || g.venue.pc_open || matches!(g.venue.overlay, Overlay::Door | Overlay::Decks | Overlay::Account) || g.dex_open || (g.venue.overlay == Overlay::Mail && g.venue.admin_tab == 2)
+    saving_as() || g.venue.name.is_empty() || g.venue.welcome || g.venue.chat_open || g.venue.pc_open || matches!(g.venue.overlay, Overlay::Door | Overlay::Decks | Overlay::Account) || g.dex_open || (g.venue.overlay == Overlay::Mail && g.venue.admin_tab == 2)
 }
 
 fn mail_visible(g: &Game) -> bool {
@@ -3590,4 +3590,106 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect(low_w() - sw, 11.0, 4.0, 4.0, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
     ui_text(&status, low_w() - sw + 8.0, 16.5, 9.0, cream());
     mail_icon(g, fr);
+}
+
+thread_local! {
+    static SAVE_AS: std::cell::RefCell<Option<(Vec<u8>, String, String, f64)>> = const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn saving_as() -> bool {
+    SAVE_AS.with(|s| s.borrow().is_some())
+}
+
+pub(crate) fn flush_save_as() {
+    if let Some((wav, name, _, _)) = SAVE_AS.with(|s| s.borrow_mut().take()) {
+        store::save_jam_as(&wav, if name.trim().is_empty() { "jam" } else { &name });
+    }
+}
+
+pub(crate) fn open_save_as(wav: Vec<u8>, note: &str) {
+    while get_char_pressed().is_some() {}
+    SAVE_AS.with(|s| *s.borrow_mut() = Some((wav, store::jam_name(), note.to_string(), get_time())));
+}
+
+pub(crate) fn save_as(g: &mut Game, fr: &mut Frame) -> bool {
+    let Some((wav, mut name, note, opened)) = SAVE_AS.with(|s| s.borrow().clone()) else {
+        return false;
+    };
+    if is_quit_requested() {
+        flush_save_as();
+        return false;
+    }
+    let fresh = get_time() - opened < 0.2;
+    blit(g);
+    ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, 0.6));
+    let (w, h) = (240.0f32.min(low_w() - 12.0), 112.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, Color::from_rgba(36, 26, 71, 255));
+    ui_rect(x, y, w, 3.0, Color::from_rgba(255, 90, 95, 255));
+    ui_text("save your jam as", x + 10.0, y + 17.0, 12.0, cream());
+    let secs = (wav.len().saturating_sub(44) / 4) as f32 / crate::SAMPLE_RATE as f32;
+    let about = format!("{}{}:{:02} of music.", if note.is_empty() { String::new() } else { format!("{note} ") }, secs as u32 / 60, secs as u32 % 60);
+    ui_text(&about, x + 10.0, y + 30.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.7));
+    if !fresh {
+        paste_into(&mut name, 48, |c| c != '\n');
+        while let Some(ch) = get_char_pressed() {
+            if !ch.is_control() && !shortcut_held() && name.chars().count() < 48 {
+                name.push(ch);
+            }
+        }
+        if is_key_pressed(KeyCode::Backspace) {
+            name.pop();
+        }
+        if modifier_held() && is_key_pressed(KeyCode::U) {
+            name.clear();
+        }
+    }
+    let (fx, fy, fw, fh) = (x + 10.0, y + 38.0, w - 20.0, 18.0);
+    ui_rect(fx, fy, fw, fh, Color::from_rgba(255, 90, 95, 255));
+    ui_rect(fx + 1.0, fy + 1.0, fw - 2.0, fh - 2.0, cream());
+    let mut shown = format!("{name}.wav");
+    while ui_measure(&shown, 10.0) > fw - 12.0 && shown.chars().count() > 5 {
+        shown = shown.chars().skip(1).collect();
+    }
+    let stem_part: String = shown.trim_end_matches(".wav").to_string();
+    ui_text(&stem_part, fx + 5.0, fy + 12.5, 10.0, ink());
+    ui_text(".wav", fx + 5.0 + ui_measure(&stem_part, 10.0), fy + 12.5, 10.0, Color::from_rgba(150, 146, 140, 255));
+    if (fr.time * 2.0).fract() < 0.6 {
+        ui_rect(fx + 6.0 + ui_measure(&stem_part, 10.0), fy + 4.0, 1.0, fh - 8.0, ink());
+    }
+    if fr.click && hit(fr, fx, fy, fw, fh) && radio::touch_ui() && !fresh {
+        if let Some(text) = radio::ask_text("save your jam as", &name) {
+            name = text.chars().filter(|c| !c.is_control()).take(48).collect();
+        }
+        fr.click = false;
+    }
+    let place = format!("it goes to {}.", store::jam_place());
+    ui_text(&place, x + 10.0, y + 67.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.6));
+    ui_text("enter: save   esc: keep the suggested name", x + 10.0, y + 78.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.5));
+    let save = button(fr, "save", x + w - 60.0, y + h - 24.0, 50.0, 16.0, false) && !fresh;
+    let toss = button(fr, "don't save", x + 10.0, y + h - 24.0, 64.0, 16.0, false) && !fresh;
+    let enter = !fresh && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter));
+    let esc = !fresh && is_key_pressed(KeyCode::Escape);
+    if save || enter || esc {
+        let chosen = if esc || name.trim().is_empty() { store::jam_name() } else { name.clone() };
+        let msg = match store::save_jam_as(&wav, &chosen) {
+            Some(place) => format!("jam saved: {place}"),
+            None => "could not save the jam".to_string(),
+        };
+        g.toasts.push((msg, 4.0));
+        SAVE_AS.with(|s| *s.borrow_mut() = None);
+    } else if toss {
+        g.toasts.push(("the jam was thrown away".to_string(), 3.0));
+        SAVE_AS.with(|s| *s.borrow_mut() = None);
+    } else {
+        SAVE_AS.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.1 = name;
+            }
+        });
+    }
+    fr.click = false;
+    true
 }

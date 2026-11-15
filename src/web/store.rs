@@ -44,10 +44,23 @@ pub fn restart() {
     unsafe { app_restart() };
 }
 
+pub fn jam_place() -> String {
+    "your downloads".to_string()
+}
+
+pub fn jam_name() -> String {
+    let n = get("melody-quack-jams").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0) + 1;
+    format!("melody-quack-jam-{n:02}")
+}
+
 pub fn save_jam(bytes: &[u8]) -> Option<String> {
+    save_jam_as(bytes, &jam_name())
+}
+
+pub fn save_jam_as(bytes: &[u8], name: &str) -> Option<String> {
     let n = get("melody-quack-jams").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0) + 1;
     put("melody-quack-jams", &n.to_string());
-    let name = format!("melody-quack-jam-{n:02}.wav");
+    let name = format!("{}.wav", crate::ui::file_stem(name));
     unsafe { download_bytes(name.as_ptr(), name.len() as u32, bytes.as_ptr(), bytes.len() as u32) };
     Some(format!("downloads/{name}"))
 }
