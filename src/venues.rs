@@ -102,6 +102,7 @@ pub(crate) struct VenueState {
     pub(crate) granted: Vec<String>,
     pub(crate) asked: bool,
     pub(crate) on_air: Option<OnAir>,
+    pub(crate) relive: Option<String>,
     pub(crate) mix: (bool, bool, usize, f32),
     pub(crate) bpm_now: f32,
     pub(crate) stream: String,

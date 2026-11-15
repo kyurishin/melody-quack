@@ -146,6 +146,7 @@ fn enter(g: &mut Game, venue: Venue) {
 
 fn leave(g: &mut Game) {
     net::cast_stop();
+    g.venue.relive = None;
     let door = match g.venue.at {
         Venue::PcBang => PCBANG_DOOR,
         Venue::Chapel => CHAPEL_DOOR + vec2(-0.5, 0.2),
@@ -216,6 +217,17 @@ fn online(g: &mut Game, dt: f32) {
         }
     }
     if st != 2 {
+        if g.venue.relive.is_none() && !g.venue.practice && my_set(g) {
+            let o = g.venue.on_air.clone().unwrap();
+            g.venue.relive = Some(if net::casting() {
+                "stream".to_string()
+            } else if o.audio && !o.url.contains("/live/") {
+                format!("audio {}", o.url)
+            } else {
+                "decks".to_string()
+            });
+            g.venue.on_air = None;
+        }
         g.venue.peers.clear();
         g.venue.friends.clear();
         g.venue.joined = false;
@@ -260,6 +272,16 @@ fn online(g: &mut Game, dt: f32) {
                 net::send(&format!("host {} {}", r.code, rave_info(&r)));
                 net::send(&format!("join {} {} {} {} {}", r.code, 1 + g.two_player as u32, g.players[0].character, g.players[1].character, g.venue.name));
                 g.venue.joined = true;
+                if let Some(mode) = g.venue.relive.take() {
+                    let restarted = mode != "stream" || {
+                        let pick = g.venue.inputs.get(g.venue.cast_input).cloned().unwrap_or_else(|| "default input".to_string());
+                        net::cast_start(&pick).is_ok()
+                    };
+                    if restarted {
+                        net::send(&format!("golive {mode}"));
+                        g.toasts.push(("back online: you're live again".to_string(), 4.0));
+                    }
+                }
             }
         }
         if g.venue.ask {
