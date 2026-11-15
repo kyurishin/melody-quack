@@ -210,7 +210,7 @@ fn online(g: &mut Game, dt: f32) {
     let st = net::state();
     g.venue.net_retry -= dt;
     if (st == 0 || st == -1) && g.venue.net_retry <= 0.0 {
-        g.venue.net_retry = 10.0;
+        g.venue.net_retry = 2.0;
         if let Some(url) = net::server() {
             net::open(&url);
         }
