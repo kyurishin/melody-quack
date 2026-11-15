@@ -32,9 +32,12 @@ pub fn stream_push(samples: &[f32], channels: usize, rate: f32) {
             let r = if channels > 1 { c[1] } else { c[0] };
             s.data.push_back([l, r]);
         }
-        let most = (rate * 6.0) as usize;
-        while s.data.len() > most {
-            s.data.pop_front();
+        let most = if s.playing { (rate * 1.2) as usize } else { (rate * 6.0) as usize };
+        if s.data.len() > most {
+            let keep = if s.playing { (rate * 0.5) as usize } else { most };
+            while s.data.len() > keep {
+                s.data.pop_front();
+            }
         }
     }
 }
@@ -277,7 +280,7 @@ fn build(device: &cpal::Device, config: cpal::StreamConfig, channels: usize, ste
                     list.retain(|v| v.position < 0.0 || (v.position as usize) + 1 < v.samples.len());
                 }
                 if let Ok(mut st) = stream_buf().lock() {
-                    if !st.playing && st.data.len() as f32 > st.rate * 1.2 {
+                    if !st.playing && st.data.len() as f32 > st.rate * 0.4 {
                         st.playing = true;
                     }
                     if st.playing {

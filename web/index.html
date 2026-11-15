@@ -1213,20 +1213,43 @@
             if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");
           };
           var liveAudio = null;
-          importObject.env.net_listen = function (p, l) {
-            var url = text(p, l);
+          var liveUrl = "";
+          var liveTimer = null;
+          function liveStop() {
             if (liveAudio) {
-              try { liveAudio.pause(); } catch (e) {}
+              try { liveAudio.pause(); liveAudio.removeAttribute("src"); liveAudio.load(); } catch (e) {}
               liveAudio = null;
             }
-            if (/^https:\/\//.test(url)) {
-              try {
-                liveAudio = new Audio(url);
-                liveAudio.setAttribute("playsinline", "");
-                var started = liveAudio.play();
-                if (started && started.catch) started.catch(function () {});
-              } catch (e) {}
-            }
+          }
+          function liveStart(url) {
+            liveStop();
+            if (url !== liveUrl) return;
+            try {
+              var a = new Audio(url);
+              a.setAttribute("playsinline", "");
+              a.preload = "auto";
+              var again = function () { if (liveAudio === a) setTimeout(function () { if (liveAudio === a) liveStart(url); }, 2000); };
+              a.addEventListener("error", again);
+              a.addEventListener("ended", again);
+              liveAudio = a;
+              var started = a.play();
+              if (started && started.catch) started.catch(function () {});
+            } catch (e) {}
+          }
+          importObject.env.net_listen = function (p, l) {
+            liveUrl = text(p, l);
+            if (!/^https:\/\//.test(liveUrl)) liveUrl = "";
+            if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+            if (!liveUrl) { liveStop(); return; }
+            liveStart(liveUrl);
+            liveTimer = setInterval(function () {
+              var a = liveAudio;
+              if (!a || !a.buffered || !a.buffered.length) return;
+              var end = a.buffered.end(a.buffered.length - 1);
+              if (end - a.currentTime > 2.0) {
+                try { a.currentTime = end - 0.5; } catch (e) {}
+              }
+            }, 1000);
           };
           importObject.env.net_server_len = function () {
             var s = (window.MELODY_LIVE && window.MELODY_LIVE.server) || "";

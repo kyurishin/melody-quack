@@ -619,7 +619,7 @@ impl Hub {
                 };
                 if let Some(cast) = self.casts.get_mut(&code.replace('-', "")) {
                     cast.recent.extend(bytes.iter().copied());
-                    while cast.recent.len() > 48 * 1024 {
+                    while cast.recent.len() > 12 * 1024 {
                         cast.recent.pop_front();
                     }
                     let _ = cast.tx.send(Arc::new(bytes));

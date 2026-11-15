@@ -141,7 +141,7 @@ pub fn start(device_name: &str, send: impl Fn(Vec<u8>) + Send + 'static) -> Resu
             };
             out.reserve(mp3lame_encoder::max_required_buffer_size(chunk.len() / 2));
             let _ = encoder.encode_to_vec(mp3lame_encoder::InterleavedPcm(&chunk), &mut out);
-            if out.len() >= 3000 {
+            if out.len() >= 1200 {
                 send(std::mem::take(&mut out));
             }
         }
