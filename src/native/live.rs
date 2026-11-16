@@ -16,10 +16,21 @@ thread_local! {
 
 static LISTEN_GEN: AtomicU32 = AtomicU32::new(0);
 
+pub const PLAYING_ON: &str = "playing on: ";
+
 pub fn inputs() -> Vec<String> {
     let host = cpal::default_host();
-    let mut names: Vec<String> = host.input_devices().map(|d| d.map(|x| x.to_string()).collect()).unwrap_or_default();
-    names.dedup();
+    let mut names: Vec<String> = Vec::new();
+    if cfg!(any(target_os = "macos", target_os = "windows")) {
+        let default_out = host.default_output_device().map(|d| d.to_string());
+        let mut outs: Vec<String> = host.output_devices().map(|d| d.map(|x| x.to_string()).collect()).unwrap_or_default();
+        outs.sort_by_key(|n| Some(n) != default_out.as_ref());
+        outs.dedup();
+        names.extend(outs.into_iter().map(|n| format!("{PLAYING_ON}{n}")));
+    }
+    let mut ins: Vec<String> = host.input_devices().map(|d| d.map(|x| x.to_string()).collect()).unwrap_or_default();
+    ins.dedup();
+    names.extend(ins);
     names
 }
 
@@ -67,13 +78,24 @@ impl Resampler {
 pub fn start(device_name: &str, send: impl Fn(Vec<u8>) + Send + 'static) -> Result<(), String> {
     stop();
     let host = cpal::default_host();
-    let device = host
-        .input_devices()
-        .ok()
-        .and_then(|mut d| d.find(|x| x.to_string() == device_name))
-        .or_else(|| if device_name == "default input" { host.default_input_device() } else { None })
-        .ok_or(format!("{device_name} isn't there right now. is it switched on?"))?;
-    let config = device.default_input_config().map_err(|e| e.to_string())?;
+    let (device, config) = if let Some(out) = device_name.strip_prefix(PLAYING_ON) {
+        let device = host
+            .output_devices()
+            .ok()
+            .and_then(|mut d| d.find(|x| x.to_string() == out))
+            .ok_or(format!("{out} isn't there right now. is it switched on?"))?;
+        let config = device.default_output_config().map_err(|e| format!("can't record what {out} plays: {e}"))?;
+        (device, config)
+    } else {
+        let device = host
+            .input_devices()
+            .ok()
+            .and_then(|mut d| d.find(|x| x.to_string() == device_name))
+            .or_else(|| if device_name == "default input" { host.default_input_device() } else { None })
+            .ok_or(format!("{device_name} isn't there right now. is it switched on?"))?;
+        let config = device.default_input_config().map_err(|e| e.to_string())?;
+        (device, config)
+    };
     let channels = (config.channels() as usize).max(1);
     let in_rate = config.sample_rate();
     let rate = if in_rate == 44100 || in_rate == 48000 || in_rate == 32000 { in_rate } else { 44100 };

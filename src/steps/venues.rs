@@ -1091,7 +1091,12 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 let fill = (lv.min(1.0) * 160.0).round();
                 ui_rect(x + 10.0, y + 72.0, fill, 6.0, if lv > 0.95 { Color::from_rgba(255, 90, 95, 255) } else { Color::from_rgba(140, 222, 168, 255) });
                 if lv < 0.01 {
-                    let tips = if cfg!(target_os = "macos") {
+                    let loopback = name.starts_with("playing on: ");
+                    let tips = if cfg!(target_os = "macos") && loopback {
+                        ["no sound coming in. play a track in serato, and check it", "plays through this output. needs macos 14.6 or newer, and", "privacy > screen & system audio recording > melody quack."]
+                    } else if loopback {
+                        ["no sound coming in. play a track and check that", "it plays through this output.", ""]
+                    } else if cfg!(target_os = "macos") {
                         ["no sound coming in. in serato: setup > audio,", "turn on serato virtual audio and play a track.", "mac: system settings > privacy > microphone > melody quack."]
                     } else {
                         ["no sound coming in. check that your dj software", "plays into this input, and that a track is playing.", ""]
