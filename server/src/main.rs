@@ -872,6 +872,14 @@ impl Hub {
                     }
                 }
             }
+            "emo" => {
+                let nums: Vec<u32> = rest.split(' ').filter_map(|n| n.parse().ok()).collect();
+                if nums.len() == 2 && nums[0] < 2 && nums[1] < 64 {
+                    for other in self.others(id) {
+                        self.say(other, format!("emo {id} {} {}", nums[0], nums[1]));
+                    }
+                }
+            }
             "leave" => self.leave(id, now),
             _ => {}
         }
@@ -1268,6 +1276,25 @@ mod tests {
         assert!(!got.iter().any(|l| l.contains("elsewhere")));
         let clear = got.iter().position(|l| l == "heardclear").unwrap();
         assert!(got.iter().position(|l| l.starts_with("heard ")).unwrap() > clear);
+    }
+
+    #[test]
+    fn emojis_reach_everyone_else_in_the_room() {
+        let mut h = hub();
+        let (a, b, c) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(a, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        h.handle(a, "join ACD-EFG-HJK 1 0 0 mina", 1);
+        h.handle(b, "join ACD-EFG-HJK 1 0 0 rex", 1);
+        h.handle(c, "host CDE-FGH-JKM 1|132|9|other", 0);
+        h.handle(c, "join CDE-FGH-JKM 1 0 0 tom", 1);
+        said(&mut h, a);
+        said(&mut h, b);
+        said(&mut h, c);
+        h.handle(a, "emo 0 3", 2);
+        h.handle(a, "emo 0 999", 2);
+        assert_eq!(said(&mut h, b), vec![format!("emo {a} 0 3")]);
+        assert!(said(&mut h, a).is_empty());
+        assert!(said(&mut h, c).is_empty());
     }
 
     #[test]

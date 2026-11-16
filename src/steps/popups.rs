@@ -124,6 +124,11 @@ pub(crate) fn draw_popups(g: &mut Game, fr: &mut Frame) {
             g.fish_pop = None;
         }
     }
+    draw_emoji_strips(g);
+    popups_rest(g, fr);
+}
+
+pub(crate) fn draw_emoji_strips(g: &Game) {
     for who in 0..2 {
         if let Some((id, t)) = g.emoji_choose[who] {
             let (sx, sy, cell) = emoji_strip(who, g.two_player);
@@ -139,6 +144,9 @@ pub(crate) fn draw_popups(g: &mut Game, fr: &mut Frame) {
             ui_rect(sx, sy + cell + 1.5, cell * emoji::COUNT as f32 * fill, 1.5, Color::from_rgba(255, 214, 110, 255));
         }
     }
+}
+
+fn popups_rest(g: &mut Game, fr: &mut Frame) {
     fr.small_pop = g.fish_say.as_ref().map(|(w, _, _)| matches!(w.as_str(), "perfect!" | "nice!" | "together!")).unwrap_or(false);
     if let (true, Some((word, col, left))) = (fr.small_pop, g.fish_say.as_ref()) {
         let view = if g.two_player { g.fishing.caster.min(1) } else { 0 };

@@ -583,7 +583,16 @@ fn online(g: &mut Game, dt: f32) {
                     }
                 }
             }
-            "who" | "peer" | "sing" if g.venue.at != Venue::Chapel || !g.venue.joined => {}
+            "who" | "peer" | "sing" | "emo" if g.venue.at != Venue::Chapel || !g.venue.joined => {}
+            "emo" if parts.len() >= 4 => {
+                if let (Ok(id), Ok(slot), Ok(e)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), parts[3].parse::<usize>()) {
+                    if e < emoji::COUNT {
+                        if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot.min(1)) {
+                            p.emote = Some((e, 3.0));
+                        }
+                    }
+                }
+            }
             "who" if parts.len() >= 7 => {
                 if let Ok(id) = parts[1].parse::<u32>() {
                     let n = g.cast_list.len();
@@ -627,7 +636,7 @@ fn online(g: &mut Game, dt: f32) {
                         }
                         None => {
                             if g.venue.peers.len() < 100 {
-                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0, lounge });
+                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0, lounge, emote: None });
                             }
                         }
                     }
@@ -660,6 +669,12 @@ fn online(g: &mut Game, dt: f32) {
             p.pos += gap * (dt * 10.0).min(1.0);
         }
         p.sing = (p.sing - dt).max(0.0);
+        if let Some((_, left)) = p.emote.as_mut() {
+            *left -= dt;
+        }
+        if p.emote.map(|e| e.1 <= 0.0).unwrap_or(false) {
+            p.emote = None;
+        }
     }
     if g.venue.at == Venue::Chapel && g.venue.joined {
         g.venue.net_send -= dt;
@@ -3435,6 +3450,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         friend.yaw = peer.facing.x.atan2(peer.facing.y);
         friend.walking = peer.walking;
         friend.voice_timer = peer.sing;
+        friend.emote = peer.emote;
         friend.lift = if peer.walking { 0.0 } else { pulse * 0.05 };
         friend.draw(&mut b, &g.world, time, pulse);
         let name = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.name.clone()).unwrap_or_default();
@@ -3442,7 +3458,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let is_admin = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.admin).unwrap_or(false);
         let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
         let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) };
-        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, 1.75, CH_ORIGIN.y + peer.pos.y), name, colour));
+        tags.push((vec3(CH_ORIGIN.x + peer.pos.x, if peer.emote.is_some() { 2.3 } else { 1.75 }, CH_ORIGIN.y + peer.pos.y), name, colour));
     }
     if net::state() == 2 {
         let mine = if g.venue.admin && !g.venue.admin_name.is_empty() {
@@ -3452,7 +3468,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         } else {
             g.venue.name.clone()
         };
-        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() && !g.venue.admin { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
+        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() && !g.venue.admin { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
         if g.two_player {
             tags.push((vec3(g.players[1].pos.x, 1.75, g.players[1].pos.y), format!("{} +1", g.venue.name), Color::from_rgba(255, 214, 110, 255)));
         }
@@ -3528,10 +3544,11 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     } else if at_bar {
         "E: the goose's bar   enter: chat"
     } else if lounge {
-        "wasd: move   enter: chat   esc or the door: back to the club"
+        "wasd: move   z: emoji   enter: chat   esc or the door: back to the club"
     } else {
-        "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
+        "wasd: move   1-6: sing   z: emoji   enter: chat   esc or the door: leave"
     });
+    steps::popups::draw_emoji_strips(g);
     if backstage && g.venue.overlay == Overlay::None && !g.venue.chat_open {
         let label = if lounge { "club" } else { "lounge" };
         let (bw, bh) = (44.0, 16.0);
@@ -3896,20 +3913,21 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
         friend.yaw = peer.facing.x.atan2(peer.facing.y);
         friend.walking = peer.walking;
         friend.voice_timer = peer.sing;
+        friend.emote = peer.emote;
         friend.draw(&mut b, &g.world, time, 0.0);
         let f = g.venue.friends.iter().find(|f| f.id == peer.id);
         let name = f.map(|f| f.name.clone()).unwrap_or_default();
         let (is_dj, is_admin) = f.map(|f| (f.dj, f.admin)).unwrap_or((false, false));
         let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
         let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) };
-        tags.push((vec3(LG_ORIGIN.x + peer.pos.x, 1.75, LG_ORIGIN.y + peer.pos.y), name, colour));
+        tags.push((vec3(LG_ORIGIN.x + peer.pos.x, if peer.emote.is_some() { 2.3 } else { 1.75 }, LG_ORIGIN.y + peer.pos.y), name, colour));
     }
     for p in g.shown_players().iter() {
         p.draw(&mut b, &g.world, time, 0.0);
     }
     if net::state() == 2 {
         let mine = if g.venue.admin && !g.venue.admin_name.is_empty() { format!("* {}", g.venue.admin_name) } else { format!("dj {}", g.venue.name) };
-        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) }));
+        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) }));
     }
     b.flush();
     (view, tags)

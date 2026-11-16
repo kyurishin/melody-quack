@@ -48,6 +48,9 @@ pub(crate) fn begin_frame(g: &mut Game, fr: &mut Frame) {
             g.emoji_choose[who] = None;
             g.emoji_last[who] = id;
             g.players[who].emote = Some((id, 3.0));
+            if g.venue.at == crate::venues::Venue::Chapel && g.venue.joined {
+                net::send(&format!("emo {who} {id}"));
+            }
             quest_event(&mut g.quests, QuestKind::Emoji, 1, &mut g.inv, &mut g.toasts);
             if who == 0 && !g.two_player {
                 g.emoji_reply = Some((emoji::reply(id, hash((fr.time * 17.0) as i32, 8, 3)), 0.8));

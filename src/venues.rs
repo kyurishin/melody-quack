@@ -93,6 +93,7 @@ pub(crate) struct Peer {
     pub(crate) walking: bool,
     pub(crate) sing: f32,
     pub(crate) lounge: bool,
+    pub(crate) emote: Option<(usize, f32)>,
 }
 
 #[derive(Default)]
