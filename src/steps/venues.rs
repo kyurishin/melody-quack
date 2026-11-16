@@ -3582,7 +3582,8 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 ui_rect(11.0 + ui_measure(&tail, 8.0), base + 3.0, 1.0, 7.0, ink());
             }
         } else if radio::touch_ui() && !over_decks {
-            if button(fr, "chat", 6.0, base, 34.0, 13.0, false) {
+            let chat_x = if mail_visible(g) { 34.0 } else { 6.0 };
+            if button(fr, "chat", chat_x, base, 34.0, 13.0, false) {
                 g.venue.chat_open = true;
                 g.venue.chat_draft.clear();
                 g.venue.chat_scroll = 0;
