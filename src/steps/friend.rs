@@ -18,6 +18,7 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
         dog.carrying = None;
         dog.walking = false;
         dog.place_at(here);
+        set_lifts(g);
         return;
     }
     if g.two_player && !g.inside {
@@ -185,8 +186,12 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
                 g.players[1].facing = (g.players[0].pos - g.players[1].pos).normalize_or_zero();
             }
     }
+    set_lifts(g);
+}
+
+fn set_lifts(g: &mut Game) {
     for p in g.players.iter_mut() {
-        p.lift = if g.inside { g.house.height_at(home::local(p.pos)) } else { 0.0 };
+        p.lift = if g.inside { home::FLOOR_Y - p.ground(&g.world) + g.house.height_at(home::local(p.pos)) } else { 0.0 };
     }
 }
 
