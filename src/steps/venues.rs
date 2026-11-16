@@ -1068,6 +1068,10 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
         }
     };
+    if g.venue.input_pick {
+        source_list(g, fr, fresh, x, y, w, h);
+        return;
+    }
     if net::state() != 2 && !g.venue.practice {
         say(&["you're offline, so nobody else can hear the decks.", "you can still practise: the in-game decks,", "only you hear them."]);
         if button(fr, "practise on the decks", x + 10.0, y + 76.0, 120.0, 16.0, false) && !fresh {
@@ -1093,7 +1097,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 if lv < 0.01 {
                     let loopback = name.starts_with("playing on: ");
                     let tips = if cfg!(target_os = "macos") && loopback {
-                        ["no sound coming in. play a track in serato, and check it", "plays through this output. needs macos 14.6 or newer, and", "privacy > screen & system audio recording > melody quack."]
+                        ["no sound yet. serato's setup > audio shows where it plays:", "a controller plays through itself, not the mac speakers.", "press 'source' and pick that. mac: 14.6+ and privacy > screen & system audio recording."]
                     } else if loopback {
                         ["no sound coming in. play a track and check that", "it plays through this output.", ""]
                     } else if cfg!(target_os = "macos") {
@@ -1159,6 +1163,12 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 g.venue.look = 0;
             }
         }
+        if !g.venue.practice && net::can_cast() && button(fr, "source", x + 206.0, y + h - 34.0, 54.0, 16.0, false) && !fresh {
+            g.venue.inputs = net::inputs();
+            g.venue.input_pick = true;
+            g.venue.input_scroll = 0;
+            fr.click = false;
+        }
         if button(fr, &format!("look: {}", LOOKS[g.venue.look % 4]), x + 78.0, y + h - 34.0, 124.0, 16.0, false) {
             g.venue.look = (g.venue.look + 1) % 4;
             net::send(&format!("look {}", g.venue.look));
@@ -1174,10 +1184,6 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         if button(fr, "in-game decks", x + 10.0, y + 64.0, 84.0, 16.0, false) {
             net::send("golive decks");
-        }
-        if g.venue.input_pick {
-            source_list(g, fr, fresh, x, y, w, h);
-            return;
         }
         if net::can_cast() {
             if button(fr, "stream my sound", x + 100.0, y + 64.0, 104.0, 16.0, false) && !fresh {
@@ -4062,6 +4068,12 @@ fn source_list(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32
         fr.click = false;
     }
     if button(fr, "back", x + 10.0, y + h - 22.0, 44.0, 14.0, false) && !fresh {
+        g.venue.input_pick = false;
+        fr.click = false;
+    }
+    if my_set(g) && g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false) && button(fr, "in-game decks instead", x + 60.0, y + h - 22.0, 110.0, 14.0, false) && !fresh {
+        net::cast_stop();
+        net::send("golive decks");
         g.venue.input_pick = false;
         fr.click = false;
     }

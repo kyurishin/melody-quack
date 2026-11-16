@@ -587,11 +587,12 @@ impl Hub {
                     "audio" => url.starts_with("https://") && url.len() < 200 && !url.contains(' '),
                     _ => false,
                 };
-                if !fine || (self.live.contains_key(&code) && !admin) || (!admin && !self.grants.remove(&(dj.clone(), code.clone()))) {
+                let switching = self.live.get(&code).map(|l| l.by == id).unwrap_or(false);
+                if !fine || (self.live.contains_key(&code) && !admin && !switching) || (!admin && !switching && !self.grants.remove(&(dj.clone(), code.clone()))) {
                     self.say(id, "nolive".to_string());
                     return;
                 }
-                if let Some(by) = self.live.get(&code).map(|l| l.by) {
+                if let Some(by) = self.live.get(&code).map(|l| l.by).filter(|by| *by != id) {
                     self.off_air(by);
                 }
                 if mode == "stream" {
@@ -1267,6 +1268,34 @@ mod tests {
         assert!(!got.iter().any(|l| l.contains("elsewhere")));
         let clear = got.iter().position(|l| l == "heardclear").unwrap();
         assert!(got.iter().position(|l| l.starts_with("heard ")).unwrap() > clear);
+    }
+
+    #[test]
+    fn a_live_dj_can_switch_from_decks_to_audio_without_asking_again() {
+        let mut h = hub();
+        h.djs = vec![("priori".to_string(), "k1".to_string()), ("other".to_string(), "k2".to_string())];
+        h.admin_key = Some("boss".to_string());
+        let (admin, dj, rival) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(admin, "dj boss", 0);
+        h.handle(dj, "dj k1", 0);
+        h.handle(rival, "dj k2", 0);
+        h.handle(dj, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        h.handle(dj, "join ACD-EFG-HJK 1 0 0 priori", 1);
+        h.handle(rival, "join ACD-EFG-HJK 1 0 0 other", 1);
+        h.handle(dj, "ask", 2);
+        said(&mut h, admin);
+        h.handle(admin, "grant 1", 3);
+        h.handle(dj, "golive decks", 4);
+        said(&mut h, dj);
+        said(&mut h, rival);
+        h.handle(dj, "golive audio https://example.com/set.mp3", 5);
+        let line = format!("live {dj} audio https://example.com/set.mp3 priori");
+        assert_eq!(said(&mut h, dj), vec![line.clone()]);
+        assert_eq!(said(&mut h, rival), vec![line]);
+        h.handle(rival, "golive decks", 6);
+        assert_eq!(said(&mut h, rival), vec!["nolive".to_string()]);
+        h.handle(dj, "golive decks", 7);
+        assert_eq!(said(&mut h, dj), vec![format!("live {dj} decks - priori")]);
     }
 
     #[test]
