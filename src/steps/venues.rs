@@ -582,6 +582,7 @@ fn online(g: &mut Game, dt: f32) {
                     }
                 }
             }
+            "who" | "peer" | "sing" if g.venue.at != Venue::Chapel || !g.venue.joined => {}
             "who" if parts.len() >= 7 => {
                 if let Ok(id) = parts[1].parse::<u32>() {
                     let n = g.cast_list.len();
