@@ -213,6 +213,7 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
   - **a stream link:** paste any https stream under "real audio".
 - **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
 - **Practice:** offline, anyone can practise on the decks; only you hear it.
+- **The DJ lounge:** in the chapel, DJs and the admin get a **lounge** button on the right of the screen. It leads to a cosy backstage room with sofas, lamps and the goose's bar, where other DJs hang out too and the room chat carries on. E at the bar buys a cola (3 acorns), club-mate (4), sparkling water (2), vanilla ice cream (5) or a franzbrötchen (6). The **club** button, Esc or the lounge door takes you back to the dance floor.
 
 ![The jungle at sunset](web/shots/jungle.webp)
 

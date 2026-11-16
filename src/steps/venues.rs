@@ -147,6 +147,7 @@ fn enter(g: &mut Game, venue: Venue) {
 fn leave(g: &mut Game) {
     net::cast_stop();
     g.venue.relive = None;
+    g.venue.lounge = false;
     let door = match g.venue.at {
         Venue::PcBang => PCBANG_DOOR,
         Venue::Chapel => CHAPEL_DOOR + vec2(-0.5, 0.2),
@@ -604,11 +605,20 @@ fn online(g: &mut Game, dt: f32) {
                 let nums: Vec<f32> = parts[3..8].iter().filter_map(|n| n.parse().ok()).collect();
                 if let (Ok(id), Ok(slot), 5) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), nums.len()) {
                     let slot = slot.min(1);
-                    let to = vec2(nums[0].clamp(0.0, CH_SIZE.0), nums[1].clamp(0.0, CH_SIZE.1 + 0.5));
+                    let lounge = nums[0] >= 100.0;
+                    let to = if lounge { vec2((nums[0] - 100.0).clamp(0.0, LG_SIZE.0), nums[1].clamp(0.0, LG_SIZE.1 + 0.5)) } else { vec2(nums[0].clamp(0.0, CH_SIZE.0), nums[1].clamp(0.0, CH_SIZE.1 + 0.5)) };
                     let facing = vec2(nums[2], nums[3]);
                     let facing = if facing.length() > 0.1 { facing.normalize() } else { vec2(0.0, -1.0) };
                     let character = g.venue.friends.iter().find(|f| f.id == id).map(|f| f.characters[slot]).unwrap_or(0);
                     match g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot) {
+                        Some(p) if p.lounge != lounge => {
+                            p.lounge = lounge;
+                            p.pos = to;
+                            p.to = to;
+                            p.facing = facing;
+                            p.walking = nums[4] > 0.5;
+                            p.character = character;
+                        }
                         Some(p) => {
                             p.to = to;
                             p.facing = facing;
@@ -617,7 +627,7 @@ fn online(g: &mut Game, dt: f32) {
                         }
                         None => {
                             if g.venue.peers.len() < 100 {
-                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0 });
+                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0, lounge });
                             }
                         }
                     }
@@ -657,7 +667,7 @@ fn online(g: &mut Game, dt: f32) {
             g.venue.net_send = 0.08;
             for slot in 0..(1 + g.two_player as usize) {
                 let p = &g.players[slot];
-                let l = p.pos - CH_ORIGIN;
+                let l = if g.venue.lounge { p.pos - LG_ORIGIN + vec2(100.0, 0.0) } else { p.pos - CH_ORIGIN };
                 net::send(&format!("at {slot} {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
             }
         }
@@ -1885,6 +1895,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Mail => mail(g, fr, fresh),
         Overlay::Decks => decks(g, fr, fresh),
         Overlay::Account => account_panel(g, fr, fresh),
+        Overlay::Bar => bar_panel(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -3242,13 +3253,32 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         g.venue.chat_scroll = 0;
         g.venue.chat_drag = None;
     }
-    walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, busy);
+    let backstage = g.venue.dj_name.is_some() || g.venue.admin;
+    if g.venue.lounge && !backstage {
+        to_club(g);
+    }
+    let lounge = g.venue.lounge;
+    if lounge {
+        walk_room(g, dt, LG_ORIGIN, LG_SIZE, &lounge_solids(), busy);
+        let l = g.players[0].pos - LG_ORIGIN;
+        if !fresh && !busy && (l.y > LG_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
+            to_club(g);
+        } else if !fresh && !busy && l.distance(LG_BAR) < 1.1 && is_key_pressed(KeyCode::E) {
+            g.venue.overlay = Overlay::Bar;
+            g.venue.opened_at = get_time();
+            while get_char_pressed().is_some() {}
+            return;
+        }
+    } else {
+        walk_room(g, dt, CH_ORIGIN, CH_SIZE, &solids, busy);
+    }
     let local = g.players[0].pos - CH_ORIGIN;
-    if !fresh && !busy && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
+    if !lounge && !fresh && !busy && (local.y > CH_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
         leave(g);
         return;
     }
-    let at_decks = local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
+    let at_decks = !lounge && local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
+    let at_bar = lounge && (g.players[0].pos - LG_ORIGIN).distance(LG_BAR) < 1.1;
     if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
         g.venue.overlay = Overlay::Decks;
         g.venue.opened_at = get_time();
@@ -3258,6 +3288,10 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let (pulse, bar, drop) = rave_tick(g, dt);
     g.venue.pulse = pulse;
     let rave = g.venue.now.clone();
+    let look = if g.venue.on_air.is_some() { g.venue.look % 4 } else { 0 };
+    let (view, tags) = if lounge {
+        draw_lounge(g, time, pulse)
+    } else {
     let center = vec3(CH_ORIGIN.x + CH_SIZE.0 / 2.0, 0.5, CH_ORIGIN.y + CH_SIZE.1 / 2.0);
     let view = begin_room(g, center + vec3(0.0, 0.0, -1.2), 1.75, Color::from_rgba(10, 7, 20, 255));
     let o = vec3(CH_ORIGIN.x, 0.5, CH_ORIGIN.y);
@@ -3269,7 +3303,6 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         lamps.push((o + vec3(5.5 + a.cos() * 3.2, 0.9, 4.6 + (a * 0.8).sin() * 2.2), 0.7 + pulse * 0.9, vec3(c.r, c.g, c.b)));
     }
     lamps.push((booth + vec3(0.0, 1.2, 0.3), 0.9 + pulse * 0.8, vec3(1.0, 0.25, 0.95)));
-    let look = if g.venue.on_air.is_some() { g.venue.look % 4 } else { 0 };
     let (dusk, tint) = match look {
         1 => (0.72, vec3(1.0, 0.55, 0.25)),
         2 => (0.82, vec3(0.55, 0.65, 1.0)),
@@ -3399,7 +3432,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         p.draw(&mut b, &g.world, time, pulse);
     }
     let mut tags: Vec<(Vec3, String, Color)> = Vec::new();
-    for peer in g.venue.peers.iter() {
+    for peer in g.venue.peers.iter().filter(|p| !p.lounge) {
         let mut friend = Player::new(peer.character, g.cast_list[peer.character].body, CH_ORIGIN + peer.pos);
         friend.facing = peer.facing;
         friend.yaw = peer.facing.x.atan2(peer.facing.y);
@@ -3446,6 +3479,8 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         b.box_at(booth + vec3(0.0, 1.75, 0.2), yaw, vec3(0.0, 0.0, 4.6), vec3(0.03, 0.03, 9.2), c);
     }
     b.flush();
+    (view, tags)
+    };
     blit(g);
     for (at, text, colour) in tags.iter() {
         name_tag(view, *at, text, *colour);
@@ -3489,13 +3524,30 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
     ui_text(&code, code_x + 5.0, code_y + 9.0, 9.0, cream());
     tour_banner(g, fr, if look != 0 { 26.0 } else { 58.0 });
-    place_label("st. bassilica", if g.venue.chat_open {
+    place_label(if lounge { "dj lounge" } else { "st. bassilica" }, if g.venue.chat_open {
         "enter: send   esc: close"
     } else if at_decks {
         "E: the decks   enter: chat"
+    } else if at_bar {
+        "E: the goose's bar   enter: chat"
+    } else if lounge {
+        "wasd: move   enter: chat   esc or the door: back to the club"
     } else {
         "wasd: move   1-6: sing   enter: chat   esc or the door: leave"
     });
+    if backstage && g.venue.overlay == Overlay::None && !g.venue.chat_open {
+        let label = if lounge { "club" } else { "lounge" };
+        let (bw, bh) = (44.0, 16.0);
+        let (bx, by) = (low_w() - bw - 6.0, (low_h() / 2.0 - bh / 2.0).round());
+        if button(fr, label, bx, by, bw, bh, false) && !fresh {
+            if lounge {
+                to_club(g);
+            } else {
+                to_lounge(g);
+            }
+            fr.click = false;
+        }
+    }
     let over_decks = g.venue.overlay == Overlay::Decks;
     if g.venue.overlay == Overlay::None || over_decks {
         let now = get_time();
@@ -3716,4 +3768,237 @@ pub(crate) fn save_as(g: &mut Game, fr: &mut Frame) -> bool {
     }
     fr.click = false;
     true
+}
+
+fn lounge_solids() -> Vec<(f32, f32, f32, f32)> {
+    vec![(4.4, 0.0, 7.6, 1.55), (0.3, 0.0, 3.2, 1.05), (1.25, 1.75, 2.55, 2.45), (0.3, 3.3, 1.0, 4.2), (7.2, 3.2, 7.7, 3.7)]
+}
+
+fn to_lounge(g: &mut Game) {
+    g.venue.lounge = true;
+    for (who, off) in [(0usize, vec2(0.0, 0.0)), (1, vec2(0.7, 0.2))] {
+        g.players[who].seated = false;
+        g.players[who].place_at(LG_ORIGIN + vec2(LG_SIZE.0 / 2.0, LG_SIZE.1 - 0.9) + off);
+        g.players[who].facing = vec2(0.0, -1.0);
+    }
+    g.toasts.push(("the dj lounge. the goose runs the bar at the back.".to_string(), 3.0));
+}
+
+fn to_club(g: &mut Game) {
+    g.venue.lounge = false;
+    if g.venue.overlay == Overlay::Bar {
+        g.venue.overlay = Overlay::None;
+    }
+    for (who, off) in [(0usize, vec2(0.0, 0.0)), (1, vec2(0.0, 0.7))] {
+        g.players[who].seated = false;
+        g.players[who].place_at(CH_ORIGIN + vec2(0.8, 5.3) + off);
+        g.players[who].facing = vec2(1.0, 0.0);
+    }
+}
+
+fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String, Color)>) {
+    let center = vec3(LG_ORIGIN.x + LG_SIZE.0 / 2.0, 0.5, LG_ORIGIN.y + LG_SIZE.1 / 2.0);
+    let view = begin_room(g, center + vec3(0.0, 0.0, -0.8), 1.25, Color::from_rgba(22, 14, 18, 255));
+    let o = vec3(LG_ORIGIN.x, 0.5, LG_ORIGIN.y);
+    let flicker = 0.92 + 0.08 * (time * 5.0).sin() * (time * 3.1).cos();
+    let lamps = vec![
+        (o + vec3(0.6, 1.3, 1.6), 1.1 * flicker, vec3(1.0, 0.62, 0.28)),
+        (o + vec3(6.0, 1.6, 0.9), 1.0, vec3(1.0, 0.7, 0.35)),
+        (o + vec3(7.4, 1.2, 4.6), 0.9 * flicker, vec3(1.0, 0.5, 0.3)),
+        (o + vec3(4.0, 2.2, 0.2), 0.5 + 0.2 * pulse, vec3(1.0, 0.3, 0.8)),
+    ];
+    let light = Light { dusk: 0.55, fire: o + vec3(2.0, 1.2, 2.2), fire_strength: 0.35, tint: vec3(1.0, 0.6, 0.3), lamps };
+    let mut b = Batch::new(center + vec3(0.0, 5.0, -1.4), light);
+    for z in 0..LG_SIZE.1 as i32 {
+        for x in 0..LG_SIZE.0 as i32 {
+            let c = if z % 2 == 0 { Color::from_rgba(122, 80, 54, 255) } else { Color::from_rgba(110, 72, 48, 255) };
+            b.top(o + vec3(x as f32 + 0.5, 0.0, z as f32 + 0.5), c);
+        }
+    }
+    let rug = Color::from_rgba(150, 50, 60, 255);
+    b.cube(o + vec3(2.1, 0.01, 2.6), vec3(3.0, 0.02, 2.2), rug);
+    b.cube(o + vec3(2.1, 0.015, 2.6), vec3(2.6, 0.02, 1.8), Color::from_rgba(196, 140, 80, 255));
+    b.cube(o + vec3(2.1, 0.02, 2.6), vec3(2.3, 0.02, 1.5), rug);
+    let wall = Color::from_rgba(92, 46, 52, 255);
+    let wall_dark = Color::from_rgba(70, 34, 42, 255);
+    for level in 0..6 {
+        let c = if level % 2 == 0 { wall } else { wall_dark };
+        b.cube(o + vec3(LG_SIZE.0 / 2.0, 0.2 + level as f32 * 0.4, -0.15), vec3(LG_SIZE.0 + 0.6, 0.4, 0.3), c);
+    }
+    for level in 0..4 {
+        let c = if level % 2 == 0 { wall_dark } else { wall };
+        b.cube(o + vec3(-0.15, 0.2 + level as f32 * 0.4, LG_SIZE.1 / 2.0), vec3(0.3, 0.4, LG_SIZE.1), c);
+        b.cube(o + vec3(LG_SIZE.0 + 0.15, 0.2 + level as f32 * 0.4, LG_SIZE.1 / 2.0), vec3(0.3, 0.4, LG_SIZE.1), c);
+    }
+    for k in 0..7 {
+        let x = 0.5 + k as f32 * 1.1;
+        b.cube(o + vec3(x, 1.7, 0.02), vec3(0.6, 0.6, 0.02), [Color::from_rgba(40, 30, 50, 255), Color::from_rgba(200, 160, 90, 255), Color::from_rgba(60, 90, 120, 255)][k % 3]);
+        b.cube(o + vec3(x, 1.7, 0.035), vec3(0.4, 0.4, 0.01), Color::from_rgba(20, 16, 24, 255));
+    }
+    let sofa = Color::from_rgba(70, 92, 84, 255);
+    let sofa_dark = Color::from_rgba(52, 70, 64, 255);
+    b.cube(o + vec3(1.75, 0.22, 0.55), vec3(2.8, 0.44, 0.9), sofa);
+    b.cube(o + vec3(1.75, 0.6, 0.2), vec3(2.8, 0.5, 0.25), sofa_dark);
+    b.cube(o + vec3(0.45, 0.4, 0.55), vec3(0.25, 0.4, 0.9), sofa_dark);
+    b.cube(o + vec3(3.05, 0.4, 0.55), vec3(0.25, 0.4, 0.9), sofa_dark);
+    for k in 0..3 {
+        b.cube(o + vec3(0.95 + k as f32 * 0.8, 0.5, 0.55), vec3(0.7, 0.1, 0.7), Color::from_rgba(84, 108, 98, 255));
+        b.cube(o + vec3(0.95 + k as f32 * 0.8, 0.62, 0.35), vec3(0.34, 0.24, 0.1), [Color::from_rgba(230, 180, 90, 255), Color::from_rgba(200, 90, 110, 255), Color::from_rgba(120, 160, 220, 255)][k]);
+    }
+    let wood = Color::from_rgba(84, 52, 34, 255);
+    b.cube(o + vec3(1.9, 0.3, 2.1), vec3(1.2, 0.06, 0.6), wood);
+    for (dx, dz) in [(-0.5, -0.22), (0.5, -0.22), (-0.5, 0.22), (0.5, 0.22)] {
+        b.cube(o + vec3(1.9 + dx, 0.14, 2.1 + dz), vec3(0.06, 0.28, 0.06), wood);
+    }
+    b.cube(o + vec3(1.6, 0.38, 2.1), vec3(0.12, 0.1, 0.12), Color::from_rgba(240, 240, 230, 255));
+    b.unlit = true;
+    b.cube(o + vec3(2.2, 0.4, 2.05), vec3(0.06, 0.12, 0.06), Color::new(1.0, 0.75, 0.35, 0.9 * flicker));
+    b.unlit = false;
+    b.cube(o + vec3(0.65, 0.2, 3.75), vec3(0.6, 0.4, 0.8), sofa);
+    b.cube(o + vec3(0.4, 0.55, 3.75), vec3(0.15, 0.5, 0.8), sofa_dark);
+    let pot = Color::from_rgba(180, 110, 70, 255);
+    for (px, pz) in [(7.45f32, 3.45f32), (0.45, 5.4)] {
+        b.cube(o + vec3(px, 0.2, pz), vec3(0.4, 0.4, 0.4), pot);
+        for k in 0..5 {
+            let a = k as f32 * 1.26 + px;
+            b.cube(o + vec3(px + a.cos() * 0.15, 0.6 + (k % 2) as f32 * 0.2, pz + a.sin() * 0.15), vec3(0.22, 0.22, 0.22), Color::from_rgba(60, 130 + (k * 12) as u8, 70, 255));
+        }
+    }
+    let counter = Color::from_rgba(70, 44, 30, 255);
+    let top = Color::from_rgba(150, 110, 70, 255);
+    b.cube(o + vec3(6.0, 0.5, 1.35), vec3(3.2, 1.0, 0.4), counter);
+    b.cube(o + vec3(6.0, 1.02, 1.35), vec3(3.3, 0.06, 0.5), top);
+    b.cube(o + vec3(6.0, 1.6, 0.18), vec3(3.0, 0.06, 0.3), wood);
+    b.cube(o + vec3(6.0, 2.1, 0.18), vec3(3.0, 0.06, 0.3), wood);
+    for k in 0..9 {
+        let c = [Color::from_rgba(80, 160, 90, 255), Color::from_rgba(200, 80, 60, 255), Color::from_rgba(230, 200, 120, 255), Color::from_rgba(90, 120, 200, 255)][k % 4];
+        b.cube(o + vec3(4.75 + k as f32 * 0.3, 1.78, 0.2), vec3(0.1, 0.3, 0.1), c);
+        b.cube(o + vec3(4.85 + k as f32 * 0.3, 2.26, 0.2), vec3(0.1, 0.26, 0.1), c);
+    }
+    b.cube(o + vec3(5.2, 1.12, 1.3), vec3(0.18, 0.14, 0.18), Color::from_rgba(250, 245, 230, 255));
+    b.cube(o + vec3(5.2, 1.22, 1.3), vec3(0.2, 0.08, 0.2), Color::from_rgba(255, 250, 235, 255));
+    b.cube(o + vec3(6.9, 1.1, 1.3), vec3(0.4, 0.1, 0.24), Color::from_rgba(196, 140, 70, 255));
+    for k in 0..3 {
+        b.cube(o + vec3(5.2 + k as f32 * 0.8, 0.35, 1.95), vec3(0.3, 0.06, 0.3), Color::from_rgba(150, 40, 50, 255));
+        b.cube(o + vec3(5.2 + k as f32 * 0.8, 0.17, 1.95), vec3(0.06, 0.34, 0.06), Color::from_rgba(40, 40, 46, 255));
+    }
+    draw_goose(&mut b, o + vec3(6.0, 0.0, 0.75), time);
+    b.unlit = true;
+    let neon = Color::new(1.0, 0.35, 0.75, 0.75 + 0.25 * pulse);
+    b.cube(o + vec3(2.0, 2.15, 0.03), vec3(1.6, 0.05, 0.02), neon);
+    b.cube(o + vec3(2.0, 1.75, 0.03), vec3(1.6, 0.05, 0.02), neon);
+    b.cube(o + vec3(1.22, 1.95, 0.03), vec3(0.05, 0.45, 0.02), neon);
+    b.cube(o + vec3(2.78, 1.95, 0.03), vec3(0.05, 0.45, 0.02), neon);
+    b.cube(o + vec3(7.4, 1.2, 4.6), vec3(0.3, 0.3, 0.3), Color::new(1.0, 0.8, 0.5, 0.95));
+    b.unlit = false;
+    b.cube(o + vec3(7.4, 0.5, 4.6), vec3(0.05, 1.0, 0.05), Color::from_rgba(40, 40, 46, 255));
+    let mut tags: Vec<(Vec3, String, Color)> = Vec::new();
+    for peer in g.venue.peers.iter().filter(|p| p.lounge) {
+        let mut friend = Player::new(peer.character, g.cast_list[peer.character].body, LG_ORIGIN + peer.pos);
+        friend.facing = peer.facing;
+        friend.yaw = peer.facing.x.atan2(peer.facing.y);
+        friend.walking = peer.walking;
+        friend.voice_timer = peer.sing;
+        friend.draw(&mut b, &g.world, time, 0.0);
+        let f = g.venue.friends.iter().find(|f| f.id == peer.id);
+        let name = f.map(|f| f.name.clone()).unwrap_or_default();
+        let (is_dj, is_admin) = f.map(|f| (f.dj, f.admin)).unwrap_or((false, false));
+        let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
+        let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) };
+        tags.push((vec3(LG_ORIGIN.x + peer.pos.x, 1.75, LG_ORIGIN.y + peer.pos.y), name, colour));
+    }
+    for p in g.shown_players().iter() {
+        p.draw(&mut b, &g.world, time, 0.0);
+    }
+    if net::state() == 2 {
+        let mine = if g.venue.admin && !g.venue.admin_name.is_empty() { format!("* {}", g.venue.admin_name) } else { format!("dj {}", g.venue.name) };
+        tags.push((vec3(g.players[0].pos.x, 1.75, g.players[0].pos.y), mine, if g.venue.admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) }));
+    }
+    b.flush();
+    (view, tags)
+}
+
+fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (w, h) = (250.0f32.min(low_w() - 12.0), 30.0 + MENU.len() as f32 * 17.0 + 30.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_rect(x + 3.0, y + 3.0, w, h, ink());
+    ui_rect(x, y, w, h, Color::from_rgba(52, 30, 30, 255));
+    ui_rect(x, y, w, 3.0, Color::from_rgba(255, 154, 60, 255));
+    ui_text("the goose's bar", x + 10.0, y + 17.0, 12.0, cream());
+    let purse = format!("{} acorns", g.inv.acorns);
+    ui_text(&purse, x + w - 10.0 - ui_measure(&purse, 9.0), y + 16.0, 9.0, Color::from_rgba(255, 214, 110, 255));
+    let n = MENU.len();
+    if !fresh {
+        if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S) {
+            g.venue.bar_sel = (g.venue.bar_sel + 1) % n;
+        }
+        if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W) {
+            g.venue.bar_sel = (g.venue.bar_sel + n - 1) % n;
+        }
+    }
+    let mut buy: Option<usize> = None;
+    for (i, (name, note, price)) in MENU.iter().enumerate() {
+        let ry = y + 26.0 + i as f32 * 17.0;
+        let on = g.venue.bar_sel == i;
+        if on {
+            ui_rect(x + 6.0, ry - 1.0, w - 12.0, 16.0, Color::new(1.0, 1.0, 1.0, 0.1));
+        }
+        if fr.click && hit(fr, x + 6.0, ry - 1.0, w - 12.0, 16.0) && !fresh {
+            g.venue.bar_sel = i;
+            buy = Some(i);
+        }
+        ui_text(&format!("{}  {name}", i + 1), x + 12.0, ry + 8.0, 10.0, cream());
+        ui_text(note, x + 12.0, ry + 14.5, 7.0, Color::new(1.0, 0.97, 0.88, 0.55));
+        let p = format!("{price} acorns");
+        ui_text(&p, x + w - 12.0 - ui_measure(&p, 9.0), ry + 9.0, 9.0, if g.inv.acorns >= *price { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(200, 120, 110, 255) });
+    }
+    if !fresh {
+        for (k, key) in [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3, KeyCode::Key4, KeyCode::Key5].iter().enumerate() {
+            if is_key_pressed(*key) && k < n {
+                buy = Some(k);
+            }
+        }
+        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::E) && get_time() - g.venue.opened_at > 0.2 {
+            buy = Some(g.venue.bar_sel);
+        }
+    }
+    if get_time() - g.venue.bar_note.1 < 4.0 && !g.venue.bar_note.0.is_empty() {
+        let lines = ui_wrap(&g.venue.bar_note.0, 8.0, w - 76.0);
+        for (k, l) in lines.iter().take(2).enumerate() {
+            ui_text(l, x + 10.0, y + h - 17.0 + k as f32 * 9.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+        }
+    } else {
+        ui_text("enter or click: buy   esc: close", x + 10.0, y + h - 7.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
+    }
+    let close = button(fr, "close", x + w - 54.0, y + h - 22.0, 44.0, 14.0, false);
+    if let Some(i) = buy {
+        let (name, _, price) = MENU[i];
+        if g.inv.acorns >= price {
+            g.inv.acorns -= price;
+            g.save_clock = 99.0;
+            g.audio.play_ch(3, &g.bells[4], 0.4);
+            let line = match i {
+                0 | 1 | 2 => format!("the goose slides you a {name}. honk. (-{price} acorns)"),
+                3 => format!("two scoops of vanilla ice cream. bliss. (-{price} acorns)"),
+                _ => format!("a warm franzbrötchen, straight from hamburg. (-{price} acorns)"),
+            };
+            g.venue.bar_note = (line.clone(), get_time());
+            g.toasts.push((line, 3.5));
+            let at = g.players[0].pos;
+            for k in 0..4 {
+                g.hearts.push((vec3(at.x + (k as f32 * 0.7).sin() * 0.2, 1.1 + k as f32 * 0.12, at.y), 1.4));
+            }
+        } else {
+            g.venue.bar_note = (format!("not enough acorns for the {name}: it's {price}. quests and the fire earn more."), get_time());
+            g.audio.play_ch(3, &g.tom, 0.5);
+        }
+    }
+    if fresh {
+        return;
+    }
+    if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
 }

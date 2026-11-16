@@ -14,6 +14,16 @@ pub(crate) const PC_ORIGIN: Vec2 = Vec2::new(200.0, 100.0);
 pub(crate) const PC_SIZE: (f32, f32) = (9.0, 6.0);
 pub(crate) const CH_ORIGIN: Vec2 = Vec2::new(300.0, 100.0);
 pub(crate) const CH_SIZE: (f32, f32) = (11.0, 9.0);
+pub(crate) const LG_ORIGIN: Vec2 = Vec2::new(400.0, 100.0);
+pub(crate) const LG_SIZE: (f32, f32) = (8.0, 6.0);
+pub(crate) const LG_BAR: Vec2 = Vec2::new(6.0, 2.3);
+pub(crate) const MENU: [(&str, &str, u32); 5] = [
+    ("cola", "ice cold, with a straw", 3),
+    ("club-mate", "the dj's fuel", 4),
+    ("sparkling water", "stay fresh for the next set", 2),
+    ("vanilla ice cream", "two scoops in a cup", 5),
+    ("franzbrötchen", "warm, buttery, cinnamon", 6),
+];
 
 #[derive(Clone, Copy, PartialEq, Default)]
 pub(crate) enum Venue {
@@ -32,6 +42,7 @@ pub(crate) enum Overlay {
     Mail,
     Decks,
     Account,
+    Bar,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -81,6 +92,7 @@ pub(crate) struct Peer {
     pub(crate) facing: Vec2,
     pub(crate) walking: bool,
     pub(crate) sing: f32,
+    pub(crate) lounge: bool,
 }
 
 #[derive(Default)]
@@ -89,6 +101,9 @@ pub(crate) struct VenueState {
     pub(crate) key_draft: String,
     pub(crate) key_sent: bool,
     pub(crate) acct_key: bool,
+    pub(crate) lounge: bool,
+    pub(crate) bar_sel: usize,
+    pub(crate) bar_note: (String, f64),
     pub(crate) chat_scroll: usize,
     pub(crate) chat_drag: Option<(f32, usize)>,
     pub(crate) chat_room: String,
@@ -1328,17 +1343,7 @@ pub(crate) fn draw_exteriors(b: &mut Batch, dusk: f32, see_through: bool, focus:
         return;
     }
 
-    let g = vec3(GOOSE.x, 0.5, GOOSE.y);
-    let bob = (time * 1.6).sin() * 0.01;
-    let black = Color::from_rgba(30, 28, 44, 255);
-    b.cube(g + vec3(0.0, 0.3, 0.0), vec3(0.44, 0.5, 0.4), black);
-    b.cube(g + vec3(0.0, 0.42, 0.21), vec3(0.1, 0.24, 0.02), WHITE);
-    b.cube(g + vec3(0.0, 0.8 + bob, 0.04), vec3(0.16, 0.56, 0.16), WHITE);
-    b.cube(g + vec3(0.0, 1.14 + bob, 0.06), vec3(0.24, 0.2, 0.26), WHITE);
-    b.cube(g + vec3(0.0, 1.1 + bob, 0.26), vec3(0.14, 0.07, 0.16), Color::from_rgba(255, 154, 60, 255));
-    b.cube(g + vec3(0.0, 1.17 + bob, 0.2), vec3(0.27, 0.06, 0.03), Color::from_rgba(10, 10, 20, 255));
-    b.cube(g + vec3(-0.12, 0.03, 0.06), vec3(0.12, 0.06, 0.2), Color::from_rgba(255, 154, 60, 255));
-    b.cube(g + vec3(0.12, 0.03, 0.06), vec3(0.12, 0.06, 0.2), Color::from_rgba(255, 154, 60, 255));
+    draw_goose(b, vec3(GOOSE.x, 0.5, GOOSE.y), time);
 
     let p = vec3(BOARD.x, 0.5, BOARD.y - 0.45);
     b.cube(p + vec3(-0.6, 0.45, 0.0), vec3(0.08, 0.9, 0.08), Color::from_rgba(78, 74, 94, 255));
@@ -1353,6 +1358,19 @@ pub(crate) fn draw_exteriors(b: &mut Batch, dusk: f32, see_through: bool, focus:
             b.cube(p + vec3(x + 0.03, 0.62 + tilt, 0.055), vec3(0.14, 0.05, 0.01), WHITE);
         }
     });
+}
+
+pub(crate) fn draw_goose(b: &mut Batch, g: Vec3, time: f32) {
+    let bob = (time * 1.6).sin() * 0.01;
+    let black = Color::from_rgba(30, 28, 44, 255);
+    b.cube(g + vec3(0.0, 0.3, 0.0), vec3(0.44, 0.5, 0.4), black);
+    b.cube(g + vec3(0.0, 0.42, 0.21), vec3(0.1, 0.24, 0.02), WHITE);
+    b.cube(g + vec3(0.0, 0.8 + bob, 0.04), vec3(0.16, 0.56, 0.16), WHITE);
+    b.cube(g + vec3(0.0, 1.14 + bob, 0.06), vec3(0.24, 0.2, 0.26), WHITE);
+    b.cube(g + vec3(0.0, 1.1 + bob, 0.26), vec3(0.14, 0.07, 0.16), Color::from_rgba(255, 154, 60, 255));
+    b.cube(g + vec3(0.0, 1.17 + bob, 0.2), vec3(0.27, 0.06, 0.03), Color::from_rgba(10, 10, 20, 255));
+    b.cube(g + vec3(-0.12, 0.03, 0.06), vec3(0.12, 0.06, 0.2), Color::from_rgba(255, 154, 60, 255));
+    b.cube(g + vec3(0.12, 0.03, 0.06), vec3(0.12, 0.06, 0.2), Color::from_rgba(255, 154, 60, 255));
 }
 
 thread_local! {
