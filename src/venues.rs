@@ -103,6 +103,8 @@ pub(crate) struct VenueState {
     pub(crate) acct_key: bool,
     pub(crate) lounge: bool,
     pub(crate) bar_sel: usize,
+    pub(crate) input_pick: bool,
+    pub(crate) input_scroll: usize,
     pub(crate) bar_note: (String, f64),
     pub(crate) chat_scroll: usize,
     pub(crate) chat_drag: Option<(f32, usize)>,

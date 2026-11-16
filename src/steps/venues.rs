@@ -1175,43 +1175,28 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         if button(fr, "in-game decks", x + 10.0, y + 64.0, 84.0, 16.0, false) {
             net::send("golive decks");
         }
+        if g.venue.input_pick {
+            source_list(g, fr, fresh, x, y, w, h);
+            return;
+        }
         if net::can_cast() {
-            if g.venue.inputs.is_empty() {
+            if button(fr, "stream my sound", x + 100.0, y + 64.0, 104.0, 16.0, false) && !fresh {
                 g.venue.inputs = net::inputs();
-            }
-            let pick = g.venue.inputs.get(g.venue.cast_input).cloned().unwrap_or_else(|| "default input".to_string());
-            if button(fr, "from this computer", x + 100.0, y + 64.0, 104.0, 16.0, false) && !fresh {
-                match net::cast_start(&pick) {
-                    Ok(()) => {
-                        net::send("golive stream");
-                        g.venue.cast_note.clear();
-                        g.toasts.push((format!("sending {pick} to the room"), 4.0));
-                    }
-                    Err(e) => g.venue.cast_note = format!("couldn't use {pick}: {e}"),
-                }
+                g.venue.input_pick = true;
+                g.venue.input_scroll = 0;
+                g.venue.cast_note.clear();
                 fr.click = false;
             }
-            let mut shown = format!("input: {pick}");
-            if ui_measure(&shown, 9.0) > w - 118.0 {
-                while ui_measure(&format!("{shown}..."), 9.0) > w - 118.0 && shown.len() > 8 {
-                    shown.pop();
-                }
-                shown.push_str("...");
-            }
+            ui_text("serato, your computer's sound or a mic", x + 100.0, y + 89.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
             if !g.venue.cast_note.is_empty() {
                 let note = ui_wrap(&g.venue.cast_note, 8.0, w - 80.0);
                 for (i, l) in note.iter().take(2).enumerate() {
                     ui_text(l, x + 10.0, y + 128.0 + i as f32 * 9.0, 8.0, Color::from_rgba(255, 140, 120, 255));
                 }
             }
-            if button(fr, &shown, x + 100.0, y + 81.0, w - 110.0, 11.0, false) && !fresh {
-                g.venue.cast_note.clear();
-                g.venue.inputs = net::inputs();
-                if !g.venue.inputs.is_empty() {
-                    g.venue.cast_input = (g.venue.cast_input + 1) % g.venue.inputs.len();
-                }
-                fr.click = false;
-            }
+        } else {
+            ui_text("serato or a mic: use the desktop app", x + 100.0, y + 72.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
+            ui_text("(mac or linux, from the website)", x + 100.0, y + 81.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
         }
         ui_text("or real audio: your own live stream link (https)", x + 10.0, y + 98.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
         bevel(x + 10.0, y + 102.0, w - 76.0, 14.0, false);
@@ -1246,7 +1231,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     } else if g.venue.asked {
         say(&["asked. the admin will answer by post.", "you can keep dancing."]);
     } else {
-        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin."]);
+        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin. then you choose:", "the in-game decks, your own sound (serato, your", "computer's sound, a mic) or a stream link."]);
         if button(fr, "ask to play this rave", x + 10.0, y + 64.0, 120.0, 16.0, false) {
             net::send("ask");
         }
@@ -3285,6 +3270,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let at_decks = !lounge && local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
     let at_bar = lounge && (g.players[0].pos - LG_ORIGIN).distance(LG_BAR) < 1.1;
     if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
+        g.venue.input_pick = false;
         g.venue.overlay = Overlay::Decks;
         g.venue.opened_at = get_time();
         while get_char_pressed().is_some() {}
@@ -4005,5 +3991,81 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
+    }
+}
+
+fn source_label(name: &str) -> (String, &'static str) {
+    if let Some(out) = name.strip_prefix("playing on: ") {
+        (format!("everything playing on {out}"), "computer sound: serato, music apps")
+    } else if name.to_lowercase().contains("serato") {
+        (name.to_string(), "serato")
+    } else if name.to_lowercase().contains("mic") {
+        (name.to_string(), "mic")
+    } else {
+        (name.to_string(), "audio input: mixer, controller, interface")
+    }
+}
+
+fn source_list(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32, h: f32) {
+    ui_rect(x + 4.0, y + 22.0, w - 8.0, h - 26.0, Color::from_rgba(52, 40, 102, 255));
+    ui_text("what should the room hear?", x + 10.0, y + 33.0, 9.0, cream());
+    let rows = (((h - 70.0) / 16.0).floor() as usize).max(1);
+    let n = g.venue.inputs.len();
+    if n == 0 {
+        ui_text("no sound devices found on this computer.", x + 10.0, y + 50.0, 8.0, Color::from_rgba(255, 140, 120, 255));
+    }
+    let most = n.saturating_sub(rows);
+    if !fresh {
+        let wheel = mouse_wheel().1;
+        if wheel < 0.0 || is_key_pressed(KeyCode::Down) {
+            g.venue.input_scroll = (g.venue.input_scroll + 1).min(most);
+        }
+        if wheel > 0.0 || is_key_pressed(KeyCode::Up) {
+            g.venue.input_scroll = g.venue.input_scroll.saturating_sub(1);
+        }
+    }
+    let first = g.venue.input_scroll.min(most);
+    let mut chosen: Option<usize> = None;
+    for (row, i) in (first..n).take(rows).enumerate() {
+        let (label, kind) = source_label(&g.venue.inputs[i]);
+        let ry = y + 39.0 + row as f32 * 16.0;
+        let over = hit(fr, x + 8.0, ry, w - 16.0, 15.0);
+        ui_rect(x + 8.0, ry, w - 16.0, 15.0, if over { Color::new(1.0, 1.0, 1.0, 0.16) } else { Color::new(1.0, 1.0, 1.0, 0.06) });
+        let mut shown = label.clone();
+        while ui_measure(&shown, 8.0) > w - 28.0 && shown.chars().count() > 6 {
+            shown.pop();
+        }
+        ui_text(&shown, x + 12.0, ry + 7.5, 8.0, cream());
+        ui_text(kind, x + 12.0, ry + 13.5, 6.0, Color::from_rgba(196, 150, 255, 255));
+        if fr.click && over && !fresh {
+            chosen = Some(i);
+        }
+    }
+    if first > 0 {
+        ui_text("^ more", x + w - 40.0, y + 33.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
+    }
+    if first < most {
+        ui_text("v more (scroll)", x + w - 66.0, y + h - 30.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
+    }
+    if let Some(i) = chosen {
+        let pick = g.venue.inputs[i].clone();
+        g.venue.cast_input = i;
+        g.venue.input_pick = false;
+        match net::cast_start(&pick) {
+            Ok(()) => {
+                net::send("golive stream");
+                g.venue.cast_note.clear();
+                g.toasts.push((format!("sending {} to the room", source_label(&pick).0), 4.0));
+            }
+            Err(e) => g.venue.cast_note = format!("couldn't use {pick}: {e}"),
+        }
+        fr.click = false;
+    }
+    if button(fr, "back", x + 10.0, y + h - 22.0, 44.0, 14.0, false) && !fresh {
+        g.venue.input_pick = false;
+        fr.click = false;
+    }
+    if is_key_pressed(KeyCode::Escape) && !fresh {
+        g.venue.input_pick = false;
     }
 }
