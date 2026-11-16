@@ -1212,42 +1212,58 @@
             var url = text(p, l);
             if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");
           };
-          var liveAudio = null;
           var liveUrl = "";
           var liveTimer = null;
-          function liveStop() {
-            if (liveAudio) {
-              try { liveAudio.pause(); liveAudio.removeAttribute("src"); liveAudio.load(); } catch (e) {}
-              liveAudio = null;
+          var liveEl = document.createElement("audio");
+          liveEl.setAttribute("playsinline", "");
+          liveEl.preload = "auto";
+          document.body.appendChild(liveEl);
+          var liveUnlocked = false;
+          var silent = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+          var tapToHear = document.createElement("button");
+          tapToHear.type = "button";
+          tapToHear.textContent = "tap to hear the dj";
+          tapToHear.style.cssText = "position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:30;display:none;padding:10px 18px;border-radius:22px;border:1.5px solid #ffd66e;background:#2a1f4d;color:#ffd66e;font:800 15px var(--sans,system-ui);box-shadow:0 6px 18px rgba(0,0,0,.4)";
+          document.body.appendChild(tapToHear);
+          function unlock() {
+            if (liveUnlocked) return;
+            liveUnlocked = true;
+            if (liveEl.src && liveUrl) return;
+            try {
+              liveEl.src = silent;
+              var p = liveEl.play();
+              if (p && p.then) p.then(function () { if (!liveUrl) liveEl.pause(); }).catch(function () { liveUnlocked = false; });
+            } catch (e) { liveUnlocked = false; }
+          }
+          ["pointerdown", "touchend", "keydown"].forEach(function (t) { document.addEventListener(t, unlock, { capture: true, passive: true }); });
+          function livePlay() {
+            var p = liveEl.play();
+            if (p && p.then) {
+              p.then(function () { tapToHear.style.display = "none"; }).catch(function () { if (liveUrl) tapToHear.style.display = "block"; });
             }
           }
-          function liveStart(url) {
-            liveStop();
-            if (url !== liveUrl) return;
-            try {
-              var a = new Audio(url);
-              a.setAttribute("playsinline", "");
-              a.preload = "auto";
-              var again = function () { if (liveAudio === a) setTimeout(function () { if (liveAudio === a) liveStart(url); }, 2000); };
-              a.addEventListener("error", again);
-              a.addEventListener("ended", again);
-              liveAudio = a;
-              var started = a.play();
-              if (started && started.catch) started.catch(function () {});
-            } catch (e) {}
-          }
+          tapToHear.addEventListener("click", function () {
+            tapToHear.style.display = "none";
+            if (liveUrl) { liveEl.src = liveUrl; livePlay(); }
+          });
+          liveEl.addEventListener("error", function () { if (liveUrl && liveEl.src.indexOf("data:") !== 0) setTimeout(function () { if (liveUrl) { liveEl.src = liveUrl; livePlay(); } }, 2000); });
+          liveEl.addEventListener("ended", function () { if (liveUrl) setTimeout(function () { if (liveUrl) { liveEl.src = liveUrl; livePlay(); } }, 2000); });
           importObject.env.net_listen = function (p, l) {
             liveUrl = text(p, l);
             if (!/^https:\/\//.test(liveUrl)) liveUrl = "";
             if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
-            if (!liveUrl) { liveStop(); return; }
-            liveStart(liveUrl);
+            if (!liveUrl) {
+              tapToHear.style.display = "none";
+              try { liveEl.pause(); liveEl.removeAttribute("src"); liveEl.load(); } catch (e) {}
+              return;
+            }
+            liveEl.src = liveUrl;
+            livePlay();
             liveTimer = setInterval(function () {
-              var a = liveAudio;
-              if (!a || !a.buffered || !a.buffered.length) return;
-              var end = a.buffered.end(a.buffered.length - 1);
-              if (end - a.currentTime > 2.0) {
-                try { a.currentTime = end - 0.5; } catch (e) {}
+              if (!liveEl.buffered || !liveEl.buffered.length) return;
+              var end = liveEl.buffered.end(liveEl.buffered.length - 1);
+              if (end - liveEl.currentTime > 2.0) {
+                try { liveEl.currentTime = end - 0.5; } catch (e) {}
               }
             }, 1000);
           };
