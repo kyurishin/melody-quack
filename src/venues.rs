@@ -474,13 +474,36 @@ impl VenueState {
             }
             (2, 1) => vec![("cipher.txt", false, vec!["kim: i hid tonight's code with caesar. every letter moved 3 along.".to_string(), caesar(&code, 3)])],
             (2, 2) => {
-                let shift = loop {
-                    let s = 1 + next(&mut rng) % 25;
-                    if s != 13 {
-                        break s as i32;
+                let valid = |t: &str| !t.is_empty() && t.chars().all(|c| c == '-' || ALPHABET_CHARS.contains(&c));
+                let answers = |shift: i32| -> Vec<String> { (1..26).map(|k| caesar(&caesar(&code, shift), -k)).filter(|t| valid(t)).collect() };
+                let mut shift = 3;
+                let mut best = usize::MAX;
+                for _ in 0..40 {
+                    let s = (1 + next(&mut rng) % 25) as i32;
+                    if s == 13 {
+                        continue;
                     }
-                };
-                vec![("cipher.txt", false, vec!["kim: caesar again. i forgot the shift. somewhere from 1 to 25.".to_string(), caesar(&code, shift)])]
+                    let n = answers(s).len();
+                    if n < best {
+                        best = n;
+                        shift = s;
+                    }
+                    if n <= 1 {
+                        break;
+                    }
+                }
+                let mut lines = vec!["kim: caesar again. i forgot the shift. somewhere from 1 to 25.".to_string(), caesar(&code, shift)];
+                let others: Vec<String> = answers(shift).into_iter().filter(|t| *t != code).collect();
+                if !others.is_empty() {
+                    let chars: Vec<char> = code.chars().collect();
+                    let mut n = 1;
+                    while n < chars.len() && others.iter().any(|o| o.chars().take(n).eq(chars.iter().take(n).copied())) {
+                        n += 1;
+                    }
+                    let prefix: String = chars.iter().take(n).collect();
+                    lines.push(format!("kim: i do remember it starts with {prefix}."));
+                }
+                vec![("cipher.txt", false, lines)]
             }
             _ => {
                 let key: String = (0..4).map(|_| (b'a' + (next(&mut rng) % 26) as u8) as char).collect();
@@ -1568,7 +1591,7 @@ mod tests {
 
         let mut v = player(2, 2);
         v.run("cat cipher.txt");
-        let hidden = v.term.last().unwrap().clone();
+        let hidden = v.term.iter().rev().find(|l| l.len() == 11 && l.chars().nth(3) == Some('-') && l.chars().nth(7) == Some('-')).unwrap().clone();
         assert!(v.run(&format!("caesar all {hidden}")), "cipher, medium");
 
         let mut v = player(2, 3);
@@ -1582,6 +1605,27 @@ mod tests {
         let hexed = v.term.last().unwrap().clone();
         assert!(v.run(&format!("xor {key} {hexed}")), "cipher, hard");
         assert!(v.flag);
+    }
+
+    #[test]
+    fn the_medium_cipher_always_has_one_answer() {
+        let alphabet: Vec<char> = ALPHABET_CHARS.to_vec();
+        let mut rng = 12345u32;
+        for _ in 0..300 {
+            let code = make_code(&mut rng);
+            let seed = next(&mut rng);
+            let mut v = player(2, 2);
+            v.secret = Some(Rave { code: code.clone(), title: "t".to_string(), seed, sound: 0, bpm: 132.0, expired: false });
+            let files = v.ctf_files();
+            let lines = &files[0].2;
+            let hidden = &lines[1];
+            let hint = lines.get(2).and_then(|l| l.strip_prefix("kim: i do remember it starts with ")).map(|p| p.trim_end_matches('.').to_string()).unwrap_or_default();
+            let fits: Vec<String> = (1..26)
+                .map(|k| caesar(hidden, -k))
+                .filter(|t| t.chars().all(|c| c == '-' || alphabet.contains(&c)) && t.starts_with(hint.as_str()))
+                .collect();
+            assert_eq!(fits, vec![code.clone()], "hidden {hidden} hint {hint:?}");
+        }
     }
 
     #[test]
