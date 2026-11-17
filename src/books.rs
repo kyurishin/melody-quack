@@ -1,14 +1,14 @@
 pub struct Book {
     pub title: &'static str,
     pub cover: (u8, u8, u8),
-    pub pages: [(&'static str, &'static str); 10],
+    pub pages: &'static [(&'static str, &'static str)],
 }
 
 pub const BOOKS: [Book; 9] = [
     Book {
         title: "experience design",
         cover: (52, 150, 140),
-        pages: [
+        pages: &[
             ("the peak-end rule", "Psychologist Daniel Kahneman found that we remember an experience mostly by two moments: its most intense point and its ending. A great last track can rescue a whole night."),
             ("the weenie", "Walt Disney called a tall landmark that pulls visitors forward a weenie, after the sausage you wave to lead a dog. The castle at the end of Main Street is one."),
             ("the hug machine", "As a young woman, Temple Grandin built a squeeze machine to calm her own nervous system with deep, even pressure. Design can start from one body's needs."),
@@ -24,7 +24,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "software development",
         cover: (226, 120, 60),
-        pages: [
+        pages: &[
             ("the first bug", "In 1947 the team running the Harvard Mark II taped a moth into the logbook: first actual case of bug being found. Engineers already called faults bugs."),
             ("the first program", "In 1843 Ada Lovelace published steps for Charles Babbage's Analytical Engine to compute Bernoulli numbers, often called the first computer program."),
             ("rust", "Rust began in 2006 as Graydon Hoare's side project, was taken up by Mozilla, and reached version 1.0 in May 2015. Melody Quack is written in it."),
@@ -40,7 +40,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "electronic music",
         cover: (200, 70, 150),
-        pages: [
+        pages: &[
             ("the theremin", "Leon Theremin invented his instrument around 1920. It is played without touching: the hands move near two antennas to shape pitch and volume."),
             ("radiophonic", "Daphne Oram co-founded the BBC Radiophonic Workshop in 1958. Delia Derbyshire later realised Ron Grainer's Doctor Who theme (1963) from tape and oscillators."),
             ("switched-on bach", "Wendy Carlos played Bach on a Moog synthesizer for Switched-On Bach (1968). It went on to sell more than a million copies."),
@@ -56,7 +56,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "ai",
         cover: (70, 110, 210),
-        pages: [
+        pages: &[
             ("the imitation game", "In 1950 Alan Turing asked whether machines can think, and proposed a test: can a machine's typed answers be told apart from a person's?"),
             ("a name for it", "The phrase artificial intelligence was coined in a 1955 proposal by John McCarthy and others for a summer workshop at Dartmouth in 1956."),
             ("the perceptron", "Frank Rosenblatt's perceptron (1958) was an early learning machine: it adjusted the weights of its connections whenever it guessed wrong."),
@@ -72,7 +72,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "ui/ux design",
         cover: (232, 190, 70),
-        pages: [
+        pages: &[
             ("the mother of all demos", "In 1968 Douglas Engelbart showed the mouse, hypertext, shared editing and video calls in a single 90-minute demo."),
             ("xerox parc", "Xerox PARC's Alto (1973) had windows, icons and a mouse. Apple's Macintosh brought the idea to a mass audience in 1984."),
             ("susan kare", "Susan Kare, trained as a fine artist, designed the original Macintosh icons and fonts on a grid of pixels, starting on graph paper."),
@@ -88,7 +88,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "cook & quack",
         cover: (214, 72, 96),
-        pages: [
+        pages: &[
             ("cooking on the beat", "In Melody Quack the pot listens. Sit by the fire, press E to put the pot on, and tap the percussion keys close to the beat: only hits on the beat stir the pot."),
             ("campfire tea", "With an empty basket the pot still brews campfire tea. Every new dish earns 10 acorns, and cooking it again earns 5."),
             ("fish first", "One fish becomes grilled fish, two become fish stew, and a rare fish turns into golden koi soup."),
@@ -104,7 +104,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "computer science",
         cover: (70, 92, 170),
-        pages: [
+        pages: &[
             ("turing's machine", "In 1936 Alan Turing imagined a machine that reads and writes symbols on an endless tape. Anything a modern computer can calculate, it can calculate too."),
             ("bits", "Claude Shannon's 1948 paper on communication measured information in bits, one yes-or-no answer each. The word was suggested by his colleague John Tukey."),
             ("big o", "Big O notation says how the work grows with the input. Comparing every pair in a list of n items is O(n squared); a binary search is O(log n)."),
@@ -120,7 +120,7 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "learning rust",
         cover: (183, 65, 14),
-        pages: [
+        pages: &[
             ("cargo new", "cargo new my_game makes a folder with Cargo.toml and src/main.rs. cargo run builds the program and starts it. Almost every Rust project begins like this."),
             ("let and mut", "A value in Rust can't change unless you say so. let x = 5 stays 5 forever; let mut x = 5 lets you write x += 1 later on."),
             ("ownership", "Every value has exactly one owner. When the owner goes out of scope, the value is freed: no garbage collector, and no memory left behind by accident."),
@@ -136,19 +136,41 @@ pub const BOOKS: [Book; 9] = [
     Book {
         title: "learning german",
         cover: (221, 170, 40),
-        pages: [
-            ("hallo!", "Hallo means hello, Tschüss means bye. Guten Morgen in the morning, Gute Nacht at bedtime. Danke is thank you, and Bitte is both please and you're welcome."),
-            ("der, die, das", "Every noun has a gender: der Hund (the dog), die Katze (the cat), das Lied (the song). Learn each new noun with its der, die or das, like part of the word."),
-            ("capital nouns", "In German every noun starts with a capital letter, wherever it sits in the sentence: ich höre Musik, I listen to music. It makes nouns easy to spot."),
-            ("verb second", "The verb likes second place. Ich tanze heute (I dance today) becomes Heute tanze ich: whatever comes first, the verb follows straight after it."),
-            ("du and sie", "Du is the friendly you, for friends, family and fellow ravers. Sie with a capital S is the polite you, for strangers and the goose at the door."),
-            ("counting", "Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Big numbers say the ones first: 21 is einundzwanzig, one-and-twenty."),
-            ("long words", "German glues words together. Franz plus Brötchen makes Franzbrötchen; Schall plus Platte plus Spieler makes Schallplattenspieler, a record player."),
-            ("ä, ö, ü and ß", "Ä sounds like the e in bed, ö like saying ay with rounded lips, ü like ee with rounded lips. ß is a sharp double s: Straße, street."),
-            ("at the club", "Ich tanze gern: I like dancing. Noch ein Lied, bitte! One more song, please! Wo ist die Garderobe? Where's the cloakroom? Prost! Cheers!"),
-            ("where next", "Deutsche Welle teaches German free at learngerman.dw.com, from Nicos Weg for beginners upwards. Speak a little every day, even just to your cat."),
+        pages: &[
+            ("A1: hallo!", "Hallo means hello, Tschüss means bye. Guten Morgen in the morning, Gute Nacht at bedtime. Danke is thank you, and Bitte is both please and you're welcome."),
+            ("A1: sounds", "Ä sounds like the e in bed, ö like ay with rounded lips, ü like ee with rounded lips. ß is a sharp ss. W sounds like v, v like f, and z like ts: Zeit."),
+            ("A1: der, die, das", "Every noun has a gender: der Hund (the dog), die Katze (the cat), das Lied (the song). Learn each noun with its article, as if it were part of the word."),
+            ("A1: capital nouns", "Every German noun starts with a capital letter, wherever it stands: ich höre Musik, I listen to music. It makes the nouns in a sentence easy to spot."),
+            ("A1: sein and haben", "To be: ich bin, du bist, er ist, wir sind, ihr seid, sie sind. To have: ich habe, du hast, er hat, wir haben. Learn these two by heart first."),
+            ("A1: verb endings", "Most verbs follow tanzen: ich tanze, du tanzt, er tanzt, wir tanzen, ihr tanzt, sie tanzen. The stem stays, the ending tells you who does it."),
+            ("A1: du and Sie", "Du is the friendly you, for friends, family and fellow ravers. Sie with a capital S is the polite you, for strangers, offices and the goose at the door."),
+            ("A1: counting", "Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn, elf, zwölf. Big numbers say the ones first: 21 is einundzwanzig, one-and-twenty."),
+            ("A1: verb second", "In a statement the verb stands second. Ich tanze heute becomes Heute tanze ich: whatever comes first, the verb follows straight after it."),
+            ("A1: questions", "Wer, was, wo, wann, warum, wie: who, what, where, when, why, how. For a yes or no question the verb goes first: Tanzt du? Kommst du mit?"),
+            ("A2: nicht and kein", "Kein says no to a noun: Ich habe keinen Hund. Nicht says no to everything else: Ich tanze nicht, das ist nicht laut."),
+            ("A2: the four cases", "Nominative is the subject, accusative the direct object, dative the receiver, genitive the owner. Der Hund gibt der Katze den Ball des Kindes."),
+            ("A2: accusative", "In the accusative only the masculine changes: der becomes den, ein becomes einen. Ich sehe den Hund, but ich sehe die Katze and das Lied."),
+            ("A2: dative", "Dative articles: dem, der, dem, and den with an extra n in the plural. They follow mit, nach, bei, seit, von, zu and aus: mit dem Hund, zu der Party."),
+            ("A2: in den or im", "In, an, auf, über, unter, vor, hinter, neben and zwischen take the dative for where (im Club) and the accusative for where to (in den Club)."),
+            ("A2: separable verbs", "Some verbs split in two: anfangen, aufstehen, mitkommen. The prefix flies to the end: Die Party fängt um zehn an. Kommst du mit?"),
+            ("A2: modal verbs", "Können, müssen, wollen, dürfen, sollen, mögen. The modal takes second place and the main verb waits at the end: Ich will heute tanzen."),
+            ("A2: the perfect", "To talk about the past, use haben or sein plus the ge-form: Ich habe getanzt. Verbs of movement take sein: Wir sind nach Hause gegangen."),
+            ("B1: adjective endings", "Der laute Bass, ein lauter Bass, lauter Bass. After der the adjective mostly ends in -e or -en; after ein, or alone, it has to show the gender itself."),
+            ("B1: weil and dass", "Weil, dass, wenn and ob send the verb to the end of their clause: Ich bleibe, weil die Musik gut ist. Ich weiß, dass du heute tanzt."),
+            ("B1: relative clauses", "Der Song, den ich liebe. Die DJ, die heute spielt. The relative pronoun matches the noun's gender and its own case, and the verb goes last."),
+            ("B1: simple past", "Stories and news use the Präteritum: ich war, ich hatte, ich ging, es gab. In everyday speech you mostly hear war, hatte and the modals: ich konnte."),
+            ("B1: long words", "German glues words together, and the last part decides the gender: Franz plus das Brötchen makes das Franzbrötchen; Schall, Platte and Spieler make der Schallplattenspieler."),
+            ("B2: wishes and manners", "Konjunktiv II makes wishes and polite requests: Ich hätte gern ein Franzbrötchen. Wenn ich DJ wäre, würde ich jede Nacht spielen."),
+            ("B2: the passive", "Werden plus the ge-form puts the focus on what happens, not who does it: Der Club wird um zehn geöffnet. Die Musik wurde lauter gemacht."),
+            ("B2: reported speech", "News reports what others said with Konjunktiv I: Der DJ sagt, er sei müde und komme morgen wieder. In conversation people usually just say er ist müde."),
+            ("C1: little particles", "Doch, mal, ja, eben, halt and schon colour a sentence: Komm doch mal mit! Das ist ja super. Native speakers use them constantly, so listen for them."),
+            ("C1: sounding native", "Na, alles klar? Krass! Ich verstehe nur Bahnhof means I don't understand a thing; Das ist nicht mein Bier means not my problem. Idioms make you sound at home."),
+            ("C1: at the club", "Ich tanze gern. Noch ein Lied, bitte! Wo ist die Garderobe? Prost! Wollen wir morgen wieder hingehen? At C1 you can talk your way into any party."),
+            ("where next", "Deutsche Welle teaches German free at learngerman.dw.com from A1 to C1, and the Goethe-Institut exams prove your level. Speak a little every day, even to your cat."),
         ],
     },
 ];
 
-pub const SPREADS: usize = 5;
+pub fn spreads(book: &Book) -> usize {
+    book.pages.len().div_ceil(2)
+}

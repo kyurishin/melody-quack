@@ -136,7 +136,7 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **sofa**, **concrete bench**: sit
 - **plant**: water it once a day; it grows, blooms, and withers if forgotten
 - **table**: serve a dish you cooked
-- **bookshelf**: nine books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust, learning german), ten short pages each. A/D choose and turn pages, E opens, Esc goes back
+- **bookshelf**: nine books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust, learning german), ten short pages each, except learning german: a 30-page course from first words (A1) to fluency (C1). A/D choose and turn pages, E opens, Esc goes back
 - **piano**, **drum kit**: sit and play with 1-6
 - **record player**: plays your friend's tunes or a diary jam
 - **wind chime**, **speaker** (bigger echo), **subwoofer** (heavier kick), **steel pillar** (clang), **rug** (a little dance)

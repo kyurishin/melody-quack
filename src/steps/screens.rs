@@ -47,7 +47,7 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
                     g.turn_dir = -1.0;
                     g.audio.play_ch(3, &g.plink, 0.25);
                 }
-                if (right_k || tap_right || pick_k || tap_mid) && g.book_spread + 1 < books::SPREADS && g.page_turn <= 0.0 {
+                if (right_k || tap_right || pick_k || tap_mid) && g.book_spread + 1 < books::spreads(&books::BOOKS[g.open_book.unwrap_or(0)]) && g.page_turn <= 0.0 {
                     g.book_spread += 1;
                     g.page_turn = 1.0;
                     g.turn_dir = 1.0;
