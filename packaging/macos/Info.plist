@@ -13,7 +13,6 @@
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.music-games</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSAudioCaptureUsageDescription</key><string>When you DJ, Melody Quack can stream what your computer plays (Serato, your speakers) to the room.</string>
   <key>NSMicrophoneUsageDescription</key><string>Melody Quack listens to the room to follow the tempo of your music (F), and records your own sounds for the sampler.</string>
 </dict>
 </plist>

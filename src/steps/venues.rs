@@ -1117,12 +1117,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 let fill = (lv.min(1.0) * 160.0).round();
                 ui_rect(x + 10.0, y + 72.0, fill, 6.0, if lv > 0.95 { Color::from_rgba(255, 90, 95, 255) } else { Color::from_rgba(140, 222, 168, 255) });
                 if lv < 0.01 {
-                    let loopback = name.starts_with("playing on: ");
-                    let tips = if cfg!(target_os = "macos") && loopback {
-                        ["no sound yet. serato's setup > audio shows where it plays:", "a controller plays through itself, not the mac speakers.", "press 'source' and pick that. mac: 14.6+ and privacy > screen & system audio recording."]
-                    } else if loopback {
-                        ["no sound coming in. play a track and check that", "it plays through this output.", ""]
-                    } else if cfg!(target_os = "macos") {
+                    let tips = if cfg!(target_os = "macos") {
                         ["no sound coming in. in serato: setup > audio,", "turn on serato virtual audio and play a track.", "mac: system settings > privacy > microphone > melody quack."]
                     } else {
                         ["no sound coming in. check that your dj software", "plays into this input, and that a track is playing.", ""]
@@ -1215,7 +1210,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 g.venue.cast_note.clear();
                 fr.click = false;
             }
-            ui_text("serato, your computer's sound or a mic", x + 100.0, y + 89.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
+            ui_text("serato, a mixer or a mic", x + 100.0, y + 89.0, 7.0, Color::new(1.0, 0.97, 0.88, 0.6));
             if !g.venue.cast_note.is_empty() {
                 let note = ui_wrap(&g.venue.cast_note, 8.0, w - 80.0);
                 for (i, l) in note.iter().take(2).enumerate() {
@@ -1259,7 +1254,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     } else if g.venue.asked {
         say(&["asked. the admin will answer by post.", "you can keep dancing."]);
     } else {
-        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin. then you choose:", "the in-game decks, your own sound (serato, your", "computer's sound, a mic) or a stream link."]);
+        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin. then you choose:", "the in-game decks, your own sound (serato, a", "mixer, a mic) or a stream link."]);
         if button(fr, "ask to play this rave", x + 10.0, y + 64.0, 120.0, 16.0, false) {
             net::send("ask");
         }
@@ -4084,9 +4079,7 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
 }
 
 fn source_label(name: &str) -> (String, &'static str) {
-    if let Some(out) = name.strip_prefix("playing on: ") {
-        (format!("everything playing on {out}"), "computer sound: serato, music apps")
-    } else if name.to_lowercase().contains("serato") {
+    if name.to_lowercase().contains("serato") {
         (name.to_string(), "serato")
     } else if name.to_lowercase().contains("mic") {
         (name.to_string(), "mic")

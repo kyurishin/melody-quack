@@ -210,9 +210,7 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
 - **Playing:**
   - **in-game decks:** beat and melody on or off, the sound, the tempo, and six pads; everyone in the room hears the same mix.
   - **from this computer** (desktop app): click **stream my sound** and pick a source from the list. The game streams it (128 kbps MP3) through the server to everyone in the room, in the browser and the desktop apps, a second or two behind like any radio. A meter shows your level.
-    - **"playing on: …"** (Mac and Windows) sends whatever the computer plays through that output: the speakers, headphones, or the controller Serato plays through. The first choice is the computer's main output, so playing Serato through the speakers just works. On a Mac this needs macOS 14.6 or newer, and the first time macOS asks to allow **system audio recording** for Melody Quack.
-    - Any recording input works too: a mixer, a controller's master out, a microphone, or Serato Virtual Audio.
-    - On Linux, pick the "monitor" of your output in the sound settings (pavucontrol), or route Serato through a loopback input.
+    - The list shows recording inputs only: Serato Virtual Audio, a mixer, a controller's master out or a microphone. The game never records everything your computer plays, so notifications, calls and other apps stay private.
   - **a stream link:** paste any https stream under "real audio".
 - **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
 - **Practice:** offline, anyone can practise on the decks; only you hear it.
