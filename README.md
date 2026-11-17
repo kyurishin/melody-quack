@@ -136,7 +136,7 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **sofa**, **concrete bench**: sit
 - **plant**: water it once a day; it grows, blooms, and withers if forgotten
 - **table**: serve a dish you cooked
-- **bookshelf**: nine books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust, learning german), ten short pages each, except learning german: a 30-page course from first words (A1) to fluency (C1). A/D choose and turn pages, E opens, Esc goes back
+- **bookshelf**: nine books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust, learning german), ten short pages each, except two 30-page books: learning german, a course from first words (A1) to fluency (C1), and ui/ux design, from its history to principles, research, visual design and accessibility. A/D choose and turn pages, E opens, Esc goes back
 - **piano**, **drum kit**: sit and play with 1-6
 - **record player**: plays your friend's tunes or a diary jam
 - **wind chime**, **speaker** (bigger echo), **subwoofer** (heavier kick), **steel pillar** (clang), **rug** (a little dance)
@@ -176,7 +176,7 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 - **rave.exe** books a rave: name, sound, tempo, and you get a code and a pixel flyer.
 - **quacknet** is the town's web; a tiny dot on the home page leads underground, where the flyers hang.
 - **terminal** hides a capture the flag whose flag is tonight's rave code. Every day brings a different kind of puzzle, the same for everyone, and you choose easy, medium or hard when the terminal opens (`level` changes it later):
-  - **the goose's files:** a hidden file and a password, then rot13 (easy), base64 and rot13 (medium), or a git history, a JSON web token and an API (hard).
+  - **the goose's files:** a hidden file and a password: the code is plain once you're in (easy), base64 then rot13 (medium), or a git history, a JSON web token and an API (hard).
   - **the log hunt:** a log too long to read. grep for the code (easy), for three parts among old nights' decoys (medium), or for base64'd parts signed by the goose across two logs (hard).
   - **the cipher:** caesar with the shift given (easy), with the shift unknown (medium), or an XOR vault whose key hides in `.env` (hard).
 

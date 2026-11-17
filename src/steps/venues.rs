@@ -342,10 +342,7 @@ fn online(g: &mut Game, dt: f32) {
             "code" if parts.len() >= 2 => {
                 let info = g.venue.tonight.as_ref().map(|t| t.info.clone()).unwrap_or_default();
                 if let Some(r) = rave_from(parts[1], &info) {
-                    let lines = g.venue.reveal_lines(&r);
-                    g.venue.term.extend(lines);
-                    g.venue.secret = Some(r);
-                    g.venue.claimed = true;
+                    g.venue.deliver(r);
                 }
             }
             "nocode" if parts.len() >= 2 => {

@@ -148,6 +148,7 @@ pub(crate) struct VenueState {
     pub(crate) term_level: u8,
     pub(crate) ctf_pick: Option<u8>,
     pub(crate) claimed: bool,
+    pub(crate) pending: Option<String>,
     pub(crate) term_flash: (String, f64),
     pub(crate) term_sel: Option<((usize, usize), (usize, usize))>,
     pub(crate) term_drag: bool,
@@ -389,14 +390,14 @@ impl VenueState {
     pub(crate) fn reveal_lines(&self, r: &Rave) -> Vec<String> {
         match (self.ctf_type(), self.term_level) {
             (0, 3) => vec![r.code.bytes().map(|b| format!("{b:02x}")).collect()],
-            (0, 1) => vec![format!("tonight: {}", r.title), format!("code, scrambled: {}", rot13(&r.code)), "every letter moved 13 along. rot13 it back.".to_string()],
+            (0, 1) => vec![format!("tonight: {}", r.title), format!("code: {}", r.code)],
             (0, _) => vec![
                 format!("tonight: {}", r.title),
                 format!("code, scrambled twice: {}", goose_scramble(&r.code)),
                 "the goose rot13'd it, then base64'd that.".to_string(),
                 "undo it: base64 -d first, then rot13.".to_string(),
             ],
-            _ => vec!["the goose's list says yes: the files are open now.".to_string(), "read them again.".to_string()],
+            _ => Vec::new(),
         }
     }
 
@@ -526,11 +527,15 @@ impl VenueState {
                 _ => "tools: ls [-a]  cat  base64 -d <text>  xor <key> <hex>  submit",
             },
         };
-        vec![tools, "goal: tonight's rave code. start with ls.", "'level' picks another difficulty. tab completes, ctrl+r searches."]
+        vec![tools, "goal: tonight's rave code. start with ls.", "tab completes, ctrl+r searches, up brings back commands."]
     }
 
     fn run_ctf(&mut self, line: &str) -> bool {
         self.term.push(format!("guest@pc7:~$ {line}"));
+        self.run_ctf_quiet(line)
+    }
+
+    fn run_ctf_quiet(&mut self, line: &str) -> bool {
         let line = line.trim();
         let (cmd, arg) = line.split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((line, ""));
         let files = self.ctf_files();
@@ -657,6 +662,7 @@ impl VenueState {
         }
         if ask {
             self.ask = true;
+            self.pending = Some(line.to_string());
         }
         let code = self.secret.as_ref().map(|r| r.code.clone()).unwrap_or_default();
         let captured = !code.is_empty()
@@ -912,16 +918,36 @@ impl VenueState {
     pub(crate) fn spare(&mut self, why: &str) {
         self.term.push(why.to_string());
         self.term.push("so he hands you a spare code: his own little rave, open any time.".to_string());
-        self.claimed = true;
         if let Some(r) = self.secret.clone() {
+            self.deliver(r);
+        }
+    }
+
+    pub(crate) fn deliver(&mut self, r: Rave) {
+        self.secret = Some(r.clone());
+        self.claimed = true;
+        if self.ctf_type() == 0 {
             let lines = self.reveal_lines(&r);
             self.term.extend(lines);
+            if self.term_level == 1 {
+                self.capture(&r.code);
+            }
+        } else if let Some(line) = self.pending.take() {
+            self.run_ctf_quiet(&line);
         }
         if self.term_level == 1 && !self.flag {
             let last = self.term.iter().rev().find_map(|l| l.split_once("@pc7:~$ ").map(|(_, c)| c.to_string())).unwrap_or_default();
             if let Some(tip) = self.easy_tip(&last) {
                 self.term.push(format!("tip: {tip}"));
             }
+        }
+    }
+
+    fn capture(&mut self, code: &str) {
+        if !self.flag {
+            self.term.push("flag captured. the goose will know this code.".to_string());
+            self.learn(code);
+            self.flag = true;
         }
     }
 
@@ -937,8 +963,6 @@ impl VenueState {
             0 => {
                 if self.term_pw {
                     "type 132 (the goose's password) and press enter.".to_string()
-                } else if seen("scrambled:") {
-                    format!("unscramble it. type: rot13 {}", rot13(&code))
                 } else if self.term_goose {
                     "you're the goose now. open his hidden file. type: cat .rave".to_string()
                 } else if seen("his password is 132") {
@@ -1025,7 +1049,6 @@ impl VenueState {
                 say("commands: ls  ls -a  cat <file>  su <user>");
                 say("          base64 -d <text>  rot13 <text>");
                 say("          whoami  pwd  echo  history  clear  exit");
-                say("'level' picks another difficulty.");
                 say("keys: tab completes. ctrl+a/e start/end. ctrl+u/k/w cut.");
                 say("ctrl+y pastes the cut. ctrl+r searches history. ctrl+l clears.");
                 say("ctrl+c cancels the line. ctrl+d on an empty line exits.");
@@ -1096,6 +1119,10 @@ impl VenueState {
         if let Some(r) = reveal {
             let lines = self.reveal_lines(&r);
             self.term.extend(lines);
+            if self.term_level == 1 && !self.flag {
+                self.capture(&r.code);
+                won = true;
+            }
         }
         if cmd == "clear" {
             self.term.clear();
@@ -1540,9 +1567,7 @@ mod tests {
         let mut v = player(0, 1);
         v.run("su goose");
         v.run("132");
-        v.run("cat .rave");
-        let scrambled = last_with(&v, "scrambled:").rsplit(' ').next().unwrap().to_string();
-        assert!(v.run(&format!("rot13 {scrambled}")), "goose's files, easy");
+        assert!(v.run("cat .rave"), "goose's files, easy");
 
         let mut v = player(0, 2);
         v.run("su goose");
@@ -1653,7 +1678,7 @@ mod tests {
             v.live_list = true;
             let mut won = v.run("1");
             let mut steps = 0;
-            while !won && steps < 12 {
+            while !won && !v.flag && steps < 12 {
                 if v.ask {
                     v.ask = false;
                     v.spare("the goose hasn't written tonight's code yet.");
@@ -1663,7 +1688,12 @@ mod tests {
                 won = v.run(&next);
                 steps += 1;
             }
-            assert!(won, "type {kind}: no spare path: {:?}", v.term);
+            assert!(won || v.flag, "type {kind}: no spare path: {:?}", v.term);
+            assert!(!v.term.iter().any(|l| l.contains("read them again")));
+            let commands: Vec<&String> = v.term.iter().filter(|l| l.contains("@pc7:~$ ")).collect();
+            let mut unique = commands.clone();
+            unique.dedup();
+            assert_eq!(commands.len(), unique.len(), "type {kind} repeats a command: {:?}", v.term);
             assert!(!v.term.iter().any(|l| l.contains("check your mail")));
         }
     }
