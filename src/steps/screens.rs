@@ -351,8 +351,11 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         let live_y = btn_y + btn_h + 4.0;
         let live_w = ((w - 26.0) / 2.0).round();
         let live_x = [dex_x, dex_x + live_w + 6.0];
-        let on_live = |i: usize| fr.ux > live_x[i] && fr.ux < live_x[i] + live_w && fr.uy > live_y && fr.uy < live_y + btn_h;
-        for (i, key) in [KeyCode::J, KeyCode::K].into_iter().enumerate() {
+        let sing_here = radio::karaoke_here();
+        let toggles = if sing_here { 2 } else { 1 };
+        let toggle_w = if sing_here { live_w } else { live_w * 2.0 + 6.0 };
+        let on_live = |i: usize| fr.ux > live_x[i] && fr.ux < live_x[i] + toggle_w && fr.uy > live_y && fr.uy < live_y + btn_h;
+        for (i, key) in [KeyCode::J, KeyCode::K].into_iter().enumerate().take(toggles) {
             if !fr.just_paused && ((fr.click && on_live(i) && g.mix_drag.is_none()) || is_key_pressed(key)) {
                 radio::set_flag(i as i32, !radio::flag(i as i32));
                 fr.click = false;
@@ -420,18 +423,18 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             btn_label.pop();
         }
         ui_text(&btn_label, btn_x + (btn_w - ui_measure(&btn_label, 11.0)) / 2.0, btn_y + 14.0, 11.0, WHITE);
-        for i in 0..2 {
+        for i in 0..toggles {
             let on = radio::flag(i as i32);
             let name = if i == 0 { "dj set" } else { "karaoke" };
             let key = if radio::touch_ui() { "" } else if i == 0 { " (J)" } else { " (K)" };
             let mut label = format!("{}: {}{}", name, if on { "on" } else { "off" }, key);
-            while ui_measure(&label, 10.0) > live_w - 6.0 && label.len() > 4 {
+            while ui_measure(&label, 10.0) > toggle_w - 6.0 && label.len() > 4 {
                 label.pop();
             }
             let fill = if on { Color::from_rgba(255, 214, 110, 255) } else if on_live(i) { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
-            ui_rect(live_x[i], live_y, live_w, btn_h, fill);
+            ui_rect(live_x[i], live_y, toggle_w, btn_h, fill);
             let ink = if on { Color::from_rgba(36, 26, 71, 255) } else { WHITE };
-            ui_text(&label, live_x[i] + (live_w - ui_measure(&label, 10.0)) / 2.0, live_y + 14.0, 10.0, ink);
+            ui_text(&label, live_x[i] + (toggle_w - ui_measure(&label, 10.0)) / 2.0, live_y + 14.0, 10.0, ink);
         }
         let acc_y = live_y + btn_h + 4.0;
         let comp_w = live_w;

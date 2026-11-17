@@ -86,4 +86,6 @@ pub fn next() -> Vec<String> {
     String::from_utf8(buf).unwrap_or_default().lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect()
 }
 
-pub fn draw_overlay() {}
+pub fn karaoke_here() -> bool {
+    flag(2)
+}

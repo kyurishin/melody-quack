@@ -415,6 +415,7 @@
       padding: 6px 12px;
       border-radius: 999px;
     }
+    .radio .live-toggles button[hidden] { display: none; }
     .radio .live-toggles button[aria-pressed="true"] { background: var(--yellow); color: var(--ink); border-color: var(--yellow); }
     .karaoke {
       position: fixed;
@@ -1354,7 +1355,8 @@
       var flags = { djset: false, karaoke: true };
       try { var savedFlags = JSON.parse(localStorage.getItem("melody-live-flags") || "{}"); if (typeof savedFlags.djset === "boolean") flags.djset = savedFlags.djset; if (typeof savedFlags.karaoke === "boolean") flags.karaoke = savedFlags.karaoke; } catch (e) {}
       var flagNames = ["djset", "karaoke"];
-      window.melodyFlagGet = function (i) { return !!flags[flagNames[i]]; };
+      var karaokeHere = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+      window.melodyFlagGet = function (i) { return i === 2 ? karaokeHere : !!flags[flagNames[i]]; };
       window.melodyFlagSet = function (i, on) {
         var name = flagNames[i];
         if (!name) return;
@@ -1403,14 +1405,16 @@
       var toggleKaraoke = document.getElementById("toggle-karaoke");
       toggleDj.addEventListener("click", function () { window.melodyFlagSet(0, !flags.djset); });
       toggleKaraoke.addEventListener("click", function () { window.melodyFlagSet(1, !flags.karaoke); });
+      toggleKaraoke.hidden = !karaokeHere;
       var karaoke = document.getElementById("karaoke");
       var kSong = document.getElementById("k-song");
       var kNow = document.getElementById("k-now");
       var kNext = document.getElementById("k-next");
       var gameCanvas = document.getElementById("glcanvas");
       function karaokeTick() {
-        var showSong = !!liveHeard && !flags.djset && flags.karaoke;
-        var lines = flags.karaoke && liveHeard && liveSync ? liveLyrics : [];
+        var singing = karaokeHere && flags.karaoke;
+        var showSong = !!liveHeard && !flags.djset && singing;
+        var lines = singing && liveHeard && liveSync ? liveLyrics : [];
         var now = "", next = "", fill = 0;
         if (lines.length) {
           var pos = liveSync.pos + (Date.now() / 1000 - liveSync.stamp);
@@ -1427,8 +1431,8 @@
           }
         }
         var hint = "";
-        if (flags.karaoke && liveHeard && !now) {
-          if (!liveLyrics.length) hint = liveNote || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "no timed lyrics for this song" : "lyrics show at localhost:4747 or in the desktop app");
+        if (singing && liveHeard && !now) {
+          if (!liveLyrics.length) hint = liveNote || "no timed lyrics for this song";
           else if (!liveSync) hint = "lyrics found, catching the beat...";
         }
         var place = typeof window.melodyOverlayY === "number" ? window.melodyOverlayY : 0.6;
