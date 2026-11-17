@@ -86,11 +86,12 @@ pub(crate) fn draw_shelf_scene(sel: usize, time: f32, spines: &[RenderTarget]) {
     let mut b = Batch::new(eye, reading_light());
     let wood = Color::from_rgba(140, 92, 58, 255);
     let dark = Color::from_rgba(96, 62, 40, 255);
-    b.cube(vec3(0.0, 0.55, -0.32), vec3(1.7, 1.3, 0.04), dark);
-    b.cube(vec3(0.0, 0.07, 0.0), vec3(1.7, 0.06, 0.66), wood);
-    b.cube(vec3(0.0, 1.02, 0.0), vec3(1.7, 0.05, 0.66), wood);
-    b.cube(vec3(-0.83, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
-    b.cube(vec3(0.83, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
+    let shelf_w = (books::BOOKS.len() as f32 * 0.2 + 0.1).max(1.7);
+    b.cube(vec3(0.0, 0.55, -0.32), vec3(shelf_w, 1.3, 0.04), dark);
+    b.cube(vec3(0.0, 0.07, 0.0), vec3(shelf_w, 0.06, 0.66), wood);
+    b.cube(vec3(0.0, 1.02, 0.0), vec3(shelf_w, 0.05, 0.66), wood);
+    b.cube(vec3(-shelf_w / 2.0 + 0.02, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
+    b.cube(vec3(shelf_w / 2.0 - 0.02, 0.55, 0.0), vec3(0.05, 1.0, 0.66), wood);
     b.cube(vec3(0.62, 1.1, -0.05), vec3(0.12, 0.1, 0.12), Color::from_rgba(200, 110, 80, 255));
     b.cube(vec3(0.62, 1.21, -0.05), vec3(0.07, 0.14, 0.07), Color::from_rgba(90, 160, 80, 255));
     b.cube(vec3(-0.62, 1.08, -0.02), vec3(0.14, 0.06, 0.2), Color::from_rgba(230, 220, 200, 255));

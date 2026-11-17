@@ -4,7 +4,7 @@ pub struct Book {
     pub pages: [(&'static str, &'static str); 10],
 }
 
-pub const BOOKS: [Book; 8] = [
+pub const BOOKS: [Book; 9] = [
     Book {
         title: "experience design",
         cover: (52, 150, 140),
@@ -131,6 +131,22 @@ pub const BOOKS: [Book; 8] = [
             ("traits", "A trait describes what a type can do, like Display for printing. Write one function for anything that implements a trait and it works for all of them."),
             ("reading errors", "Rust's compiler errors say what went wrong, point at the line and often suggest the fix. Read them slowly: they are a patient teacher."),
             ("where next", "The Rust Programming Language, known as the book, is free at doc.rust-lang.org/book. Rustlings gives small broken programs to fix one at a time."),
+        ],
+    },
+    Book {
+        title: "learning german",
+        cover: (221, 170, 40),
+        pages: [
+            ("hallo!", "Hallo means hello, Tschüss means bye. Guten Morgen in the morning, Gute Nacht at bedtime. Danke is thank you, and Bitte is both please and you're welcome."),
+            ("der, die, das", "Every noun has a gender: der Hund (the dog), die Katze (the cat), das Lied (the song). Learn each new noun with its der, die or das, like part of the word."),
+            ("capital nouns", "In German every noun starts with a capital letter, wherever it sits in the sentence: ich höre Musik, I listen to music. It makes nouns easy to spot."),
+            ("verb second", "The verb likes second place. Ich tanze heute (I dance today) becomes Heute tanze ich: whatever comes first, the verb follows straight after it."),
+            ("du and sie", "Du is the friendly you, for friends, family and fellow ravers. Sie with a capital S is the polite you, for strangers and the goose at the door."),
+            ("counting", "Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Big numbers say the ones first: 21 is einundzwanzig, one-and-twenty."),
+            ("long words", "German glues words together. Franz plus Brötchen makes Franzbrötchen; Schall plus Platte plus Spieler makes Schallplattenspieler, a record player."),
+            ("ä, ö, ü and ß", "Ä sounds like the e in bed, ö like saying ay with rounded lips, ü like ee with rounded lips. ß is a sharp double s: Straße, street."),
+            ("at the club", "Ich tanze gern: I like dancing. Noch ein Lied, bitte! One more song, please! Wo ist die Garderobe? Where's the cloakroom? Prost! Cheers!"),
+            ("where next", "Deutsche Welle teaches German free at learngerman.dw.com, from Nicos Weg for beginners upwards. Speak a little every day, even just to your cat."),
         ],
     },
 ];
