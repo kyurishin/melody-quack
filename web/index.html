@@ -1543,6 +1543,7 @@
       function listenLive() {
         var live = window.MELODY_LIVE;
         if (!live || !live.topic || !window.EventSource) return;
+        if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
         var link = document.getElementById("listen-live");
         if (live.listen) {
           link.href = live.listen;
