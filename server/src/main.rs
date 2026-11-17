@@ -350,6 +350,17 @@ impl Hub {
         self.dj_list(id);
     }
 
+    fn sign_out(&mut self, ids: Vec<u32>) {
+        for other in ids {
+            self.off_air(other);
+            if let Some(c) = self.clients.get_mut(&other) {
+                c.admin = false;
+                c.dj = None;
+            }
+            self.say(other, "dj elsewhere".to_string());
+        }
+    }
+
     fn off_air(&mut self, id: u32) {
         let Some(room) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
             return;
@@ -441,6 +452,8 @@ impl Hub {
                     return;
                 }
                 if self.admin_key.as_deref() == Some(key) {
+                    let twins: Vec<u32> = self.clients.iter().filter(|(k, c)| **k != id && c.admin).map(|(k, _)| *k).collect();
+                    self.sign_out(twins);
                     self.clients.get_mut(&id).unwrap().admin = true;
                     let line = format!("admin ok {}", self.admin_name);
                     self.say(id, line);
@@ -450,6 +463,8 @@ impl Hub {
                 self.load_djs();
                 match self.djs.iter().find(|(_, k)| k == key).map(|(n, _)| n.clone()) {
                     Some(name) => {
+                        let twins: Vec<u32> = self.clients.iter().filter(|(k, c)| **k != id && c.dj.as_deref() == Some(name.as_str())).map(|(k, _)| *k).collect();
+                        self.sign_out(twins);
                         self.clients.get_mut(&id).unwrap().dj = Some(name.clone());
                         let credit = self.credits.get(&name).copied().unwrap_or(0);
                         self.say(id, format!("dj ok {credit} {name}"));
@@ -1118,6 +1133,29 @@ mod tests {
         h.handle(admin, "removedj priori", 0);
         assert!(said(&mut h, admin)[0].starts_with("djerror"));
         assert!(!std::fs::read_to_string(&path).unwrap().contains("priori"));
+    }
+
+    #[test]
+    fn a_key_signs_in_on_one_device_at_a_time() {
+        let mut h = hub();
+        let path = std::env::temp_dir().join(format!("mq-djs-{}.txt", accounts::random_hex(6)));
+        std::fs::write(&path, "priori = k1\n").unwrap();
+        h.djs_path = Some(path.to_string_lossy().to_string());
+        h.admin_key = Some("boss".to_string());
+        let (a, b, c, d) = (h.connect(None), h.connect(None), h.connect(None), h.connect(None));
+        h.handle(a, "dj k1", 0);
+        assert_eq!(said(&mut h, a), vec!["dj ok 0 priori".to_string()]);
+        h.handle(b, "dj k1", 0);
+        assert_eq!(said(&mut h, b), vec!["dj ok 0 priori".to_string()]);
+        assert_eq!(said(&mut h, a), vec!["dj elsewhere".to_string()]);
+        assert!(h.clients[&a].dj.is_none() && h.clients[&b].dj.is_some());
+        h.handle(c, "dj boss", 0);
+        said(&mut h, c);
+        h.handle(d, "dj boss", 0);
+        assert!(said(&mut h, d)[0].starts_with("admin ok"));
+        assert_eq!(said(&mut h, c), vec!["dj elsewhere".to_string()]);
+        assert!(!h.clients[&c].admin && h.clients[&d].admin);
+        assert_eq!(h.admins(), vec![d]);
     }
 
     #[test]

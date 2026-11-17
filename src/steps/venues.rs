@@ -249,7 +249,7 @@ fn online(g: &mut Game, dt: f32) {
             net::listen("");
         }
     } else {
-        if !g.venue.key_sent && !g.venue.dj_key.is_empty() {
+        if !g.venue.key_sent && !g.venue.elsewhere && !g.venue.dj_key.is_empty() {
             g.venue.dj_key = clean_key(&g.venue.dj_key);
             net::send(&format!("dj {}", g.venue.dj_key));
             g.venue.key_sent = true;
@@ -456,6 +456,13 @@ fn online(g: &mut Game, dt: f32) {
                 }
             }
             "cloudok" => {}
+            "dj" if parts.len() >= 2 && parts[1] == "elsewhere" => {
+                g.venue.dj_name = None;
+                g.venue.admin = false;
+                g.venue.key_refused = false;
+                g.venue.elsewhere = true;
+                g.toasts.push(("signed out here: your key just signed in on another device".to_string(), 7.0));
+            }
             "dj" if parts.len() >= 2 => {
                 if parts[1] == "ok" && parts.len() >= 4 {
                     g.venue.credit = parts[2].parse().unwrap_or(0);
@@ -1015,6 +1022,8 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
         format!("signed in as the admin: {}", g.venue.admin_name)
     } else if let Some(n) = &g.venue.dj_name {
         format!("on the dj list as {n}")
+    } else if g.venue.elsewhere {
+        "signed in on another device. use key signs in here.".to_string()
     } else if g.venue.key_refused {
         format!("not on the list: {}", g.venue.dj_key)
     } else if !g.venue.dj_key.is_empty() && g.venue.key_sent {
@@ -1061,8 +1070,11 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
         apply = true;
         fr.click = false;
     }
-    if apply && !g.venue.key_draft.trim().is_empty() {
-        g.venue.dj_key = clean_key(&g.venue.key_draft);
+    if apply && (!g.venue.key_draft.trim().is_empty() || (g.venue.elsewhere && !g.venue.dj_key.is_empty())) {
+        if !g.venue.key_draft.trim().is_empty() {
+            g.venue.dj_key = clean_key(&g.venue.key_draft);
+        }
+        g.venue.elsewhere = false;
         g.venue.dj_page = true;
         g.venue.key_sent = false;
         g.venue.dj_name = None;

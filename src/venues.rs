@@ -106,6 +106,7 @@ pub(crate) struct VenueState {
     pub(crate) dj_key: String,
     pub(crate) key_draft: String,
     pub(crate) key_sent: bool,
+    pub(crate) elsewhere: bool,
     pub(crate) acct_key: bool,
     pub(crate) lounge: bool,
     pub(crate) bar_sel: usize,

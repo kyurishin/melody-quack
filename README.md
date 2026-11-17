@@ -205,6 +205,7 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 
 DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from the admin.
 
+- **One device at a time:** each DJ key and the admin key are signed in on one device at a time. Signing in somewhere new signs the older device out (and ends its set if it was live there); it shows "signed in on another device", and **use key** signs in there again.
 - **Signing in:** any time from the pause menu: Esc, **account (A)**, then type the key into "dj or admin key" and press enter or "use key". The panel says who you signed in as. On a fresh game you can also press "become a dj" on the name screen. DJs show as "dj name" in purple.
 - **Asking to play:** in the chapel, E at the booth opens the decks; ask to play the rave that's on. The request goes to the admin's post, and every yes is good for one set and earns the DJ 1 euro of credit, shown at the decks.
 - **Playing:**
@@ -240,7 +241,7 @@ The game never moves money: credit is a number the admin settles by hand.
 
 **The radio** sits under the web version. Pick a station and press play; the track name shows in the game's top bar. SoundCloud stations name their tracks themselves; Mixcloud mixes use a tracklist with start times, and a BPM locks the game's beat to the mix. The station list is `web/sets.js` (`MELODY_SETS`); listeners can add their own under "add a mix".
 
-**The Serato bridge** (`bridge/serato_live.py`) shows the tracks loaded in Serato on your laptop in the game: in the top bar, under the game and on your home DJ booth. It can also listen to your speakers, recognise the song (like Shazam), suggest tracks that go with it, and show synced karaoke lyrics from [LRCLIB](https://lrclib.net). It works with the game at http://localhost:4747 (served by the bridge) and your GitHub Pages site.
+**The Serato bridge** (`bridge/serato_live.py`) shows the tracks loaded in Serato on your laptop in the game: in the top bar, under the game and on your home DJ booth. It can also listen to your speakers, recognise the song (like Shazam), suggest tracks that go with it, and show synced karaoke lyrics from [LRCLIB](https://lrclib.net). It works with the game at http://localhost:4747 (served by the bridge), your GitHub Pages site, and the desktop app: while the bridge runs, the Mac and Linux apps pick it up by themselves and show the song, the decks and the karaoke lyrics over the game. The app looks for a Korean, Japanese or Chinese font on the computer (Apple SD Gothic Neo on a Mac) so lyrics in those languages show too.
 
 1. Open Serato and load a track.
 2. In the game folder, run `python3 bridge/serato_live.py` (for recognising songs use Python 3.10 or newer with `pip install shazamio sounddevice`, for example `python3.12 bridge/serato_live.py`).

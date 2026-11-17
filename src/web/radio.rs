@@ -85,3 +85,5 @@ pub fn next() -> Vec<String> {
     unsafe { radio_next_get(buf.as_mut_ptr()) };
     String::from_utf8(buf).unwrap_or_default().lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect()
 }
+
+pub fn draw_overlay() {}

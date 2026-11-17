@@ -279,3 +279,8 @@ Plain text lines, one keyword each: `tiles`, `inv`, `camp`, `dishes`, `cook`, `c
 ## Clear ground at the venues
 
 - `venues::reserved(x, z)`: the three rows in front of the chapel (from two tiles left of it to one past it, covering the flyer board and the goose) and the two rows in front of the PC bang. `stamp` turns trees, sprouts and stones there into grass (player walls are left alone), the bloom spell won't grow sprouts or trees there, and a fresh world (N twice) is stamped too.
+
+## Karaoke in the desktop app, one login per key (latest)
+
+- `src/native/radio.rs` polls the Serato bridge at `http://127.0.0.1:4747/now` on a background thread (every 2 s, every 5 s while it isn't running; `ureq` with the `json` feature). It fills `now_playing`, `decks`, `next` like the web page does and keeps lyrics and sync. `overlay(y)` stores the place; `radio::draw_overlay()` (called last in the main loop, a no-op on the web) draws the song tag and karaoke lines with a yellow fill, in a system CJK font when one is found (Apple SD Gothic Neo, Arial Unicode, Hiragino, Noto CJK, DejaVu), otherwise the default font with `~` for the note sign.
+- Server `dj` command: a key that signs in signs out every other client holding the same DJ name or the admin role (`Hub::sign_out`: ends their live set, clears the role, sends `dj elsewhere`). The game sets `venue.elsewhere`, stops re-sending the key on reconnect, and "use key" with an empty box signs in again with the saved key. Test: `a_key_signs_in_on_one_device_at_a_time`.

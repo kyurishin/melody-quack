@@ -629,6 +629,7 @@ async fn main() {
         steps::shop::draw_shop(&mut g, &mut fr);
         steps::overlays::draw_overlays(&mut g, &mut fr);
         steps::venues::mail_icon(&mut g, &mut fr);
+        radio::draw_overlay();
         next_frame().await
     }
 }
