@@ -175,6 +175,7 @@ class State:
     heard = None
     next = []
     lyrics = []
+    lyrics_note = ""
     sync = None
 
 
@@ -186,6 +187,7 @@ def payload():
         "heard": State.heard,
         "next": State.next,
         "lyrics": State.lyrics,
+        "lyrics_note": State.lyrics_note,
         "sync": State.sync,
     }
 
@@ -346,6 +348,7 @@ def main():
             heard = listener.heard if listener else None
             State.heard, State.next = heard, (listener.next if listener else [])
             State.lyrics = listener.lyrics if listener and heard else []
+            State.lyrics_note = listener.lyrics_note if listener and heard else ""
             State.sync = listener.sync if listener and heard else None
             if not track and heard:
                 track, source = heard["track"], "heard on your speakers"
@@ -363,12 +366,13 @@ def main():
                         print(f"          goes well with (from {listener.where}):")
                     for n in State.next:
                         print(f"            + {n['track']}")
-                    print(f"          karaoke lyrics: {len(State.lyrics)} lines" if State.lyrics else "          karaoke lyrics: none found for this song")
+                    print(f"          karaoke lyrics: {len(State.lyrics)} lines" if State.lyrics else f"          karaoke lyrics: {State.lyrics_note or 'none found for this song'}")
                 if not args.test and not args.offline:
                     try:
                         rich = len(decks) > 1 or bool(heard)
                         online = payload()
                         online.pop("lyrics", None)
+                        online.pop("lyrics_note", None)
                         online.pop("sync", None)
                         send(args.topic, json.dumps(online) if rich else track)
                     except OSError as error:

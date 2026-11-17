@@ -62,10 +62,19 @@ def similar_from_deezer(artist, title, count=6):
     return picks
 
 
+def secure():
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 def lrclib(**query):
     url = "https://lrclib.net/api/search?" + urllib.parse.urlencode(query)
     request = urllib.request.Request(url, headers={"User-Agent": "melody-quack (https://github.com)"})
-    with urllib.request.urlopen(request, timeout=10) as reply:
+    with urllib.request.urlopen(request, timeout=10, context=secure()) as reply:
         return json.loads(reply.read().decode("utf-8"))
 
 
@@ -82,17 +91,34 @@ def parse_lrc(text):
 
 def find_lyrics(artist, title):
     plain_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip() or title
-    for query in ({"track_name": title, "artist_name": artist}, {"track_name": plain_title, "artist_name": artist}, {"q": f"{artist} {plain_title}"}):
+    main_artist = re.split(r"\s*(?:,|&| x | feat\.?| ft\.?| with )\s*", artist, flags=re.I)[0].strip() or artist
+    queries = [
+        {"track_name": title, "artist_name": artist},
+        {"track_name": plain_title, "artist_name": main_artist},
+        {"q": f"{main_artist} {plain_title}"},
+        {"track_name": plain_title},
+    ]
+    problem, plain_only = "", False
+    for query in queries:
         try:
             found = lrclib(**query)
-        except Exception:
+        except Exception as error:
+            problem = str(getattr(error, "reason", error))
             continue
         for item in found if isinstance(found, list) else []:
             if item.get("syncedLyrics"):
                 lines = parse_lrc(item["syncedLyrics"])
                 if lines:
-                    return lines
-    return []
+                    return lines, ""
+            if item.get("plainLyrics"):
+                plain_only = True
+    if problem and not plain_only:
+        if "CERTIFICATE" in problem.upper():
+            return [], "could not reach the lyrics site (certificates). run: pip install certifi"
+        return [], f"could not reach the lyrics site: {problem}"
+    if plain_only:
+        return [], "this song only has lyrics without timing, so they can't follow along"
+    return [], "no timed lyrics for this song yet"
 
 
 def list_devices():
@@ -123,6 +149,7 @@ class Listener:
         self.loudness = 0
         self.where = ""
         self.lyrics = []
+        self.lyrics_note = ""
         self.sync = None
         self.clip_started = 0.0
         self.problem = ""
@@ -205,11 +232,11 @@ class Listener:
                     if not self.heard or heard["track"] != self.heard["track"]:
                         picks = await self.related_to(track)
                         try:
-                            words = await asyncio.to_thread(find_lyrics, heard["artist"], heard["title"])
-                        except Exception:
-                            words = []
+                            words, why = await asyncio.to_thread(find_lyrics, heard["artist"], heard["title"])
+                        except Exception as error:
+                            words, why = [], f"lyrics search failed: {error}"
                         self.sync = None
-                        self.heard, self.next, self.lyrics = heard, picks, words
+                        self.heard, self.next, self.lyrics, self.lyrics_note = heard, picks, words, why
                         self.changed.set()
                     if isinstance(offset, (int, float)):
                         self.sync = {"pos": round(float(offset), 2), "stamp": round(started_at, 2)}
@@ -221,6 +248,7 @@ class Listener:
                         self.heard = None
                         self.next = []
                         self.lyrics = []
+                        self.lyrics_note = ""
                         self.sync = None
                         self.changed.set()
             except Exception as error:

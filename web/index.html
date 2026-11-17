@@ -1350,6 +1350,7 @@
       var rawDecks = [];
       var liveLyrics = [];
       var liveSync = null;
+      var liveNote = "";
       var flags = { djset: false, karaoke: true };
       try { var savedFlags = JSON.parse(localStorage.getItem("melody-live-flags") || "{}"); if (typeof savedFlags.djset === "boolean") flags.djset = savedFlags.djset; if (typeof savedFlags.karaoke === "boolean") flags.karaoke = savedFlags.karaoke; } catch (e) {}
       var flagNames = ["djset", "karaoke"];
@@ -1371,6 +1372,7 @@
         var serato = message;
         var lyrics = [];
         var sync = null;
+        var note = "";
         if (message.charAt(0) === "{") {
           try {
             var data = JSON.parse(message);
@@ -1381,6 +1383,7 @@
             next = (data.next || []).filter(function (n) { return n && n.track; });
             lyrics = Array.isArray(data.lyrics) ? data.lyrics : [];
             sync = data.sync && typeof data.sync.pos === "number" ? data.sync : null;
+            note = typeof data.lyrics_note === "string" ? data.lyrics_note : "";
           } catch (e) {}
         }
         if (message === "__end__") { serato = ""; decks = []; heard = null; next = []; lyrics = []; sync = null; }
@@ -1390,6 +1393,7 @@
         liveNext = next;
         liveLyrics = lyrics;
         liveSync = sync;
+        liveNote = note;
         window.melodyNext = (heard ? ["=" + heard.track] : []).concat(next.map(function (n) { return n.track; })).join("\n");
         window.melodyHeard = heard ? heard.track : "";
         render();
@@ -1405,7 +1409,7 @@
       var kNext = document.getElementById("k-next");
       var gameCanvas = document.getElementById("glcanvas");
       function karaokeTick() {
-        var showSong = !!liveHeard && !flags.djset;
+        var showSong = !!liveHeard && !flags.djset && flags.karaoke;
         var lines = flags.karaoke && liveHeard && liveSync ? liveLyrics : [];
         var now = "", next = "", fill = 0;
         if (lines.length) {
@@ -1422,8 +1426,13 @@
             next = lines[0][1];
           }
         }
+        var hint = "";
+        if (flags.karaoke && liveHeard && !now) {
+          if (!liveLyrics.length) hint = liveNote || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "no timed lyrics for this song" : "lyrics show at localhost:4747 or in the desktop app");
+          else if (!liveSync) hint = "lyrics found, catching the beat...";
+        }
         var place = typeof window.melodyOverlayY === "number" ? window.melodyOverlayY : 0.6;
-        var visible = (showSong || !!now) && place > 0;
+        var visible = (showSong || !!now || !!hint) && place > 0;
         karaoke.hidden = !visible;
         if (visible) {
           var box = gameCanvas.getBoundingClientRect();
@@ -1433,7 +1442,8 @@
           kSong.hidden = !showSong;
           if (showSong) kSong.textContent = "\u266a " + liveHeard.track;
           kNow.hidden = !now;
-          kNext.hidden = !now || !next;
+          kNext.hidden = !(now && next) && !hint;
+          if (!now && hint) next = hint;
           if (kNow.dataset.text !== now) { kNow.dataset.text = now; kNow.textContent = now; }
           kNow.style.setProperty("--fill", (fill * 100).toFixed(1) + "%");
           if (kNext.textContent !== next) kNext.textContent = next;

@@ -10,6 +10,7 @@ struct Feed {
     heard: String,
     next: Vec<String>,
     lyrics: Vec<(f64, String)>,
+    note: String,
     sync: Option<(f64, f64)>,
 }
 
@@ -30,6 +31,7 @@ fn read_feed(v: &ureq::serde_json::Value) -> Feed {
         decks: v.get("decks").and_then(|d| d.as_array()).map(|a| a.iter().map(|d| (d.get("deck").map(|x| x.as_str().map(|s| s.to_string()).unwrap_or_else(|| x.to_string())).unwrap_or_default(), d.get("track").map(text).unwrap_or_default())).collect()).unwrap_or_default(),
         next: v.get("next").and_then(|d| d.as_array()).map(|a| a.iter().map(|n| n.get("track").map(text).unwrap_or_default()).filter(|t| !t.is_empty()).collect()).unwrap_or_default(),
         lyrics: v.get("lyrics").and_then(|d| d.as_array()).map(|a| a.iter().filter_map(|l| Some((l.get(0)?.as_f64()?, l.get(1).map(text).unwrap_or_default()))).collect()).unwrap_or_default(),
+        note: v.get("lyrics_note").map(text).unwrap_or_default(),
         sync: v.get("sync").and_then(|s| Some((s.get("pos")?.as_f64()?, s.get("stamp")?.as_f64()?))),
         heard,
     }
@@ -150,11 +152,20 @@ pub fn draw_overlay() {
         return;
     }
     let Some(f) = feed() else { return };
-    let show_song = !f.heard.is_empty() && !flag(0);
-    let (now_line, next_line, fill) = if flag(1) { karaoke_lines(&f, epoch()) } else { (String::new(), String::new(), 0.0) };
-    if !show_song && now_line.is_empty() {
+    if !flag(1) || f.heard.is_empty() {
         return;
     }
+    let show_song = !flag(0);
+    let (now_line, next_line, fill) = karaoke_lines(&f, epoch());
+    let note_line = if !now_line.is_empty() {
+        String::new()
+    } else if f.lyrics.is_empty() {
+        if f.note.is_empty() { "no timed lyrics for this song".to_string() } else { f.note.clone() }
+    } else if f.sync.is_none() {
+        "lyrics found, catching the beat...".to_string()
+    } else {
+        String::new()
+    };
     let font = wide_font();
     let note = if font.is_some() { "\u{266a}" } else { "~" };
     let now_line = if now_line == "\u{266a}" { note.to_string() } else { now_line };
@@ -166,6 +177,9 @@ pub fn draw_overlay() {
     if show_song {
         line(&format!("{note} {}", f.heard), cx, y, (7.0 * unit) as u16, font, Color::new(1.0, 0.97, 0.88, 0.85), None);
         y += 12.0 * unit;
+    }
+    if !note_line.is_empty() {
+        line(&note_line, cx, y, (7.0 * unit) as u16, font, Color::new(1.0, 1.0, 1.0, 0.55), None);
     }
     if !now_line.is_empty() {
         line(&now_line, cx, y, (11.0 * unit) as u16, font, WHITE, Some((fill, yellow)));
