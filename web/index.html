@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>if (/[?&]embed(=|&|$)/.test(location.search)) document.documentElement.classList.add("embed");</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -544,6 +545,10 @@
 
     /* ---------- Touch: the game fills the screen, with two joy-cons ---------- */
     .joycon, .touchbar, #soft-kb { display: none; }
+    html.embed { --chrome: 12px; }
+    html.embed .topbar, html.embed .keys, html.embed #inside, html.embed .radio, html.embed body::before { display: none !important; }
+    html.embed .app { min-height: 100dvh; padding: 6px; grid-template-rows: 1fr; }
+    html.embed .stage-row { max-width: none; }
     .turn-hint { display: none; }
     @media (hover: none) and (pointer: coarse) {
       html, body {
@@ -878,7 +883,7 @@
         <li><figure><a href="shots/jungle.webp" target="_blank" rel="noopener"><img src="shots/jungle.webp" alt="jungle at sunset: the dj picks the room. palms, vines and fireflies." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>jungle at sunset</b>the dj picks the room. palms, vines and fireflies.</figcaption></figure></li>
         <li><figure><a href="shots/san-francisco.webp" target="_blank" rel="noopener"><img src="shots/san-francisco.webp" alt="the bay: a terrace over san francisco, the bridge and the fog rolling in." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the bay</b>a terrace over san francisco, the bridge and the fog rolling in.</figcaption></figure></li>
         <li><figure><a href="shots/kinky.webp" target="_blank" rel="noopener"><img src="shots/kinky.webp" alt="red room: black, red, neon and chains." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>red room</b>black, red, neon and chains.</figcaption></figure></li>
-        <li><figure><a href="shots/bookshelf.webp" target="_blank" rel="noopener"><img src="shots/bookshelf.webp" alt="the bookshelf: eight books, from electronic music to computer science and learning rust." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the bookshelf</b>eight books, from electronic music to computer science and learning rust.</figcaption></figure></li>
+        <li><figure><a href="shots/bookshelf.webp" target="_blank" rel="noopener"><img src="shots/bookshelf.webp" alt="the bookshelf: nine books, from electronic music to learning rust and learning german." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>the bookshelf</b>nine books, from electronic music to learning rust and learning german.</figcaption></figure></li>
         <li><figure><a href="shots/sign-in.webp" target="_blank" rel="noopener"><img src="shots/sign-in.webp" alt="your account: sign in with google, steam or apple to keep your game on every computer." width="1080" height="810" loading="lazy" decoding="async"></a><figcaption><b>your account</b>sign in with google, steam or apple to keep your game on every computer.</figcaption></figure></li>
     </ul>
   </section>

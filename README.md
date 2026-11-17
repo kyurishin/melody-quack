@@ -250,6 +250,20 @@ The game never moves money: credit is a number the admin settles by hand.
 
 Options: `--debug` (what it sees in Serato), `--list-devices` and `--device` (which input to listen on, e.g. a BlackHole loopback), `--listen-every`, `--no-listen`, `--offline` (keep track names on your laptop; otherwise they're sent to your Pages site through [ntfy.sh](https://ntfy.sh) on the channel in `MELODY_LIVE.topic`), `--database` / `--serato` (an unusual library location). The pause menu's **DJ set** switch (J) shows both Serato decks; **karaoke** (K) shows the lyrics. The bridge shows names only; the music plays from Serato.
 
+## Embedding the game on another website
+
+Paste this where the game should appear. `?embed=1` shows only the game, without the page around it:
+
+```html
+<iframe src="https://kyurishin.github.io/melody-quack/?embed=1"
+        title="Melody Quack"
+        style="width:100%; max-width:960px; aspect-ratio:4/3; border:0; border-radius:12px;"
+        allow="autoplay; fullscreen; microphone; clipboard-read; clipboard-write"
+        allowfullscreen></iframe>
+```
+
+The `allow` list lets the game play sound, go full screen, use the microphone for following the tempo (F) and copy and paste in the terminal. Players click the game once to give it the keyboard. Browsers keep an embedded game's save separate from the one on the game's own page, so signing in is the way to carry a game between the two.
+
 ## Running the server
 
 Online play needs the small server in `server/`: rooms, chat, the timed rave, DJs, live audio, sign-in and cloud saves. The live one runs on Fly.io as `willow-coral-204` (`wss://willow-coral-204.fly.dev`); `server/SETUP.md` explains setting up and updating it, and `server/fly.toml` is ready to use. Builds connect to it by default: the packages and web workflows use the repository variable `MQ_SERVER` if it is set, otherwise that address. On one computer you can point the game elsewhere with `MELODY_QUACK_SERVER` or `~/.melody-quack/server.txt`.
