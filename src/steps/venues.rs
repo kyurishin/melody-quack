@@ -583,9 +583,11 @@ fn online(g: &mut Game, dt: f32) {
             "who" | "peer" | "sing" | "emo" if g.venue.at != Venue::Chapel || !g.venue.joined => {}
             "emo" if parts.len() >= 4 => {
                 if let (Ok(id), Ok(slot), Ok(e)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), parts[3].parse::<usize>()) {
-                    if e < emoji::COUNT {
-                        if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot.min(1)) {
+                    if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot.min(1)) {
+                        if e < emoji::COUNT {
                             p.emote = Some((e, 3.0));
+                        } else if (TREAT_EMO..TREAT_EMO + MENU.len()).contains(&e) {
+                            p.treat = Some((e - TREAT_EMO, TREAT_TIME));
                         }
                     }
                 }
@@ -617,23 +619,24 @@ fn online(g: &mut Game, dt: f32) {
                     let facing = if facing.length() > 0.1 { facing.normalize() } else { vec2(0.0, -1.0) };
                     let character = g.venue.friends.iter().find(|f| f.id == id).map(|f| f.characters[slot]).unwrap_or(0);
                     match g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot) {
-                        Some(p) if p.lounge != lounge => {
+                        Some(p) if p.lounge != lounge || (nums[4] > 1.5) != p.seated => {
                             p.lounge = lounge;
                             p.pos = to;
                             p.to = to;
                             p.facing = facing;
-                            p.walking = nums[4] > 0.5;
+                            p.walking = nums[4] > 0.5 && nums[4] < 1.5;
+                            p.seated = nums[4] > 1.5;
                             p.character = character;
                         }
                         Some(p) => {
                             p.to = to;
                             p.facing = facing;
-                            p.walking = nums[4] > 0.5;
+                            p.walking = nums[4] > 0.5 && nums[4] < 1.5;
                             p.character = character;
                         }
                         None => {
                             if g.venue.peers.len() < 100 {
-                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5, sing: 0.0, lounge, emote: None });
+                                g.venue.peers.push(Peer { id, slot, character, pos: to, to, facing, walking: nums[4] > 0.5 && nums[4] < 1.5, sing: 0.0, lounge, emote: None, seated: nums[4] > 1.5, treat: None });
                             }
                         }
                     }
@@ -672,6 +675,12 @@ fn online(g: &mut Game, dt: f32) {
         if p.emote.map(|e| e.1 <= 0.0).unwrap_or(false) {
             p.emote = None;
         }
+        if let Some((_, left)) = p.treat.as_mut() {
+            *left -= dt;
+        }
+        if p.treat.map(|t| t.1 <= 0.0).unwrap_or(false) {
+            p.treat = None;
+        }
     }
     if g.venue.at == Venue::Chapel && g.venue.joined {
         g.venue.net_send -= dt;
@@ -680,7 +689,8 @@ fn online(g: &mut Game, dt: f32) {
             for slot in 0..(1 + g.two_player as usize) {
                 let p = &g.players[slot];
                 let l = if g.venue.lounge { p.pos - LG_ORIGIN + vec2(100.0, 0.0) } else { p.pos - CH_ORIGIN };
-                net::send(&format!("at {slot} {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, p.walking as u8));
+                let state = if p.seated && g.venue.lounge { 2 } else { p.walking as u8 };
+                net::send(&format!("at {slot} {:.2} {:.2} {:.2} {:.2} {}", l.x, l.y, p.facing.x, p.facing.y, state));
             }
         }
     }
@@ -3266,11 +3276,34 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         to_club(g);
     }
     let lounge = g.venue.lounge;
+    if let Some((_, left)) = g.venue.treat.as_mut() {
+        *left -= dt;
+    }
+    if g.venue.treat.map(|t| t.1 <= 0.0).unwrap_or(false) {
+        g.venue.treat = None;
+    }
     if lounge {
+        let moving = [KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D, KeyCode::Up, KeyCode::Down, KeyCode::Left, KeyCode::Right].iter().any(|k| is_key_down(*k));
+        if g.players[0].seated && moving && !busy {
+            let l = g.players[0].pos - LG_ORIGIN;
+            if let Some(seat) = LG_SEATS.iter().min_by(|a, b| vec2(a.0, a.1).distance(l).total_cmp(&vec2(b.0, b.1).distance(l))) {
+                g.players[0].place_at(LG_ORIGIN + vec2(seat.0 + seat.2 * 0.8, seat.1 + seat.3 * 0.8));
+            }
+            g.players[0].seated = false;
+            g.players[0].perch = 0.0;
+        }
         walk_room(g, dt, LG_ORIGIN, LG_SIZE, &lounge_solids(), busy);
         let l = g.players[0].pos - LG_ORIGIN;
+        let seat_near = free_seat(g);
         if !fresh && !busy && (l.y > LG_SIZE.1 + 0.05 || is_key_pressed(KeyCode::Escape)) {
             to_club(g);
+        } else if !fresh && !busy && !g.players[0].seated && seat_near.is_some() && l.distance(LG_BAR) >= 1.1 && is_key_pressed(KeyCode::E) {
+            let s = seat_near.unwrap();
+            g.players[0].place_at(LG_ORIGIN + vec2(s.0, s.1));
+            g.players[0].seated = true;
+            g.players[0].perch = if s.2 > 0.5 { 0.24 } else { 0.34 };
+            g.players[0].facing = vec2(s.2, s.3);
+            g.players[0].yaw = s.2.atan2(s.3);
         } else if !fresh && !busy && l.distance(LG_BAR) < 1.1 && is_key_pressed(KeyCode::E) {
             g.venue.overlay = Overlay::Bar;
             g.venue.opened_at = get_time();
@@ -3287,6 +3320,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     let at_decks = !lounge && local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
     let at_bar = lounge && (g.players[0].pos - LG_ORIGIN).distance(LG_BAR) < 1.1;
+    let at_seat = lounge && !g.players[0].seated && free_seat(g).is_some();
     if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
         g.venue.input_pick = false;
         g.venue.overlay = Overlay::Decks;
@@ -3440,8 +3474,14 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     for p in g.shown_players().iter() {
         p.draw(&mut b, &g.world, time, pulse);
     }
+    if let Some((kind, left)) = g.venue.treat {
+        draw_treat(&mut b, vec3(g.players[0].pos.x, 0.5, g.players[0].pos.y), kind, left, time);
+    }
     let mut tags: Vec<(Vec3, String, Color)> = Vec::new();
     for peer in g.venue.peers.iter().filter(|p| !p.lounge) {
+        if let Some((kind, left)) = peer.treat {
+            draw_treat(&mut b, vec3(CH_ORIGIN.x + peer.pos.x, 0.5, CH_ORIGIN.y + peer.pos.y), kind, left, time);
+        }
         let mut friend = Player::new(peer.character, g.cast_list[peer.character].body, CH_ORIGIN + peer.pos);
         friend.facing = peer.facing;
         friend.yaw = peer.facing.x.atan2(peer.facing.y);
@@ -3540,6 +3580,10 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         "E: the decks   enter: chat"
     } else if at_bar {
         "E: the goose's bar   enter: chat"
+    } else if at_seat {
+        "E: sit down   enter: chat"
+    } else if lounge && g.players[0].seated {
+        "move to stand up   z: emoji   enter: chat"
     } else if lounge {
         "wasd: move   z: emoji   enter: chat   esc or the door: back to the club"
     } else {
@@ -3797,6 +3841,7 @@ fn to_lounge(g: &mut Game) {
 
 fn to_club(g: &mut Game) {
     g.venue.lounge = false;
+    g.players[0].perch = 0.0;
     if g.venue.overlay == Overlay::Bar {
         g.venue.overlay = Overlay::None;
     }
@@ -3809,7 +3854,7 @@ fn to_club(g: &mut Game) {
 
 fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String, Color)>) {
     let center = vec3(LG_ORIGIN.x + LG_SIZE.0 / 2.0, 0.5, LG_ORIGIN.y + LG_SIZE.1 / 2.0);
-    let view = begin_room(g, center + vec3(0.0, 0.0, -0.8), 1.25, Color::from_rgba(22, 14, 18, 255));
+    let view = begin_room(g, center + vec3(0.0, 0.0, -1.7), 1.2, Color::from_rgba(22, 14, 18, 255));
     let o = vec3(LG_ORIGIN.x, 0.5, LG_ORIGIN.y);
     let flicker = 0.92 + 0.08 * (time * 5.0).sin() * (time * 3.1).cos();
     let lamps = vec![
@@ -3841,7 +3886,7 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
         b.cube(o + vec3(-0.15, 0.2 + level as f32 * 0.4, LG_SIZE.1 / 2.0), vec3(0.3, 0.4, LG_SIZE.1), c);
         b.cube(o + vec3(LG_SIZE.0 + 0.15, 0.2 + level as f32 * 0.4, LG_SIZE.1 / 2.0), vec3(0.3, 0.4, LG_SIZE.1), c);
     }
-    for k in 0..7 {
+    for k in 3..7 {
         let x = 0.5 + k as f32 * 1.1;
         b.cube(o + vec3(x, 1.7, 0.02), vec3(0.6, 0.6, 0.02), [Color::from_rgba(40, 30, 50, 255), Color::from_rgba(200, 160, 90, 255), Color::from_rgba(60, 90, 120, 255)][k % 3]);
         b.cube(o + vec3(x, 1.7, 0.035), vec3(0.4, 0.4, 0.01), Color::from_rgba(20, 16, 24, 255));
@@ -3896,10 +3941,19 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
     draw_goose(&mut b, o + vec3(6.0, 0.0, 0.75), time);
     b.unlit = true;
     let neon = Color::new(1.0, 0.35, 0.75, 0.75 + 0.25 * pulse);
-    b.cube(o + vec3(2.0, 2.15, 0.03), vec3(1.6, 0.05, 0.02), neon);
-    b.cube(o + vec3(2.0, 1.75, 0.03), vec3(1.6, 0.05, 0.02), neon);
-    b.cube(o + vec3(1.22, 1.95, 0.03), vec3(0.05, 0.45, 0.02), neon);
-    b.cube(o + vec3(2.78, 1.95, 0.03), vec3(0.05, 0.45, 0.02), neon);
+    b.cube(o + vec3(1.75, 2.12, 0.03), vec3(2.0, 0.04, 0.02), neon);
+    b.unlit = false;
+    b.cube(o + vec3(1.75, 1.38, 0.03), vec3(1.62, 0.9, 0.05), Color::from_rgba(24, 24, 30, 255));
+    b.unlit = true;
+    let channel = 1 + ((time / 20.0) as u8 % 5);
+    let v = crate::visuals::vis();
+    let (tw, th) = (24usize, 14usize);
+    for ty in 0..th {
+        for tx in 0..tw {
+            let col = crate::visuals::tv_pixel(channel, tx, ty, tw, th, time, &v).unwrap_or(Color::new(0.04, 0.04, 0.06, 1.0));
+            b.cube(o + vec3(1.75 - 0.75 + (tx as f32 + 0.5) * (1.5 / tw as f32), 1.78 - (ty as f32 + 0.5) * (0.8 / th as f32), 0.06), vec3(1.5 / tw as f32 * 0.92, 0.8 / th as f32 * 0.92, 0.01), col);
+        }
+    }
     b.cube(o + vec3(7.4, 1.2, 4.6), vec3(0.3, 0.3, 0.3), Color::new(1.0, 0.8, 0.5, 0.95));
     b.unlit = false;
     b.cube(o + vec3(7.4, 0.5, 4.6), vec3(0.05, 1.0, 0.05), Color::from_rgba(40, 40, 46, 255));
@@ -3911,6 +3965,13 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
         friend.walking = peer.walking;
         friend.voice_timer = peer.sing;
         friend.emote = peer.emote;
+        if peer.seated {
+            friend.seated = true;
+            friend.perch = if peer.pos.y > 2.0 { 0.24 } else { 0.34 };
+        }
+        if let Some((kind, left)) = peer.treat {
+            draw_treat(&mut b, vec3(LG_ORIGIN.x + peer.pos.x, 0.5, LG_ORIGIN.y + peer.pos.y), kind, left, time);
+        }
         friend.draw(&mut b, &g.world, time, 0.0);
         let f = g.venue.friends.iter().find(|f| f.id == peer.id);
         let name = f.map(|f| f.name.clone()).unwrap_or_default();
@@ -3921,6 +3982,9 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
     }
     for p in g.shown_players().iter() {
         p.draw(&mut b, &g.world, time, 0.0);
+    }
+    if let Some((kind, left)) = g.venue.treat {
+        draw_treat(&mut b, vec3(g.players[0].pos.x, 0.5, g.players[0].pos.y), kind, left, time);
     }
     if net::state() == 2 {
         let mine = if g.venue.admin && !g.venue.admin_name.is_empty() { format!("* {}", g.venue.admin_name) } else { format!("dj {}", g.venue.name) };
@@ -3997,6 +4061,10 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             };
             g.venue.bar_note = (line.clone(), get_time());
             g.toasts.push((line, 3.5));
+            g.venue.treat = Some((i, TREAT_TIME));
+            if g.venue.joined {
+                net::send(&format!("emo 0 {}", TREAT_EMO + i));
+            }
             let at = g.players[0].pos;
             for k in 0..4 {
                 g.hearts.push((vec3(at.x + (k as f32 * 0.7).sin() * 0.2, 1.1 + k as f32 * 0.12, at.y), 1.4));
@@ -4095,4 +4163,65 @@ fn source_list(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32
     if is_key_pressed(KeyCode::Escape) && !fresh {
         g.venue.input_pick = false;
     }
+}
+
+fn free_seat(g: &Game) -> Option<(f32, f32, f32, f32)> {
+    let l = g.players[0].pos - LG_ORIGIN;
+    let front = |s: &(f32, f32, f32, f32)| vec2(s.0 + s.2 * 0.75, s.1 + s.3 * 0.75).distance(l);
+    let taken = |s: &(f32, f32, f32, f32)| g.venue.peers.iter().any(|p| p.lounge && p.seated && p.pos.distance(vec2(s.0, s.1)) < 0.4);
+    LG_SEATS.iter().copied().filter(|s| !taken(s) && front(s) < 0.9).min_by(|a, b| front(a).total_cmp(&front(b)))
+}
+
+fn draw_treat(b: &mut Batch, feet: Vec3, kind: usize, left: f32, time: f32) {
+    let fade = (left / 3.0).min(1.0);
+    let was = b.unlit;
+    b.unlit = true;
+    let seed = feet.x * 3.7 + feet.z * 1.3;
+    match kind {
+        0 => {
+            for k in 0..12 {
+                let t = (time * 0.9 + k as f32 / 12.0 + seed).fract();
+                let a = k as f32 * 2.4 + seed;
+                let c = if k % 2 == 0 { Color::new(1.0, 0.85, 0.6, 0.95 * fade * (1.0 - t * 0.6)) } else { Color::new(1.0, 1.0, 1.0, 0.9 * fade * (1.0 - t * 0.6)) };
+                b.cube(feet + vec3(a.cos() * 0.26, 0.3 + t * 1.5, a.sin() * 0.26), vec3(0.09, 0.09, 0.09) * (1.0 - t * 0.4), c);
+            }
+        }
+        1 => {
+            for k in 0..6 {
+                let a = time * 4.0 + k as f32 * std::f32::consts::TAU / 6.0;
+                let y = 0.55 + (time * 3.0 + k as f32).sin() * 0.25;
+                b.cube(feet + vec3(a.cos() * 0.45, y, a.sin() * 0.45), vec3(0.1, 0.1, 0.1), Color::new(0.55, 1.0, 0.3, 0.95 * fade));
+                b.cube(feet + vec3(a.cos() * 0.45, y - 0.12, a.sin() * 0.45), vec3(0.05, 0.05, 0.05), Color::new(0.9, 1.0, 0.5, 0.7 * fade));
+            }
+        }
+        2 => {
+            for k in 0..3 {
+                let t = (time * 0.8 + k as f32 / 3.0).fract();
+                let r = 0.15 + t * 0.6;
+                for s in 0..12 {
+                    let a = s as f32 / 12.0 * std::f32::consts::TAU;
+                    b.cube(feet + vec3(a.cos() * r, 0.03, a.sin() * r), vec3(0.1, 0.02, 0.1), Color::new(0.45, 0.85, 1.0, 0.9 * fade * (1.0 - t)));
+                }
+            }
+        }
+        3 => {
+            for k in 0..10 {
+                let t = (time * 0.35 + k as f32 * 0.1 + seed).fract();
+                let a = k as f32 * 1.9 + seed;
+                let sway = (time * 2.0 + k as f32).sin() * 0.05;
+                b.cube(feet + vec3(a.cos() * 0.38 + sway, 1.9 - t * 1.7, a.sin() * 0.38), vec3(0.09, 0.09, 0.09), Color::new(0.95, 0.98, 1.0, 0.95 * fade));
+                b.cube(feet + vec3(a.cos() * 0.38 + sway, 1.9 - t * 1.7, a.sin() * 0.38 + 0.001), vec3(0.04, 0.13, 0.04), Color::new(0.8, 0.92, 1.0, 0.8 * fade));
+            }
+        }
+        _ => {
+            let pulse = 0.5 + 0.5 * (time * 2.5).sin();
+            b.cube(feet + vec3(0.0, 0.02, 0.0), vec3(1.0, 0.01, 1.0), Color::new(1.0, 0.78, 0.3, (0.35 + 0.2 * pulse) * fade));
+            for k in 0..7 {
+                let a = time * 1.6 + k as f32 * std::f32::consts::TAU / 7.0;
+                let r = 0.3 + 0.08 * (time * 2.0 + k as f32).sin();
+                b.cube(feet + vec3(a.cos() * r, 0.4 + k as f32 * 0.12, a.sin() * r), vec3(0.09, 0.09, 0.09), if k % 2 == 0 { Color::new(1.0, 0.8, 0.35, 0.95 * fade) } else { Color::new(0.8, 0.45, 0.2, 0.95 * fade) });
+            }
+        }
+    }
+    b.unlit = was;
 }

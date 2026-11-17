@@ -17,6 +17,9 @@ pub(crate) const CH_SIZE: (f32, f32) = (11.0, 9.0);
 pub(crate) const LG_ORIGIN: Vec2 = Vec2::new(400.0, 100.0);
 pub(crate) const LG_SIZE: (f32, f32) = (8.0, 6.0);
 pub(crate) const LG_BAR: Vec2 = Vec2::new(6.0, 2.3);
+pub(crate) const LG_SEATS: [(f32, f32, f32, f32); 4] = [(0.95, 0.55, 0.0, 1.0), (1.75, 0.55, 0.0, 1.0), (2.55, 0.55, 0.0, 1.0), (0.7, 3.75, 1.0, 0.0)];
+pub(crate) const TREAT_EMO: usize = 40;
+pub(crate) const TREAT_TIME: f32 = 30.0;
 pub(crate) const MENU: [(&str, &str, u32); 5] = [
     ("cola", "ice cold, with a straw", 3),
     ("club-mate", "the dj's fuel", 4),
@@ -94,6 +97,8 @@ pub(crate) struct Peer {
     pub(crate) sing: f32,
     pub(crate) lounge: bool,
     pub(crate) emote: Option<(usize, f32)>,
+    pub(crate) seated: bool,
+    pub(crate) treat: Option<(usize, f32)>,
 }
 
 #[derive(Default)]
@@ -104,6 +109,7 @@ pub(crate) struct VenueState {
     pub(crate) acct_key: bool,
     pub(crate) lounge: bool,
     pub(crate) bar_sel: usize,
+    pub(crate) treat: Option<(usize, f32)>,
     pub(crate) input_pick: bool,
     pub(crate) input_scroll: usize,
     pub(crate) bar_note: (String, f64),
