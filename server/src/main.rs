@@ -1034,7 +1034,7 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1).cloned());
     let port: u16 = arg("--port").or_else(|| std::env::var("PORT").ok()).and_then(|p| p.parse().ok()).unwrap_or(7777);
-    let every = arg("--every").and_then(|m| m.parse::<i64>().ok()).unwrap_or(240).max(45) * 60_000;
+    let every = arg("--every").and_then(|m| m.parse::<i64>().ok()).unwrap_or(180).clamp(45, 180) * 60_000;
     let now = unix_ms();
     let start = if let Some(secs) = arg("--rave-in").and_then(|s| s.parse::<i64>().ok()) {
         now + secs * 1000
