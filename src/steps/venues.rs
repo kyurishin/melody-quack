@@ -3685,7 +3685,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
     } else if live {
         format!("live: {}", g.venue.live)
-    } else { format!("generated set - {} - {} bpm - {}", SOUNDS[r.sound % 3], g.venue.bpm_now as i32, section)
+    } else { format!("{}, {} bpm, {}", SOUNDS[r.sound % 3], g.venue.bpm_now as i32, section)
     };
     let w = (ui_measure(&line, 9.0) + 40.0).max(ui_measure(&r.title, 14.0) + 40.0).min(low_w() - 12.0);
     let x = (low_w() - w) / 2.0;
@@ -3844,15 +3844,19 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
     }
     let status = match net::state() {
-        2 if g.venue.joined => format!("online - {} of 100 here", here(g)),
-        2 => "online".to_string(),
-        1 => "connecting...".to_string(),
-        _ => "offline".to_string(),
+        2 => "online",
+        1 => "connecting...",
+        _ => "offline",
     };
-    let sw = ui_measure(&status, 9.0) + 20.0;
-    ui_round_frame(low_w() - sw - 4.0, 4.0, sw, 16.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+    let count = if net::state() == 2 && g.venue.joined { Some(format!("{} of 100 here", here(g))) } else { None };
+    let sw = ui_measure(status, 9.0).max(count.as_deref().map(|c| ui_measure(c, 6.0)).unwrap_or(0.0)) + 20.0;
+    let sh = if count.is_some() { 23.0 } else { 16.0 };
+    ui_round_frame(low_w() - sw - 4.0, 4.0, sw, sh, 6.0, ui::skin::PANEL, ui::skin::EDGE);
     ui_circle(low_w() - sw + 4.0, 12.0, 2.6, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
-    ui_text(&status, low_w() - sw + 10.0, 15.5, 9.0, cream());
+    ui_text(status, low_w() - sw + 10.0, 15.5, 9.0, cream());
+    if let Some(c) = &count {
+        ui_text(c, low_w() - sw + 10.0, 23.5, 6.0, ui::skin::MUTED);
+    }
     mail_icon(g, fr);
 }
 
