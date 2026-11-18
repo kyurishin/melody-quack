@@ -234,7 +234,7 @@ pub(crate) fn receive_delivery(g: &mut Game, fr: &mut Frame) {
             g.inv.wood += 1;
             g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][3], 0.6);
             g.players[fr.delivered_by].voice_timer = 0.4;
-            g.toasts.push((format!("{} brought wood for building", fr.bringer), 2.5));
+            g.toasts.push((format!("{} brought some wood", fr.bringer), 2.5));
         }
         Some(Carry::Acorn) => {
             g.inv.acorns += 2;
@@ -246,7 +246,7 @@ pub(crate) fn receive_delivery(g: &mut Game, fr: &mut Frame) {
             g.inv.stone += 1;
             g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][4], 0.6);
             g.players[fr.delivered_by].voice_timer = 0.4;
-            g.toasts.push((format!("{} brought a stone for building", fr.bringer), 2.5));
+            g.toasts.push((format!("{} brought a stone", fr.bringer), 2.5));
         }
         None => {}
     }

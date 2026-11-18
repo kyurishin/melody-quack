@@ -97,11 +97,13 @@ Press V (or start a new game) to choose who you are and who your friend is. W/S 
 | fox | a hoarse, breathy bellow (with a teal scarf and a big bushy tail) |
 | sea otter | smashes a shell on his belly, so every note is a tuned clack |
 
+Each one has its own personality too, which comes through when you chat with them: the cream cat is a gentle dreamer, the russian blue is calm and dry, the ginger tabby is loud and always hungry, the black cat is a moonlit little poet, the labrador is everyone's biggest cheerleader, the cream pup is shy but trying to be brave, the shiba is a dramatic diva, the duck is a bossy organiser, the owl is a scatterbrained scholar, the fox is a playful trickster and the sea otter takes everything nice and slow.
+
 **Your companion** is a little AI bandmate. It fetches sticks for the fire, wood, stones and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
 
 ### Talking with your companion
 
-Press **Enter** or the **Chat** tab to open the talk box. Call your companion by its animal ("otter", "dog", "labrador"...), by any other animal in the game, or just "buddy", "partner" or "pal", and it answers. Its replies are written by Claude Haiku 5.5 through the game server, in a cheerful voice with a touch of old storybook fantasy. The talk box keeps the whole conversation (scroll with the wheel, the arrow keys, Page Up/Down or the scroll bar), and the latest exchange also shows in a little card at the bottom left while you play.
+Press **Enter** or the **Chat** tab to open the talk box. Call your companion by its animal ("otter", "dog", "labrador"...), by any other animal in the game, or just "buddy", "partner" or "pal", and it answers. Its replies are written by Claude Haiku 5.5 through the game server, in its own animal's personality with a light touch of old storybook fantasy. The talk box keeps the whole conversation (scroll with the wheel, the arrow keys, Page Up/Down or the scroll bar), and the latest exchange also shows in a little card at the bottom left while you play.
 
 ![Talking with your companion](web/shots/partner.webp)
 
@@ -127,7 +129,13 @@ A few trees have a stick at their foot, marked with a sparkle. Pick it up (E) an
 
 ### Stars and the diary
 
-Play together by the fire (both players, or you with your companion, or you alone with the companion resting) and keep the notes coming: 30 seconds earns one star, a minute two, three minutes three. Short pauses are fine. After 8 seconds of quiet, the jam goes in the diary with the date, who played, how long and the stars. Every jam is recorded note by note: pick one in the diary and the record player plays it back (the last 10 keep their recordings).
+Play together by the fire (both players, or you with your companion, or you alone with the companion resting) and keep the notes coming: 30 seconds earns one star, a minute two, three minutes three. Short pauses are fine. After 8 seconds of quiet, the game asks you to **name the jam**: type a name and press Enter to write it in the diary (with the date, who played, how long and the stars), or press **don't save** (or Esc twice) to let it go. Every jam is recorded note by note.
+
+![Naming a jam before it goes in the diary](web/shots/name-jam.webp)
+
+In the diary (at the catalogue, W/S to the diary tab): A/D chooses a jam, **E** plays it on the record player and E on the playing jam **stops** it, **R** renames it, **Space** picks jams (pick as many as you like) and **Delete** twice tears the picked ones out (or the chosen one if none are picked). The last 10 keep their recordings.
+
+![The diary, with a jam playing](web/shots/diary.webp)
 
 ### Fishing on the beat
 
@@ -141,17 +149,23 @@ Seven of 120 species grow near the trees each real day (more when it rains). Pic
 
 ### Cooking percussion
 
-Sitting by the fire, E puts the pot on and 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, sizzle. Every hit on the beat fills the pot; a full pot makes a dish from what you caught: campfire tea, grilled fish, fish stew, golden koi soup, and mushroom dishes. Serve them on your table at home.
+Sitting by the fire, E opens **the pot**: pick up to three things to cook with (W/S chooses common, uncommon or rare fish and mushrooms, A/D or the - and + buttons take one out or put one in) and Enter puts it on the fire. Every mix makes its own dish, 21 in all, from campfire tea (an empty pot) and grilled fish to woodland broth, truffle risotto and the river king's banquet. It tells you what you'll get, or that it's a dish you haven't found yet, and the recipe list beside it remembers every dish you've made and what went in.
+
+Then 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, sizzle. Every hit on the beat fills the pot, and a full pot serves the dish. Serve them on your table at home. When your companion cooks for you, it picks the ingredients itself.
+
+![The pot: picking what to cook](web/shots/pot.webp)
 
 ### Your home and acorns
 
 Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming, fishing, cooking and from your friend's errands, then spend them at the **catalogue** in the corner (E): W/S switches tabs (catalogue, diary, fishdex, mushrooms), A/D browses, E buys, Esc closes. E places what you bought, X turns it; face a piece and X picks it up to move it (or sell it back for half at the catalogue). Wallpaper and floors cost 10 acorns once, then switch for free. Everything is saved.
 
-**Make it bigger:** bigger room (80 acorns), even bigger room (160), penthouse loft (250, with stairs, a glass railing and a window over a harbour city that follows the real clock and weather), bigger penthouse (400).
+**Make it bigger:** bigger room (80 acorns), even bigger room (160), penthouse loft (250, with stairs, a blue glass railing and a window over a harbour city that follows the real clock and weather), bigger penthouse (400).
+
+![A penthouse at dusk with lamps, neon lights and the city behind the glass](web/shots/penthouse.webp)
 
 **Furniture** (face it and press E):
 
-- **lamp**, **red light**: on and off; every light that's on lights the room
+- **lamp**, **red light**, **neon light** (35: a pink glowing tube on a pole): on and off; every light that's on lights the room
 - **bed**: sleep (the game saves); your friend hops in on the other side
 - **sofa**, **concrete bench**: sit
 - **plant**: water it once a day; it grows, blooms, and withers if forgotten
@@ -160,7 +174,7 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **piano**, **drum kit**: sit and play with 1-6
 - **record player**: plays your friend's tunes or a diary jam
 - **wind chime**, **speaker** (bigger echo), **subwoofer** (heavier kick), **steel pillar** (clang), **rug** (a little dance)
-- **dj booth**: first person on two turntables with a 132 bpm beat; 1-6 play pads, W/S tempo, A/D pattern (techno, house, breaks, classic, off), R records, Esc leaves. In two-player mode player 2 joins b2b with O
+- **dj booth**: first person on two turntables with a 132 bpm beat; 1-6 play pads, W/S tempo, A/D pattern (techno, house, breaks, classic, off), R records, Esc leaves. In two-player mode player 2 joins b2b with O. With friends visiting, everyone in the room hears your set
 - **mirror ball** (300), **dance arcade** (500: arrows from the music on your mic, or the game's beat), **wall tv** (1000: five pixel visual channels), **sampler** (180: a 16-step grid, Space records your own sound into a row)
 - **techno club set** (free): one tap turns the room into a concrete club
 
@@ -176,6 +190,7 @@ Invite friends round, or visit theirs. Pause and press **friends' homes (O)**:
 - **Visit a friend:** type their code and press **knock**. They get a "knock knock!" with **let them in (Y)** or **not now (N)**.
 - **Inside:** you walk around their home exactly as they've decorated it, and you see each other move. Guests can look but not move or use the furniture, and your own house and save stay untouched. Walk out of their front door (or press **go home** in the panel) to head back.
 - **As the host,** you see your guests when you're inside, the panel says who's visiting, and if you go offline everyone is sent home.
+- **Play for them:** get on your DJ booth and everyone visiting hears your beat and pads as you play them.
 
 ### Real time, seasons and weather
 
@@ -334,7 +349,7 @@ The game's MP3 encoder is LAME (LGPL), and the website uses lamejs (`web/lame.mi
 
 ## How it's made
 
-- The world renders into a roughly 360×270 texture with depth and scales up with nearest-neighbour filtering; menus are drawn afterwards at full resolution, with rounded panels built from triangles and pixel fonts snapped to their pixel grid so they stay crisp. A line that would run off the window shrinks until it fits.
+- The world renders at your screen's own resolution (up to 1440 lines), then a soft glow pass picks out lamps, fire, neon and lit windows, blurs them at low resolution and adds them back with a gentle colour grade; lamp light is worked out at every corner, so it fades smoothly across floors and walls. Menus are drawn afterwards, with rounded panels built from triangles and pixel fonts snapped to their pixel grid so they stay crisp. A line that would run off the window shrinks until it fits.
 - Six pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings and 04b21 for little pixel icons. The terminal keeps the built-in font so its columns line up.
 - Everything is built from coloured boxes every frame: the animals, the cottage, the fire, the chapel, the crowd, even the fishing line.
 - Faces are shaded from a fixed light, with distance fog, an evening tint and flickering campfire light; trees and walls between the camera and you turn see-through.
