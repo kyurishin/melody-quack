@@ -253,7 +253,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
                 home::Item::RecordPlayer => format!("E: record {} - X: move it", if g.house.record_on { "off" } else { "on" }),
                 home::Item::DjBooth => "E: get on the decks - X: move it".to_string(),
                 home::Item::WindChime => "E: ring the chime - X: move it".to_string(),
-                home::Item::Lamp | home::Item::RedLight => format!("E: light {} - X: move it", if g.house.pieces[i].state == 0 { "off" } else { "on" }),
+                home::Item::Lamp | home::Item::RedLight | home::Item::NeonLight => format!("E: light {} - X: move it", if g.house.pieces[i].state == 0 { "off" } else { "on" }),
                 home::Item::Speaker | home::Item::Subwoofer => format!("E: {} {} - X: move it", item.name(), if g.house.pieces[i].state == 0 { "off" } else { "on" }),
                 home::Item::Bed => "E: sleep (saves the game) - X: move it".to_string(),
                 home::Item::Sofa | home::Item::ConcreteBench => format!("E: sit on the {} - X: move it", item.name()),

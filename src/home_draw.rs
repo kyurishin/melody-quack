@@ -291,6 +291,19 @@ pub(crate) fn draw_piece(b: &mut Batch, piece: &home::Piece, time: f32, alpha: f
             bx(b, vec3(0.0, 1.46, 0.0), vec3(0.8, 0.06, 0.06), k(Color::new(glow, 0.12 * glow, 0.14 * glow, 1.0)));
             b.unlit = false;
         }
+        Item::NeonLight => {
+            let pole = k(Color::from_rgba(52, 44, 70, 255));
+            bx(b, vec3(0.0, 0.04, 0.0), vec3(0.3, 0.08, 0.3), pole);
+            bx(b, vec3(0.0, 0.7, 0.0), vec3(0.04, 1.3, 0.04), pole);
+            let on = piece.state == 0;
+            b.unlit = on;
+            let tube = if on { Color::from_rgba(255, 150, 196, 255) } else { Color::from_rgba(120, 70, 96, 255) };
+            bx(b, vec3(0.0, 1.38, 0.0), vec3(0.62, 0.07, 0.07), k(tube));
+            if on {
+                bx(b, vec3(0.0, 1.38, 0.0), vec3(0.5, 0.035, 0.08), k(Color::from_rgba(255, 228, 240, 255)));
+            }
+            b.unlit = false;
+        }
         Item::ConcreteBench => {
             let concrete = k(Color::from_rgba(132, 132, 136, 255));
             bx(b, vec3(0.0, 0.2, 0.0), vec3(1.9, 0.4, 0.6), concrete);
@@ -398,15 +411,15 @@ pub(crate) fn draw_home(b: &mut Batch, home: &home::Home, time: f32, ghost: Opti
     }
     if home.floor == home::CONCRETE_FLOOR {
         let seam = tinted(plank_b, -0.2);
-        let mut x = 2.0_f32;
+        let mut x = 1.0_f32;
         while x < w {
-            b.cube(vec3(ox + x, home::FLOOR_Y + 0.003, oz + d / 2.0), vec3(0.02, 0.004, d), seam);
-            x += 2.0;
+            b.cube(vec3(ox + x, home::FLOOR_Y + 0.003, oz + d / 2.0), vec3(if x as i32 % 2 == 0 { 0.03 } else { 0.015 }, 0.004, d), seam);
+            x += 1.0;
         }
-        let mut z = 2.0_f32;
+        let mut z = 1.0_f32;
         while z < d {
-            b.cube(vec3(ox + w / 2.0, home::FLOOR_Y + 0.003, oz + z), vec3(w, 0.004, 0.02), seam);
-            z += 2.0;
+            b.cube(vec3(ox + w / 2.0, home::FLOOR_Y + 0.003, oz + z), vec3(w, 0.004, if z as i32 % 2 == 0 { 0.03 } else { 0.015 }), seam);
+            z += 1.0;
         }
     }
     b.cube(vec3(ox + door_x + 0.5, home::FLOOR_Y + 0.01, oz + d + 0.15), vec3(0.8, 0.02, 0.3), Color::from_rgba(204, 160, 110, 255));
@@ -420,7 +433,7 @@ pub(crate) fn draw_home(b: &mut Batch, home: &home::Home, time: f32, ghost: Opti
         b.cube(vec3(ox + (x0 + w) / 2.0, home::FLOOR_Y + lh / 2.0 - 0.005, oz + ld / 2.0), vec3(w - x0, lh - 0.01, ld), face);
         b.cube(vec3(ox + (x0 + w) / 2.0, home::FLOOR_Y + lh - 0.04, oz + ld + 0.005), vec3(w - x0, 0.08, 0.04), tinted(face, -0.2));
         let metal = Color::from_rgba(40, 40, 46, 255);
-        let glass = Color::new(0.75, 0.88, 1.0, 0.28);
+        let glass = Color::new(0.42, 0.66, 1.0, 0.36);
         let sx = home.stair_x() as f32;
         let rail_y = home::FLOOR_Y + lh;
         b.cube(vec3(ox + (x0 + sx) / 2.0, rail_y + 0.5, oz + ld - 0.03), vec3(sx - x0, 0.04, 0.04), metal);
@@ -658,6 +671,7 @@ pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: 
                     lamps.push((vec3(home::ORIGIN.x + c.x + a.cos() * 1.6, 0.6 + lift, home::ORIGIN.y + c.y + a.sin() * 1.6), 0.6, vec3(col.r, col.g, col.b)));
                 }
             }
+            home::Item::NeonLight => lamps.push((vec3(home::ORIGIN.x + c.x, 1.1 + lift, home::ORIGIN.y + c.y), 0.85 * flicker, vec3(1.0, 0.36, 0.62))),
             home::Item::RedLight => {
                 red = true;
                 lamps.push((vec3(home::ORIGIN.x + c.x, 1.3 + lift, home::ORIGIN.y + c.y), 1.5 * throb, vec3(1.1, 0.08, 0.1)));
@@ -777,7 +791,7 @@ pub(crate) fn render_shop_preview(target: &RenderTarget, left: f32, top: f32, wi
             let state = match item {
                 home::Item::Plant => 3,
                 home::Item::Table => 1,
-                home::Item::Lamp | home::Item::Speaker | home::Item::Subwoofer | home::Item::RedLight => 0,
+                home::Item::Lamp | home::Item::Speaker | home::Item::Subwoofer | home::Item::RedLight | home::Item::NeonLight => 0,
                 _ => 0,
             };
             let piece = home::Piece { item, x: 1, z: 1, rot: 0, state, day: 0 };

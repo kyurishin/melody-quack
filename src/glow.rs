@@ -58,12 +58,12 @@ uniform float night;
 void main() {
     vec3 base = texture2D(Texture, uv).rgb;
     vec3 glow = texture2D(Glow, uv).rgb;
-    vec3 c = base + glow * (0.55 + 0.45 * night);
+    vec3 c = base + glow * (0.2 + 0.16 * night);
     float l = dot(c, vec3(0.299, 0.587, 0.114));
-    c = mix(vec3(l), c, 1.12);
-    c = c + vec3(0.16, 0.1, 0.3) * (1.0 - smoothstep(0.0, 0.45, l)) * 0.22;
+    c = mix(vec3(l), c, 1.03);
+    c = c + vec3(0.16, 0.1, 0.3) * (1.0 - smoothstep(0.0, 0.45, l)) * 0.08;
     vec2 v = uv * 2.0 - 1.0;
-    c *= 1.0 - dot(v, v) * (0.1 + 0.08 * night);
+    c *= 1.0 - dot(v, v) * (0.05 + 0.04 * night);
     gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }
 "#;

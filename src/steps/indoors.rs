@@ -292,7 +292,7 @@ pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
                             g.players[who].facing = vec2(out.x, out.z);
                             g.toasts.push((format!("sitting on the {} - move to get up", item.name()), 2.0));
                         }
-                        home::Item::Lamp | home::Item::RedLight | home::Item::Speaker | home::Item::Subwoofer => {
+                        home::Item::Lamp | home::Item::RedLight | home::Item::NeonLight | home::Item::Speaker | home::Item::Subwoofer => {
                             let piece = &mut g.house.pieces[i];
                             piece.state = if piece.state == 0 { 1 } else { 0 };
                             let on = piece.state == 0;

@@ -51,9 +51,10 @@ pub enum Item {
     Arcade,
     Tv,
     Sampler,
+    NeonLight,
 }
 
-pub const ITEMS: [Item; 21] = [
+pub const ITEMS: [Item; 22] = [
     Item::Rug,
     Item::Plant,
     Item::Lamp,
@@ -75,6 +76,7 @@ pub const ITEMS: [Item; 21] = [
     Item::Arcade,
     Item::Tv,
     Item::Sampler,
+    Item::NeonLight,
 ];
 
 impl Item {
@@ -101,6 +103,7 @@ impl Item {
             Item::Arcade => "dance arcade",
             Item::Tv => "wall tv",
             Item::Sampler => "sampler",
+            Item::NeonLight => "neon light",
         }
     }
 
@@ -127,6 +130,7 @@ impl Item {
             Item::Arcade => "dance to the music on four arrows",
             Item::Tv => "five channels of visuals that move with the music",
             Item::Sampler => "build a beat on a step grid, with your own recorded sounds",
+            Item::NeonLight => "a soft pink glow for late nights",
         }
     }
 
@@ -153,6 +157,7 @@ impl Item {
             Item::Arcade => 500,
             Item::Tv => 1000,
             Item::Sampler => 180,
+            Item::NeonLight => 35,
         }
     }
 
@@ -166,7 +171,7 @@ impl Item {
     }
 
     pub fn solid(self) -> bool {
-        !matches!(self, Item::Rug | Item::WindChime | Item::RedLight | Item::MirrorBall | Item::Tv)
+        !matches!(self, Item::Rug | Item::WindChime | Item::RedLight | Item::NeonLight | Item::MirrorBall | Item::Tv)
     }
 
     pub fn index(self) -> u8 {
