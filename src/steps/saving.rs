@@ -42,6 +42,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             room: steps::visits::own_house(g).size,
             home_code: g.venue.visits.code.clone(),
             friends: steps::chat::friends_text(g),
+            gfx: (crate::glow::enabled(), crate::render::pixel_look()),
             dex: g.dex_counts.clone(),
             mush: g.inv.mush,
             shroomdex: g.shroom_counts.clone(),
@@ -54,6 +55,8 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             session: g.venue.session.clone(),
             companion_off: !g.venue.visits.away.as_ref().map(|a| a.companion).unwrap_or(g.companion),
             seq: g.sampler.grid.map(|row| row.iter().enumerate().fold(0u16, |m, (k, on)| if *on { m | (1 << k) } else { m })),
+            weekly: if g.quests.week == i64::MIN { None } else { Some((g.quests.week, g.quests.weekly.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
+            quest_marks: (g.quests.bonus_day, g.quests.event_day),
             quests: if g.quests.day == i64::MIN { None } else { Some((g.quests.day, g.quests.list.iter().map(|q| (q.kind as u8, q.target, q.progress, q.done)).collect())) },
         };
         let text = encode_progress(&progress);

@@ -290,7 +290,22 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
     b.flush();
 }
 
+thread_local! {
+    static PIXEL_LOOK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(crate) fn set_pixel_look(on: bool) {
+    PIXEL_LOOK.with(|p| p.set(on));
+}
+
+pub(crate) fn pixel_look() -> bool {
+    PIXEL_LOOK.with(|p| p.get())
+}
+
 pub(crate) fn view_scale() -> f32 {
+    if pixel_look() {
+        return 1.0;
+    }
     let px = screen_height() * screen_dpi_scale();
     (px.min(1440.0) / low_h()).max(1.0)
 }
@@ -306,7 +321,7 @@ pub(crate) fn fit_full_view(g: &mut Game) {
         g.view_w = w;
         g.view_h = h;
         let target = render_target_ex(w, h, RenderTargetParams { sample_count: 1, depth: true });
-        target.texture.set_filter(FilterMode::Linear);
+        target.texture.set_filter(if k <= 1.0 { FilterMode::Nearest } else { FilterMode::Linear });
         g.full_view = target;
     }
 }

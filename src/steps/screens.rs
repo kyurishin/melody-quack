@@ -292,232 +292,281 @@ pub(crate) fn fishdex(g: &mut Game, fr: &mut Frame) {
 }
 
 pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
-        let labels: [String; 5] = if g.two_player {
-            [
-                g.cast_list[g.players[0].character].name.to_string(),
-                g.cast_list[g.players[1].character].name.to_string(),
-                "beat & pot".to_string(),
-                "world".to_string(),
-                "master".to_string(),
-            ]
-        } else {
-            [
-                "you".to_string(),
-                format!("the {}", g.cast_list[g.players[1].character].noun),
-                "beat & pot".to_string(),
-                "world".to_string(),
-                "master".to_string(),
-            ]
-        };
-        let w = 230f32.min(low_w() - 10.0);
-        let row_h = if 40.0 + 24.0 * 5.0 + 122.0 > low_h() - 6.0 { 20.0 } else { 24.0 };
-        let h = 40.0 + row_h * 5.0 + 122.0;
-        let x = ((low_w() - w) / 2.0).round();
-        let y = if radio::touch_ui() && low_h() > low_w() { (low_h() * 0.16).round() } else { ((low_h() - h) / 2.0).round() };
-        let label_w = 70.0;
-        let bar_x = x + 10.0 + label_w;
-        let bar_w = w - 20.0 - label_w - 30.0;
-        let row_y = |r: usize| y + 40.0 + r as f32 * row_h + row_h / 2.0;
-        if is_mouse_button_down(MouseButton::Left) {
-            if g.mix_drag.is_none() && is_mouse_button_pressed(MouseButton::Left) {
-                for r in 0..5 {
-                    if (fr.uy - row_y(r)).abs() < row_h / 2.0 && fr.ux > bar_x - 10.0 && fr.ux < bar_x + bar_w + 10.0 {
-                        g.mix_drag = Some(r);
+    use steps::venues::{button, hit};
+    let w = 300f32.min(low_w() - 10.0);
+    let h = 206f32.min(low_h() - 10.0);
+    let x = ((low_w() - w) / 2.0).round();
+    let y = if radio::touch_ui() && low_h() > low_w() { (low_h() * 0.12).round() } else { ((low_h() - h) / 2.0).round() };
+    let inside = hit(fr, x, y, w, h);
+    let tabs = ["general", "audio", "controls", "graphics", "account"];
+    let nav_w = 78f32.min(w * 0.3);
+    let (cx, cy, cw) = (x + nav_w + 16.0, y + 30.0, w - nav_w - 24.0);
+    let noun = g.cast_list[g.players[1].character].noun;
+    let sing_here = radio::karaoke_here();
+    let keys = !fr.just_paused;
+    let tab = g.venue.settings_tab.min(4);
+    if keys && is_key_pressed(KeyCode::Tab) {
+        g.venue.settings_tab = (tab + 1) % 5;
+    }
+    if keys && (is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S)) {
+        g.venue.settings_tab = (tab + 1).min(4);
+    }
+    if keys && (is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W)) {
+        g.venue.settings_tab = tab.saturating_sub(1);
+    }
+    let tab = g.venue.settings_tab.min(4);
+
+    crate::glow::present(&g.full_view);
+    ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.06, 0.04, 0.14, 0.55));
+    ui_round(x + 2.0, y + 3.0, w, h, 9.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 9.0, ui::skin::PANEL_SOLID, ui::skin::EDGE_STRONG);
+    for k in 0..8 {
+        let a = k as f32 * std::f32::consts::PI / 4.0;
+        ui_circle(x + 14.5 + a.cos() * 4.6, y + 12.5 + a.sin() * 4.6, 1.6, ui::skin::PINK);
+    }
+    ui_circle(x + 14.5, y + 12.5, 4.2, ui::skin::PINK);
+    ui_circle(x + 14.5, y + 12.5, 1.8, ui::skin::PANEL_SOLID);
+    ui_text_as(ui::Face::Display, "settings", x + 25.0, y + 17.0, 11.0, ui::skin::GOLD);
+    let ver = format!("v{}", update::VERSION);
+    ui_text(&ver, x + w - 28.0 - ui_measure(&ver, 7.0), y + 14.0, 7.0, ui::skin::MUTED);
+    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false) && keys;
+    ui_round(x + 6.0, y + 26.0, nav_w + 4.0, h - 44.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.14));
+    for (i, t) in tabs.iter().enumerate() {
+        let ty = y + 30.0 + i as f32 * 20.0;
+        let on = tab == i;
+        let over = hit(fr, x + 8.0, ty, nav_w, 17.0);
+        if on {
+            ui_round_frame(x + 8.0, ty, nav_w, 17.0, 5.0, ui::skin::PINK, ui::skin::PINK_EDGE);
+        } else if over {
+            ui_round(x + 8.0, ty, nav_w, 17.0, 5.0, Color::new(1.0, 1.0, 1.0, 0.08));
+        }
+        ui_text_as(ui::Face::Label, t, x + 16.0, ty + 12.0, 9.0, if on { ui::skin::INK } else { ui::skin::CREAM });
+        if over && fr.click && keys {
+            g.venue.settings_tab = i;
+            fr.click = false;
+        }
+    }
+    let tab = g.venue.settings_tab.min(4);
+    ui_text_as(ui::Face::Label, tabs[tab], cx, cy + 4.0, 10.0, ui::skin::CREAM);
+    let key = |k: &str| if radio::touch_ui() { String::new() } else { format!(" ({k})") };
+    let toggle = |fr: &Frame, label: &str, note: &str, ry: f32, on: bool| -> bool {
+        ui_text_fit(label, cx, ry + 9.0, 9.0, cw - 34.0, ui::skin::CREAM);
+        if !note.is_empty() {
+            ui_text_fit(note, cx, ry + 18.0, 7.0, cw - 34.0, ui::skin::MUTED);
+        }
+        let (tx, ty) = (cx + cw - 26.0, ry + 2.0);
+        ui_round(tx, ty, 24.0, 12.0, 6.0, if on { ui::skin::PINK } else { Color::new(1.0, 1.0, 1.0, 0.16) });
+        ui_circle(if on { tx + 18.0 } else { tx + 6.0 }, ty + 6.0, 4.6, if on { ui::skin::CREAM } else { ui::skin::MUTED });
+        hit(fr, cx, ry, cw, 18.0) && fr.click
+    };
+    let clicked_toggle = |c: bool| c && keys;
+    let mut open_dex = keys && is_key_pressed(KeyCode::F);
+    let mut flip_dj = keys && is_key_pressed(KeyCode::J);
+    let mut flip_karaoke = keys && sing_here && is_key_pressed(KeyCode::K);
+    let mut flip_companion = keys && is_key_pressed(KeyCode::C);
+    let mut open_homes = keys && is_key_pressed(KeyCode::O);
+    let mut open_account = keys && is_key_pressed(KeyCode::A);
+    let mut login = keys && is_key_pressed(KeyCode::L);
+    let mut restart = keys && is_key_pressed(KeyCode::R);
+    let mut open_help = false;
+    g.restart_confirm = (g.restart_confirm - get_frame_time()).max(0.0);
+    let mut ry = cy + 12.0;
+    match tab {
+        0 => {
+            if clicked_toggle(toggle(fr, &format!("companion{}", key("C")), &format!("the {noun} plays, fishes and chats with you"), ry, g.companion)) {
+                flip_companion = true;
+            }
+            ry += 26.0;
+            if clicked_toggle(toggle(fr, &format!("dj set{}", key("J")), "show the tracks on your serato decks", ry, radio::flag(0))) {
+                flip_dj = true;
+            }
+            ry += 26.0;
+            if sing_here {
+                if clicked_toggle(toggle(fr, &format!("karaoke{}", key("K")), "lyrics from your serato bridge", ry, radio::flag(1))) {
+                    flip_karaoke = true;
+                }
+                ry += 26.0;
+            }
+            let bw = (cw - 6.0) / 2.0;
+            if button(fr, &format!("fishdex{}", key("F")), cx, ry + 4.0, bw, 16.0, false) && keys {
+                open_dex = true;
+            }
+            let guests = g.venue.visits.peers.len();
+            let homes = if steps::visits::visiting(g) { "visiting".to_string() } else if guests > 0 { format!("{guests} visiting") } else { "friends' homes".to_string() };
+            if button(fr, &format!("{homes}{}", key("O")), cx + bw + 6.0, ry + 4.0, bw, 16.0, false) && keys {
+                open_homes = true;
+            }
+        }
+        1 => {
+            let labels: [String; 5] = if g.two_player {
+                [g.cast_list[g.players[0].character].name.to_string(), g.cast_list[g.players[1].character].name.to_string(), "beat & pot".to_string(), "world".to_string(), "master".to_string()]
+            } else {
+                ["you".to_string(), format!("the {noun}"), "beat & pot".to_string(), "world".to_string(), "master".to_string()]
+            };
+            let label_w = 52.0;
+            let bar_x = cx + label_w;
+            let bar_w = cw - label_w - 22.0;
+            let row_y = |r: usize| ry + 8.0 + r as f32 * 24.0;
+            if is_mouse_button_down(MouseButton::Left) && keys {
+                if g.mix_drag.is_none() && is_mouse_button_pressed(MouseButton::Left) {
+                    for r in 0..5 {
+                        if (fr.uy - row_y(r)).abs() < 10.0 && fr.ux > bar_x - 8.0 && fr.ux < bar_x + bar_w + 8.0 {
+                            g.mix_drag = Some(r);
+                        }
                     }
                 }
-            }
-            if let Some(r) = g.mix_drag {
-                g.mix[r] = ((fr.ux - bar_x) / bar_w).clamp(0.0, 1.0);
-                g.audio.set_mix(g.mix);
-            }
-        } else {
-            g.mix_drag = None;
-        }
-        let inside = fr.ux > x && fr.ux < x + w && fr.uy > y && fr.uy < y + h;
-        let (dex_x, btn_y, dex_w, btn_h) = (x + 10.0, y + 40.0 + row_h * 5.0 + 4.0, ((w - 26.0) * 0.42).round(), 20.0);
-        let (btn_x, btn_w) = (dex_x + dex_w + 6.0, w - 26.0 - dex_w);
-        let on_button = fr.ux > btn_x && fr.ux < btn_x + btn_w && fr.uy > btn_y && fr.uy < btn_y + btn_h;
-        let on_dex = fr.ux > dex_x && fr.ux < dex_x + dex_w && fr.uy > btn_y && fr.uy < btn_y + btn_h;
-        if !fr.just_paused && ((fr.click && on_dex) || is_key_pressed(KeyCode::F)) {
-            g.paused = false;
-            g.back_to_pause = true;
-            g.dex_open = true;
-            g.dex_from_shop = false;
-            g.dex_query.clear();
-            g.dex_sel = 0;
-            while get_char_pressed().is_some() {}
-            fr.click = false;
-        }
-        let live_y = btn_y + btn_h + 4.0;
-        let live_w = ((w - 26.0) / 2.0).round();
-        let live_x = [dex_x, dex_x + live_w + 6.0];
-        let sing_here = radio::karaoke_here();
-        let toggles = if sing_here { 2 } else { 1 };
-        let toggle_w = if sing_here { live_w } else { live_w * 2.0 + 6.0 };
-        let on_live = |i: usize| fr.ux > live_x[i] && fr.ux < live_x[i] + toggle_w && fr.uy > live_y && fr.uy < live_y + btn_h;
-        for (i, key) in [KeyCode::J, KeyCode::K].into_iter().enumerate().take(toggles) {
-            if !fr.just_paused && ((fr.click && on_live(i) && g.mix_drag.is_none()) || is_key_pressed(key)) {
-                radio::set_flag(i as i32, !radio::flag(i as i32));
-                fr.click = false;
-            }
-        }
-        g.restart_confirm = (g.restart_confirm - get_frame_time()).max(0.0);
-        if !fr.just_paused && ((fr.click && on_button && g.mix_drag.is_none()) || is_key_pressed(KeyCode::R)) {
-            if g.restart_confirm > 0.0 {
-                g.restart_now = true;
-                g.paused = false;
+                if let Some(r) = g.mix_drag {
+                    g.mix[r] = ((fr.ux - bar_x) / bar_w).clamp(0.0, 1.0);
+                    g.audio.set_mix(g.mix);
+                }
             } else {
-                g.restart_confirm = 3.0;
+                g.mix_drag = None;
+            }
+            for r in 0..5 {
+                let yy = row_y(r);
+                ui_text_fit(&labels[r], cx, yy + 3.0, 8.0, label_w - 4.0, ui::skin::CREAM);
+                ui_round(bar_x, yy - 2.0, bar_w, 4.0, 2.0, Color::new(1.0, 1.0, 1.0, 0.14));
+                let fill = if r == 4 { ui::skin::GOLD } else { note_color([0, 2, 4, 3][r]) };
+                ui_round(bar_x, yy - 2.0, (bar_w * g.mix[r]).max(4.0), 4.0, 2.0, fill);
+                ui_circle(bar_x + bar_w * g.mix[r], yy, 4.4, if g.mix_drag == Some(r) { WHITE } else { ui::skin::CREAM });
+                ui_text_as(ui::Face::Data, &format!("{:.0}", g.mix[r] * 100.0), bar_x + bar_w + 6.0, yy + 3.0, 8.0, ui::skin::MUTED);
             }
         }
-        if !fr.just_paused && ((fr.click && !inside && g.mix_drag.is_none()) || is_key_pressed(KeyCode::Escape)) {
+        2 => {
+            let lines = [("wasd", "move"), ("1-6", "sing a note"), ("e", "act, sit, fish, cook"), ("x", "move furniture"), ("m", "your bag"), ("enter", "chat"), ("tab", "music or spells"), ("r / c", "record / clear the loop"), ("p", "two players"), ("esc", "close, or pause")];
+            for (i, (k, what)) in lines.iter().enumerate() {
+                let yy = ry + 4.0 + i as f32 * 12.5;
+                if yy > y + h - 40.0 {
+                    break;
+                }
+                let kw = ui_measure_as(ui::Face::Label, k, 7.0) + 8.0;
+                ui_round(cx, yy - 1.0, kw, 11.0, 3.0, ui::skin::TAB);
+                ui_text_as(ui::Face::Label, k, cx + 4.0, yy + 7.5, 7.0, ui::skin::CREAM);
+                ui_text(what, cx + 46.0, yy + 7.5, 8.0, ui::skin::MUTED);
+            }
+            if button(fr, &format!("every key{}", key("H")), cx + cw - 70.0, y + h - 36.0, 70.0, 15.0, false) && keys {
+                open_help = true;
+            }
+        }
+        3 => {
+            if clicked_toggle(toggle(fr, "high resolution", "off: the old chunky pixel look", ry, !crate::render::pixel_look())) {
+                crate::render::set_pixel_look(!crate::render::pixel_look());
+                g.save_clock = 99.0;
+            }
+            ry += 26.0;
+            if clicked_toggle(toggle(fr, "soft glow", "lamps, fire and neon glow a little", ry, crate::glow::enabled())) {
+                crate::glow::set_enabled(!crate::glow::enabled());
+                g.save_clock = 99.0;
+            }
+        }
+        _ => {
+            let name = if g.venue.name.is_empty() { "-".to_string() } else { g.venue.name.clone() };
+            ui_text("name", cx, ry + 9.0, 8.0, ui::skin::MUTED);
+            ui_text_fit(&name, cx + 40.0, ry + 9.0, 9.0, cw - 40.0, ui::skin::CREAM);
+            ry += 16.0;
+            let acc = match &g.venue.account {
+                Some((_, label)) => label.clone(),
+                None => "sign in to save".to_string(),
+            };
+            if button(fr, &format!("{acc}{}", key("A")), cx, ry, cw, 16.0, false) && keys {
+                open_account = true;
+            }
+            ry += 20.0;
+            let keyed = g.venue.admin || g.venue.dj_name.is_some() || !g.venue.dj_key.is_empty();
+            if button(fr, &format!("{}{}", if keyed { "log out" } else { "dj or admin key: login" }, key("L")), cx, ry, cw, 16.0, keyed) && keys {
+                login = true;
+            }
+            ry += 26.0;
+            let armed = g.restart_confirm > 0.0;
+            let label = if armed { if radio::touch_ui() { "tap again: erase everything" } else { "R again: erase everything" } } else if radio::touch_ui() { "restart" } else { "restart (R)" };
+            let over = hit(fr, cx, ry, cw, 16.0);
+            ui_round_frame(cx, ry, cw, 16.0, 5.0, if armed { Color::from_rgba(220, 70, 80, 255) } else if over { Color::new(0.5, 0.2, 0.3, 1.0) } else { Color::new(0.33, 0.14, 0.22, 1.0) }, Color::from_rgba(255, 120, 130, 255));
+            let lw = ui_measure_as(ui::Face::Label, label, 9.0);
+            ui_text_as(ui::Face::Label, label, cx + (cw - lw) / 2.0, ry + 11.5, 9.0, ui::skin::CREAM);
+            if over && fr.click && keys {
+                restart = true;
+            }
+            ui_text("restart erases your world, home and save", cx, ry + 26.0, 7.0, ui::skin::MUTED);
+        }
+    }
+    let hint = if radio::touch_ui() { "tap outside to play" } else { "tab or w/s: sections   esc: play" };
+    ui_text(hint, x + (w - ui_measure(hint, 7.0)) / 2.0, y + h - 7.0, 7.0, ui::skin::MUTED);
+
+    if open_dex {
+        g.paused = false;
+        g.back_to_pause = true;
+        g.dex_open = true;
+        g.dex_from_shop = false;
+        g.dex_query.clear();
+        g.dex_sel = 0;
+        while get_char_pressed().is_some() {}
+        fr.click = false;
+    }
+    if flip_dj {
+        radio::set_flag(0, !radio::flag(0));
+        fr.click = false;
+    }
+    if flip_karaoke {
+        radio::set_flag(1, !radio::flag(1));
+        fr.click = false;
+    }
+    if flip_companion {
+        g.companion = !g.companion;
+        g.save_clock = 99.0;
+        let line = if g.companion { format!("the {noun} is back") } else { format!("the {noun} is resting. you play on your own") };
+        g.toasts.push((line, 3.0));
+        fr.click = false;
+    }
+    if restart {
+        if g.restart_confirm > 0.0 {
+            g.restart_now = true;
             g.paused = false;
-            g.restart_confirm = 0.0;
-            g.save_clock = 99.0;
-        }
-        set_default_camera();
-        clear_background(BLACK);
-        draw_texture_ex(
-            &g.full_view.texture,
-            0.0,
-            0.0,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(screen_width(), screen_height())),
-                flip_y: true,
-                ..Default::default()
-            },
-        );
-        ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.06, 0.04, 0.14, 0.55));
-        ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL, ui::skin::EDGE);
-        let title = "paused";
-        ui_text_as(ui::Face::Display, title, x + (w - ui_measure_as(ui::Face::Display, title, 18.0)) / 2.0, y + 23.0, 18.0, Color::from_rgba(255, 226, 150, 255));
-        ui_text_as(ui::Face::Accent, "mixer", x + 10.0, y + 35.0, 10.0, ui::skin::MUTED);
-        for r in 0..5 {
-            let cy = row_y(r);
-            let mut name = labels[r].clone();
-            while ui_measure(&name, 11.0) > label_w - 4.0 && name.len() > 3 {
-                name.pop();
-            }
-            ui_text(&name, x + 10.0, cy + 4.0, 11.0, WHITE);
-            ui_rect(bar_x, cy - 2.0, bar_w, 4.0, Color::new(1.0, 1.0, 1.0, 0.18));
-            let fill = if r == 4 { Color::from_rgba(255, 214, 110, 255) } else { note_color([0, 2, 4, 3][r]) };
-            ui_rect(bar_x, cy - 2.0, bar_w * g.mix[r], 4.0, fill);
-            ui_rect(bar_x + bar_w * g.mix[r] - 4.0, cy - 6.0, 8.0, 12.0, if g.mix_drag == Some(r) { WHITE } else { Color::new(0.95, 0.92, 0.85, 1.0) });
-            ui_text(&format!("{:.0}", g.mix[r] * 100.0), bar_x + bar_w + 8.0, cy + 4.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.7));
-        }
-        ui_rect(dex_x, btn_y, dex_w, btn_h, if on_dex { Color::from_rgba(90, 160, 230, 255) } else { Color::from_rgba(60, 110, 170, 255) });
-        let dex_label = if radio::touch_ui() { "fishdex" } else { "fishdex (F)" };
-        ui_text(dex_label, dex_x + (dex_w - ui_measure(dex_label, 11.0)) / 2.0, btn_y + 14.0, 11.0, WHITE);
-        let armed = g.restart_confirm > 0.0;
-        ui_rect(btn_x, btn_y, btn_w, btn_h, if armed { Color::from_rgba(220, 70, 80, 255) } else if on_button { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        let btn_label = if armed {
-            if radio::touch_ui() { "tap again: erase everything" } else { "R again: erase everything" }
-        } else if radio::touch_ui() {
-            "restart"
         } else {
-            "restart (R)"
-        };
-        let bs = fit_size(btn_label, 11.0, btn_w - 6.0);
-        ui_text(btn_label, btn_x + (btn_w - ui_measure(btn_label, bs)) / 2.0, btn_y + 14.0, bs, WHITE);
-        for i in 0..toggles {
-            let on = radio::flag(i as i32);
-            let name = if i == 0 { "dj set" } else { "karaoke" };
-            let key = if radio::touch_ui() { "" } else if i == 0 { " (J)" } else { " (K)" };
-            let label = format!("{}: {}{}", name, if on { "on" } else { "off" }, key);
-            let ls = fit_size(&label, 10.0, toggle_w - 6.0);
-            let fill = if on { Color::from_rgba(255, 214, 110, 255) } else if on_live(i) { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
-            ui_rect(live_x[i], live_y, toggle_w, btn_h, fill);
-            let ink = if on { Color::from_rgba(36, 26, 71, 255) } else { WHITE };
-            ui_text(&label, live_x[i] + (toggle_w - ui_measure(&label, ls)) / 2.0, live_y + 14.0, ls, ink);
+            g.restart_confirm = 3.0;
         }
-        let acc_y = live_y + btn_h + 4.0;
-        let comp_w = live_w;
-        let on_comp = fr.ux > dex_x && fr.ux < dex_x + comp_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
-        let noun = g.cast_list[g.players[1].character].noun;
-        let comp_label = format!("{}: {}{}", noun, if g.companion { "on" } else { "off" }, if radio::touch_ui() { "" } else { " (C)" });
-        let cs = fit_size(&comp_label, 10.0, comp_w - 6.0);
-        let comp_fill = if g.companion { Color::from_rgba(140, 222, 168, 255) } else if on_comp { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
-        ui_rect(dex_x, acc_y, comp_w, btn_h, comp_fill);
-        ui_text(&comp_label, dex_x + (comp_w - ui_measure(&comp_label, cs)) / 2.0, acc_y + 14.0, cs, if g.companion { Color::from_rgba(36, 26, 71, 255) } else { WHITE });
-        if !fr.just_paused && ((fr.click && on_comp && g.mix_drag.is_none()) || is_key_pressed(KeyCode::C)) {
-            g.companion = !g.companion;
-            g.save_clock = 99.0;
-            let line = if g.companion { format!("the {noun} is back") } else { format!("the {noun} is resting. you play on your own") };
-            g.toasts.push((line, 3.0));
-            fr.click = false;
-        }
-        let acc_x = dex_x + comp_w + 6.0;
-        let acc_w = w - 20.0 - comp_w - 6.0;
-        let on_acc = fr.ux > acc_x && fr.ux < acc_x + acc_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
-        let mut acc_label = match &g.venue.account {
-            Some((_, label)) => label.clone(),
-            None => "sign in to save".to_string(),
-        };
-        if !radio::touch_ui() {
-            acc_label += " (A)";
-        }
-        if fit_size(&acc_label, 10.0, acc_w - 6.0) < 8.5 {
-            acc_label = acc_label.trim_end_matches(" (A)").to_string();
-        }
-        let as_ = fit_size(&acc_label, 10.0, acc_w - 6.0);
-        ui_rect(acc_x, acc_y, acc_w, btn_h, if on_acc { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        ui_text(&acc_label, acc_x + (acc_w - ui_measure(&acc_label, as_)) / 2.0, acc_y + 14.0, as_, WHITE);
-        if !fr.just_paused && ((fr.click && on_acc && g.mix_drag.is_none()) || is_key_pressed(KeyCode::A)) {
+        fr.click = false;
+    }
+    if open_account {
+        g.paused = false;
+        g.restart_confirm = 0.0;
+        g.venue.overlay = venues::Overlay::Account;
+        g.venue.key_draft.clear();
+        g.venue.acct_key = false;
+        while get_char_pressed().is_some() {}
+        g.back_to_pause = true;
+        fr.click = false;
+    }
+    if login {
+        let keyed = g.venue.admin || g.venue.dj_name.is_some() || !g.venue.dj_key.is_empty();
+        if keyed {
+            steps::venues::log_out(g);
+        } else {
             g.paused = false;
             g.restart_confirm = 0.0;
             g.venue.overlay = venues::Overlay::Account;
             g.venue.key_draft.clear();
-            g.venue.acct_key = false;
+            g.venue.acct_key = true;
+            g.venue.opened_at = get_time();
             while get_char_pressed().is_some() {}
             g.back_to_pause = true;
-            fr.click = false;
         }
-        let homes_y = acc_y + btn_h + 4.0;
-        let homes_w = comp_w;
-        let (log_x, log_w) = (acc_x, acc_w);
-        let on_log = fr.ux > log_x && fr.ux < log_x + log_w && fr.uy > homes_y && fr.uy < homes_y + btn_h;
-        let keyed = g.venue.admin || g.venue.dj_name.is_some() || !g.venue.dj_key.is_empty();
-        let log_label = format!("{}{}", if keyed { "log out" } else { "login" }, if radio::touch_ui() { "" } else { " (L)" });
-        ui_rect(log_x, homes_y, log_w, btn_h, if keyed { Color::from_rgba(176, 92, 255, if on_log { 255 } else { 200 }) } else if on_log { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        let lsz = fit_size(&log_label, 10.0, log_w - 6.0);
-        ui_text(&log_label, log_x + (log_w - ui_measure(&log_label, lsz)) / 2.0, homes_y + 14.0, lsz, WHITE);
-        if !fr.just_paused && ((fr.click && on_log && g.mix_drag.is_none()) || is_key_pressed(KeyCode::L)) {
-            if keyed {
-                steps::venues::log_out(g);
-            } else {
-                g.paused = false;
-                g.restart_confirm = 0.0;
-                g.venue.overlay = venues::Overlay::Account;
-                g.venue.key_draft.clear();
-                g.venue.acct_key = true;
-                g.venue.opened_at = get_time();
-                while get_char_pressed().is_some() {}
-                g.back_to_pause = true;
-            }
-            fr.click = false;
-        }
-        let on_homes = fr.ux > dex_x && fr.ux < dex_x + homes_w && fr.uy > homes_y && fr.uy < homes_y + btn_h;
-        let guests = g.venue.visits.peers.len();
-        let homes_label = if steps::visits::visiting(g) {
-            "homes: visiting".to_string()
-        } else if guests > 0 {
-            format!("homes: {guests} here")
-        } else {
-            "friends' homes".to_string()
-        } + if radio::touch_ui() { "" } else { " (O)" };
-        ui_rect(dex_x, homes_y, homes_w, btn_h, if on_homes { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        let hs = fit_size(&homes_label, 10.0, homes_w - 6.0);
-        ui_text(&homes_label, dex_x + (homes_w - ui_measure(&homes_label, hs)) / 2.0, homes_y + 14.0, hs, WHITE);
-        if !fr.just_paused && ((fr.click && on_homes && g.mix_drag.is_none()) || is_key_pressed(KeyCode::O)) {
-            g.paused = false;
-            g.restart_confirm = 0.0;
-            steps::venues::open_homes(g);
-            g.back_to_pause = true;
-            fr.click = false;
-        }
-        let hint = if radio::touch_ui() { "tap outside to play" } else { "click outside or esc to play" };
-        ui_text(hint, x + (w - ui_measure(hint, 10.0)) / 2.0, y + h - 8.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));
-        let ver = format!("v{}", update::VERSION);
-        ui_text(&ver, x + w - 8.0 - ui_measure(&ver, 7.0), y + 12.0, 7.0, Color::new(1.0, 1.0, 1.0, 0.35));
+        fr.click = false;
+    }
+    if open_homes {
+        g.paused = false;
+        g.restart_confirm = 0.0;
+        steps::venues::open_homes(g);
+        g.back_to_pause = true;
+        fr.click = false;
+    }
+    if open_help {
+        g.paused = false;
+        g.show_help = true;
+        fr.click = false;
+    }
+    if keys && (close || (fr.click && !inside && g.mix_drag.is_none()) || is_key_pressed(KeyCode::Escape)) {
+        g.paused = false;
+        g.restart_confirm = 0.0;
+        g.save_clock = 99.0;
+    }
 }

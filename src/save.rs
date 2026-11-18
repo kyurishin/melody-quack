@@ -38,10 +38,13 @@ pub(crate) struct Progress {
     pub(crate) room: u8,
     pub(crate) home_code: String,
     pub(crate) friends: String,
+    pub(crate) gfx: (bool, bool),
     pub(crate) dex: Vec<u32>,
     pub(crate) mush: [u32; 3],
     pub(crate) shroomdex: Vec<u32>,
     pub(crate) quests: Option<(i64, Vec<(u8, u32, u32, bool)>)>,
+    pub(crate) weekly: Option<(i64, Vec<(u8, u32, u32, bool)>)>,
+    pub(crate) quest_marks: (i64, i64),
     pub(crate) stored: Vec<u8>,
     pub(crate) seq: [u16; 4],
     pub(crate) name: String,
@@ -76,6 +79,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("acorns {}\n", p.acorns);
     out += &format!("lessons {} {} {}\n", p.fish_lesson as u8, p.cook_lesson as u8, p.gather_lesson as u8);
     out += &format!("room {}\n", p.room);
+    if p.gfx != (true, false) {
+        out += &format!("gfx {} {}\n", p.gfx.0 as u8, p.gfx.1 as u8);
+    }
     if !p.friends.is_empty() {
         out += &format!("friends {}\n", p.friends);
     }
@@ -108,6 +114,12 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     }
     if !p.stored.is_empty() {
         out += &format!("stored {}\n", list(p.stored.iter().map(|n| n.to_string()).collect()));
+    }
+    if let Some((week, qs)) = &p.weekly {
+        out += &format!("weekly {} {}\n", week, list(qs.iter().map(|(k, t, pr, d)| format!("{}:{}:{}:{}", k, t, pr, *d as u8)).collect()));
+    }
+    if p.quest_marks != (i64::MIN, i64::MIN) {
+        out += &format!("questmarks {} {}\n", p.quest_marks.0, p.quest_marks.1);
     }
     if let Some((day, qs)) = &p.quests {
         out += &format!("quests {} {}\n", day, list(qs.iter().map(|(k, t, pr, d)| format!("{}:{}:{}:{}", k, t, pr, *d as u8)).collect()));
@@ -160,10 +172,13 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         room: 0,
         home_code: String::new(),
         friends: String::new(),
+        gfx: (true, false),
         dex: vec![0; fish::COUNT],
         mush: [0; 3],
         shroomdex: vec![0; mushroom::COUNT],
         quests: None,
+        weekly: None,
+        quest_marks: (i64::MIN, i64::MIN),
         stored: Vec::new(),
         seq: [0; 4],
         name: String::new(),
@@ -224,6 +239,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                     p.gather_lesson = nums[2] > 0.0;
                 }
             },
+            "gfx" if nums.len() == 2 => p.gfx = (nums[0] > 0.0, nums[1] > 0.0),
             "friends" => p.friends = rest.trim().chars().filter(|c| !c.is_control() && *c != ' ').take(2000).collect(),
             "homecode" => p.home_code = rest.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(11).collect(),
             "room" if nums.len() == 1 => p.room = (nums[0].max(0.0) as u8).min(home::MAX_SIZE),
@@ -242,7 +258,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
             "name" => p.name = rest.chars().filter(|c| !c.is_control()).take(12).collect::<String>().trim().to_string(),
             "seq" if nums.len() == 4 => p.seq = [nums[0] as u16, nums[1] as u16, nums[2] as u16, nums[3] as u16],
             "stored" => p.stored = rest.split(',').filter_map(|v| v.trim().parse::<u8>().ok()).filter(|v| (*v as usize) < home::ITEMS.len()).collect(),
-            "quests" => {
+            "weekly" | "quests" => {
                 let mut parts = rest.splitn(2, ' ');
                 if let (Some(day), Some(items)) = (parts.next().and_then(|d| d.trim().parse::<i64>().ok()), parts.next()) {
                     let qs: Vec<(u8, u32, u32, bool)> = items
@@ -252,7 +268,13 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                             if f.len() == 4 { Some((f[0] as u8, f[1], f[2], f[3] > 0)) } else { None }
                         })
                         .collect();
-                    p.quests = Some((day, qs));
+                    if key == "weekly" { p.weekly = Some((day, qs)); } else { p.quests = Some((day, qs)); }
+                }
+            }
+            "questmarks" => {
+                let n: Vec<i64> = rest.split_whitespace().filter_map(|v| v.parse().ok()).collect();
+                if n.len() == 2 {
+                    p.quest_marks = (n[0], n[1]);
                 }
             }
             "shroomdex" => {

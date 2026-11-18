@@ -282,7 +282,7 @@ async fn main() {
     let dj = [false, false];
     let ddr = Ddr { on: [false; 2], arrows: Vec::new(), score: [0; 2], combo: [0; 2], judge: [None; 2], flash: [[0.0; 4]; 2], last_mic: -99.0 };
     let ddr_request: Option<(usize, usize)> = None;
-    let quests = Quests { day: i64::MIN, list: Vec::new() };
+    let mut quests = Quests::new();
     let mut sampler = Sampler { open: false, owner: 0, grid: [[false; 16]; 4], cursor: (0, 0), pads: [None, None, None, None], clear_armed: 0.0, step: 0 };
     let mut saved_quests: Option<(i64, Vec<(u8, u32, u32, bool)>)> = None;
     let ddr_art: Vec<Vec<(usize, usize, Color)>> = (0..4).map(ddr_arrow_pixels).collect();
@@ -338,6 +338,8 @@ async fn main() {
         saved_tour = saved.tour;
         saved_home_code = saved.home_code.clone();
         saved_friends = saved.friends.clone();
+        crate::glow::set_enabled(saved.gfx.0);
+        crate::render::set_pixel_look(saved.gfx.1);
         saved_session = saved.session.clone();
         saved_companion = !saved.companion_off;
         if saved.tiles.len() == world.tiles.len() {
@@ -385,6 +387,9 @@ async fn main() {
         inv.mush = saved.mush;
         shroom_counts = saved.shroomdex;
         saved_quests = saved.quests;
+        quests.saved_weekly = saved.weekly;
+        quests.bonus_day = saved.quest_marks.0;
+        quests.event_day = saved.quest_marks.1;
         stored = saved.stored.iter().map(|i| home::Item::from_index(*i)).collect();
         for row in 0..4 {
             for k in 0..16 {

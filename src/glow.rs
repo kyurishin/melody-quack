@@ -79,6 +79,18 @@ thread_local! {
     static NIGHT: std::cell::Cell<f32> = const { std::cell::Cell::new(0.0) };
 }
 
+thread_local! {
+    static ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+pub(crate) fn set_enabled(on: bool) {
+    ENABLED.with(|e| e.set(on));
+}
+
+pub(crate) fn enabled() -> bool {
+    ENABLED.with(|e| e.get())
+}
+
 pub(crate) fn set_night(n: f32) {
     NIGHT.with(|v| v.set(n.clamp(0.0, 1.0)));
 }
@@ -120,7 +132,8 @@ pub(crate) fn present(view: &RenderTarget) {
     let (w, h) = (low_w().round().max(1.0), low_h().round().max(1.0));
     let night = NIGHT.with(|n| n.get());
     let full = vec2(screen_width(), screen_height());
-    let done = ready(w as u32, h as u32)
+    let done = enabled()
+        && ready(w as u32, h as u32)
         && GLOW.with(|cell| {
             let slot = cell.borrow();
             let Some(g) = slot.as_ref() else { return false };

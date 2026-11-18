@@ -113,6 +113,17 @@ fn enter(g: &mut Game, venue: Venue) {
         g.players[who].place_at(door + vec2(off, 0.0));
         g.players[who].facing = vec2(0.0, -1.0);
     }
+    if venue == Venue::Chapel {
+        let tonight = g.venue.now.as_ref().map(|n| g.venue.secret.iter().any(|s| s.code == n.code)).unwrap_or(false);
+        let today = sky().day;
+        if tonight && g.quests.event_day != today {
+            g.quests.event_day = today;
+            g.inv.acorns += EVENT_REWARD;
+            g.toasts.push((format!("event quest done: into the secret rave - +{EVENT_REWARD} acorns"), 3.5));
+            steps::notify::push(steps::notify::Kind::Quest, None, format!("event quest done: into the secret rave +{EVENT_REWARD} acorns"));
+            g.save_clock = 99.0;
+        }
+    }
     g.venue.at = venue;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
@@ -216,6 +227,16 @@ fn clock(ms: f64) -> String {
     let total = ms.abs() as i64;
     let (h, m, s, k) = (total / 3_600_000, total / 60_000 % 60, total / 1000 % 60, total % 1000);
     if h > 0 { format!("{h}:{m:02}:{s:02}.{k:03}") } else { format!("{m:02}:{s:02}.{k:03}") }
+}
+
+pub(crate) fn doors_in(g: &Game) -> Option<f64> {
+    to_start(g)
+}
+
+pub(crate) fn clock_text(ms: f64) -> String {
+    let total = ms.abs() as i64;
+    let (h, m) = (total / 3_600_000, total / 60_000 % 60);
+    if h > 0 { format!("{h}h {m:02}m") } else { format!("{m}m") }
 }
 
 fn to_start(g: &Game) -> Option<f64> {
@@ -2073,6 +2094,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::NameJam => name_jam_box(g, fr, fresh),
         Overlay::Pot => pot_panel(g, fr, fresh),
         Overlay::Notes => steps::notify::panel(g, fr, fresh),
+        Overlay::Quests => steps::quests_panel::panel(g, fr, fresh),
         Overlay::None => {}
     }
     true

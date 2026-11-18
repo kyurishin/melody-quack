@@ -9,6 +9,7 @@ pub(crate) enum Tab {
     Music,
     Chat,
     Items,
+    Quests,
     Help,
     Settings,
 }
@@ -40,6 +41,7 @@ fn tab_name(t: Tab) -> &'static str {
         Tab::Music => "Music",
         Tab::Chat => "Chat",
         Tab::Items => "Items",
+        Tab::Quests => "Quests",
         Tab::Help => "Help",
         Tab::Settings => "Settings",
     }
@@ -59,7 +61,7 @@ fn radio_label(g: &Game, time: f32, room: f32) -> String {
 
 pub(crate) fn layout(g: &Game) -> Bar {
     let lw = low_w();
-    let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Help, Tab::Settings];
+    let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Quests, Tab::Help, Tab::Settings];
     let tab_w = |t: Tab, words: bool| if words { 21.0 + ui_measure_as(Face::Label, tab_name(t), TAB_SIZE) } else { 18.0 };
     let label_w = if g.now_playing.is_empty() { ui_measure_as(Face::Label, &radio_label(g, 0.0, 999.0), 8.5).max(30.0) } else { 70.0 };
     let logo_w = |text: bool| if text { 24.0 + ui_measure_as(Face::Display, LOGO, 10.5) } else { 20.0 };
@@ -97,6 +99,7 @@ fn active(g: &Game, t: Tab) -> bool {
         Tab::Music => g.music_mode,
         Tab::Chat => g.venue.overlay == venues::Overlay::Talk,
         Tab::Items => g.show_inventory,
+        Tab::Quests => g.venue.overlay == venues::Overlay::Quests,
         Tab::Help => g.show_help,
         Tab::Settings => g.paused,
     }
@@ -152,6 +155,13 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
                     g.bag_owner = 0;
                     g.bag_sel = 0;
                 }
+                Tab::Quests => {
+                    if g.venue.overlay == venues::Overlay::Quests {
+                        g.venue.overlay = venues::Overlay::None;
+                    } else if g.venue.overlay == venues::Overlay::None {
+                        steps::quests_panel::open(g);
+                    }
+                }
                 Tab::Help => g.show_help = !g.show_help,
                 Tab::Settings => {
                     g.paused = true;
@@ -187,6 +197,13 @@ fn icon(t: Tab, x: f32, y: f32, c: Color) {
             ui_tri(vec2(x + 1.5, y + 1.5), vec2(x + 4.0, y + 1.5), vec2(x + 1.0, y + 4.2), c);
             for k in 0..3 {
                 ui_circle(x + 2.3 + k as f32 * 2.0, y - 1.0, 0.6, skin::TAB);
+            }
+        }
+        Tab::Quests => {
+            ui_round(x, y - 4.5, 8.0, 9.0, 1.5, c);
+            for k in 0..3 {
+                ui_rect(x + 1.6, y - 2.6 + k as f32 * 2.4, 1.2, 1.2, skin::TAB);
+                ui_rect(x + 3.4, y - 2.4 + k as f32 * 2.4, 3.2, 0.8, skin::TAB);
             }
         }
         Tab::Help => {

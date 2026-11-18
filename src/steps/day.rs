@@ -23,7 +23,22 @@ pub(crate) fn day_and_mushrooms(g: &mut Game, fr: &mut Frame) {
                 }
             }
             if !restored {
-                g.toasts.push(("3 new daily quests - see them in your bag (M)".to_string(), 3.5));
+                g.toasts.push(("3 new daily quests - see them in quests".to_string(), 3.5));
+            }
+        }
+        let week = sk.day.div_euclid(7);
+        if g.quests.week != week {
+            g.quests.week = week;
+            g.quests.weekly = weekly_quests(week, g.house.has(home::Item::Plant), g.house.has(home::Item::Arcade));
+            if let Some((w, list)) = g.quests.saved_weekly.take() {
+                if w == week {
+                    for (q, (kind, target, progress, done)) in g.quests.weekly.iter_mut().zip(list.into_iter()) {
+                        if q.kind as u8 == kind && q.target == target {
+                            q.progress = progress;
+                            q.done = done;
+                        }
+                    }
+                }
             }
         }
         for piece in g.house.pieces.iter_mut().filter(|p| p.item == home::Item::Plant) {

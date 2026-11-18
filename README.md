@@ -77,7 +77,9 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 
 **The screen:** along the top, the logo, then the tabs **Music** (music mode on or off), **Chat** (talk to your companion), **Items** (your bag), **H** (help) and **Settings** (the pause menu). On the right, the radio pill: play/pause turns the beat on or off, the label shows the quantise setting (click to change it) or the song that's on, and the slider is the master volume. Under it, the time and weather, the campfire's fuel, wood, stone and fish, dishes discovered and your acorns. At the bottom, the loop grid (notes in their pitch rows, the current step lit) and the six note cards. On narrow screens the tabs shrink to icons.
 
-**The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice, erases everything)**, **login / log out (L)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
+**Settings** (Esc, or the gear in the top bar) has five sections; Tab or W/S moves between them, and every key works from any section. **general**: companion (C), dj set (J), karaoke (K, only at localhost:4747), fishdex (F) and friends' homes (O). **audio**: the mixer (you, your friend, beat & pot, world, master). **controls**: the main keys, and every key (H). **graphics**: high resolution (off brings back the chunky pixel look) and soft glow. **account**: your name, sign in to save (A), dj or admin key login / log out (L) and restart (R twice, erases everything).
+
+**Quests** (the list icon in the top bar): **daily** has three quests a day and a daily bonus gift (+25 acorns) once all three are done; **weekly** has three bigger quests that pay double; **event** is getting into tonight's secret rave (+40, once a day), with the time until the doors open.
 
 ## Characters and your companion
 
