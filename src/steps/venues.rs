@@ -4308,16 +4308,39 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
         .iter()
         .flat_map(|(otter, text)| {
             let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
-            ui_wrap(&format!("{who}: {text}"), 8.0, w - 20.0).into_iter().map(move |l| (col, l))
+            ui_wrap(&format!("{who}: {text}"), 8.0, w - 30.0).into_iter().map(move |l| (col, l))
         })
         .collect();
-    let shown: Vec<(Color, String)> = log.into_iter().rev().take(6).rev().collect();
+    let rows = if low_h() > 300.0 { 12 } else { 8 };
+    let max_scroll = log.len().saturating_sub(rows);
+    if !fresh {
+        let wheel = mouse_wheel().1;
+        let p = &mut g.venue.partner;
+        if wheel > 0.0 || is_key_pressed(KeyCode::Up) {
+            p.scroll += 1;
+        }
+        if (wheel < 0.0 || is_key_pressed(KeyCode::Down)) && p.scroll > 0 {
+            p.scroll -= 1;
+        }
+        if is_key_pressed(KeyCode::PageUp) {
+            p.scroll += rows - 1;
+        }
+        if is_key_pressed(KeyCode::PageDown) {
+            p.scroll = p.scroll.saturating_sub(rows - 1);
+        }
+    }
+    g.venue.partner.scroll = g.venue.partner.scroll.min(max_scroll);
+    let scroll = g.venue.partner.scroll;
+    let end = log.len() - scroll;
+    let shown: Vec<(Color, String)> = log[end.saturating_sub(rows)..end].to_vec();
+    let total = log.len();
     let tips = if notice {
         ui_wrap(&format!("say \"{noun}\" and your {noun} answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 7.0, w - 20.0)
     } else {
         ui_wrap(&format!("say \"{noun}\" to talk to your {noun}.   enter: send   esc: close"), 7.0, w - 20.0)
     };
-    let h = 30.0 + shown.len() as f32 * 9.5 + 22.0 + tips.len() as f32 * 9.0 + 6.0;
+    let log_h = rows.min(total.max(1)) as f32 * 9.5;
+    let h = 30.0 + log_h + 22.0 + tips.len() as f32 * 9.0 + 6.0;
     let x = ((low_w() - w) / 2.0).round();
     let y = (low_h() - h - 8.0).round();
     ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
@@ -4326,10 +4349,30 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let sub_line = format!("with your {name}");
     ui_text(&sub_line, x + 14.0 + ui_measure_as(ui::Face::Display, "talk", 11.0), y + 15.0, 8.0, ui::skin::MUTED);
     let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
-    let mut ty = y + 30.0;
-    for (c, l) in &shown {
-        ui_text(l, x + 10.0, ty, 8.0, *c);
-        ty += 9.5;
+    let log_top = y + 23.0;
+    for (i, (c, l)) in shown.iter().enumerate() {
+        ui_text(l, x + 10.0, log_top + 7.0 + i as f32 * 9.5, 8.0, *c);
+    }
+    let ty = log_top + 7.0 + log_h;
+    if max_scroll > 0 {
+        let (bx, by, bh) = (x + w - 11.0, log_top, log_h);
+        ui_round(bx, by, 4.0, bh, 2.0, Color::new(1.0, 1.0, 1.0, 0.1));
+        let thumb = (bh * rows as f32 / total as f32).max(8.0);
+        let top = by + (bh - thumb) * (1.0 - scroll as f32 / max_scroll as f32);
+        let over = fr.ux > bx - 4.0 && fr.ux < bx + 8.0 && fr.uy > by && fr.uy < by + bh;
+        if !fresh && is_mouse_button_pressed(MouseButton::Left) && over {
+            g.venue.partner.drag = true;
+            fr.click = false;
+        }
+        if g.venue.partner.drag {
+            if is_mouse_button_down(MouseButton::Left) {
+                let frac = ((fr.uy - by - thumb / 2.0) / (bh - thumb).max(1.0)).clamp(0.0, 1.0);
+                g.venue.partner.scroll = ((1.0 - frac) * max_scroll as f32).round() as usize;
+            } else {
+                g.venue.partner.drag = false;
+            }
+        }
+        ui_round(bx, top, 4.0, thumb, 2.0, if g.venue.partner.drag || over { ui::skin::PINK_EDGE } else { ui::skin::PINK });
     }
     let (fx, fy, fw, fh) = (x + 8.0, ty - 2.0, w - 16.0, 16.0);
     ui_round_frame(fx, fy, fw, fh, 4.0, ui::skin::CREAM, ui::skin::EDGE_STRONG);

@@ -27,9 +27,11 @@ pub(crate) struct Partner {
     pub(crate) hum: Vec<(f32, usize)>,
     pub(crate) hum_t: f32,
     pub(crate) hum_wait: f32,
+    pub(crate) scroll: usize,
+    pub(crate) drag: bool,
 }
 
-pub(crate) const LOG_KEEP: usize = 12;
+pub(crate) const LOG_KEEP: usize = 300;
 
 pub(crate) fn names(name: &str, noun: &str) -> Vec<String> {
     let mut out = vec![noun.to_lowercase(), name.to_lowercase()];
@@ -113,6 +115,7 @@ fn push(g: &mut Game, otter: bool, text: String) {
         p.log.remove(0);
     }
     p.shown = 14.0;
+    p.scroll = 0;
 }
 
 pub(crate) fn send(g: &mut Game, text: &str) {
