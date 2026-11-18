@@ -73,8 +73,6 @@ pub(crate) const FUEL_WANT: f32 = 140.0;
 
 pub(crate) const FIRE_SPOT: Vec2 = Vec2::new(8.5, 17.5);
 
-pub(crate) const SEAT_TILES: [(i32, i32); 2] = [(7, 17), (9, 17)];
-
 pub(crate) const PERC_NAMES: [&str; 4] = ["kick", "lid", "chop", "sizzle"];
 
 pub(crate) fn near_fire(p: &Player) -> bool {

@@ -318,8 +318,6 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         "E: sit by the fire".to_string()
     } else if at_dock_end(&g.players[0]) {
         if g.two_player { "E / O: cast your fishing line".to_string() } else { "E: cast your fishing line".to_string() }
-    } else if fr.can_build_here {
-        format!("E: build {}  X: change", g.tools[0].name())
     } else if !g.camp.lit && g.camp.fuel <= 0.0 {
         if g.two_player { "find a tree with a stick at its foot - E or O picks it up".to_string() } else if !g.companion { "the fire is out - find a stick at the foot of a tree and press E".to_string() } else { format!("the {} is looking for sticks - or grab one yourself with E", g.cast_list[g.players[1].character].noun) }
     } else {

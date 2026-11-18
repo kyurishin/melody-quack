@@ -49,7 +49,6 @@ mod sky;
 mod save;
 mod player;
 mod dog;
-mod building;
 mod inventory;
 mod fishing;
 mod quests;
@@ -83,7 +82,6 @@ use sky::*;
 use save::*;
 use player::*;
 use dog::*;
-use building::*;
 use inventory::*;
 use fishing::*;
 use quests::*;
@@ -189,7 +187,6 @@ async fn main() {
     let brain = DogBrain::new();
     let mut camp = Camp { fuel: 0.0, lit: false, pile: 0 };
     let mut inv = Inventory { wood: 2, stone: 0, fish: [0; 3], mush: [0; 3], acorns: 0 };
-    let tools = [Tool::WoodWall, Tool::StoneWall];
     let fishing = Fishing { active: false, caster: 0, cue_at: 0.0, hits: 0, tries: FISH_TRIES, hit_by: [false; 2], early: [false; 2], lesson: false, perfects: 0, dip: 0.0, jump: None, tight: 1.0 };
     let mut fish_lesson = false;
     let mut cook_lesson = false;
@@ -344,6 +341,10 @@ async fn main() {
             for (tile, (k, st)) in world.tiles.iter_mut().zip(saved.tiles.iter()) {
                 tile.kind = KINDS[(*k as usize).min(KINDS.len() - 1)];
                 tile.stack = *st;
+                if matches!(tile.kind, Kind::WoodWall | Kind::StoneWall | Kind::Floor) {
+                    tile.kind = Kind::Grass;
+                    tile.stack = 0;
+                }
                 tile.fire = 0.0;
             }
         }
@@ -438,7 +439,6 @@ async fn main() {
         brain,
         camp,
         inv,
-        tools,
         fishing,
         fish_lesson,
         cook_lesson,
@@ -610,7 +610,6 @@ async fn main() {
         }
         steps::audio_step::echo_and_quantise(&mut g, &mut fr);
         steps::picker::character_picker(&mut g, &mut fr);
-        steps::audio_step::tool_keys(&mut g, &mut fr);
         steps::audio_step::listening(&mut g, &mut fr);
         steps::movement::read_movement(&mut g, &mut fr);
         steps::movement::outdoors(&mut g, &mut fr);
@@ -618,7 +617,6 @@ async fn main() {
         steps::friend::friend_and_deliveries(&mut g, &mut fr);
         steps::movement::doors(&mut g, &mut fr);
         steps::friend::receive_delivery(&mut g, &mut fr);
-        steps::movement::build_walls(&mut g, &mut fr);
         steps::sampler_step::sampler(&mut g, &mut fr);
         steps::arcade::dance_arcade(&mut g, &mut fr);
         steps::audio_step::visual_bands(&mut g, &mut fr);

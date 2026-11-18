@@ -6,7 +6,6 @@ use macroquad::prelude::*;
 pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
     let cat = &g.players[0];
     fr.ahead = cat.ahead();
-    fr.can_build_here = !g.inside && !cat.seated && !g.fishing.active && !(g.camp.lit && near_fire(cat)) && !at_dock_end(cat) && buildable(&g.world, fr.ahead.0, fr.ahead.1);
     fr.ring = if g.fish_card > 0.0 { 1.0 } else { ((g.fishing.cue_at - g.looper.position) / FISH_CUE_GAP).clamp(0.0, 1.0) };
     fr.extras = Extras {
         fishing: g.fishing.active,
@@ -17,7 +16,6 @@ pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
         cat: g.players[g.fishing.caster].pos,
         pot: g.cooking,
         hearts: g.hearts.clone(),
-        ghost: if fr.can_build_here { Some((fr.ahead.0, fr.ahead.1, g.tools[0])) } else { None },
         sticks: g.stick_trees.iter().filter_map(|t| stick_spot(&g.world, *t)).collect(),
         friend_rod: if g.fishing.active && !g.two_player && g.players[1].pos.distance(DOCK_END - vec2(1.0, 0.0)) < 0.8 { Some(g.players[1].pos) } else { None },
     };

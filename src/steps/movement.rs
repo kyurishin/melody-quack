@@ -58,7 +58,6 @@ pub(crate) fn read_movement(g: &mut Game, fr: &mut Frame) {
         g.cooking = false;
     }
     fr.fish_press = [false; 2];
-    fr.build_request = None;
 }
 
 pub(crate) fn outdoors(g: &mut Game, fr: &mut Frame) {
@@ -230,7 +229,7 @@ pub(crate) fn outdoors(g: &mut Game, fr: &mut Frame) {
                         g.toasts.push((format!("player {} shook the tree: +{} acorn{}", who + 1, found, if found == 1 { "" } else { "s" }), 2.5));
                     }
                     Gathered::Resting => g.toasts.push(("this tree needs a rest - try another".to_string(), 2.0)),
-                    Gathered::Nothing => if !g.fishing.active { fr.build_request = Some((who, x, z)); },
+                    Gathered::Nothing => {}
                 }
             }
         }
@@ -281,26 +280,6 @@ pub(crate) fn doors(g: &mut Game, fr: &mut Frame) {
             g.players[1].place_at(spot);
             g.brain = DogBrain::new();
             g.audio.play_ch(3, &g.chop, 0.3);
-        }
-    }
-}
-
-pub(crate) fn build_walls(g: &mut Game, fr: &mut Frame) {
-    if let Some((who, x, z)) = fr.build_request {
-        let blocked = g.players.iter().any(|p| touches_cat(x, z, p.pos));
-        match build(&mut g.world, &mut g.inv, g.tools[who], x, z, blocked) {
-            Ok(Some((kind, stack))) => {
-                let i = ((x + z + stack as i32).rem_euclid(6)) as usize;
-                match kind {
-                    Kind::WoodWall => g.audio.play_ch(3, &g.marimba[i], 0.8),
-                    Kind::StoneWall => g.audio.play_ch(3, &g.bells[i], 0.8),
-                    _ => g.audio.play_ch(3, &g.chop, 0.7),
-                }
-                puff(&mut g.particles, x, z, Color::from_rgba(230, 210, 170, 255), 6);
-                g.players[who].voice_timer = 0.2;
-            }
-            Ok(None) => {}
-            Err(msg) => g.toasts.push((msg.to_string(), 2.5)),
         }
     }
 }

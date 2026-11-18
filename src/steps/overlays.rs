@@ -195,8 +195,6 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
                 ("E at fire", "sit, again: cook"),
                 ("E at dock", "cast and fish"),
                 ("E by trees", "stick, mushroom, acorns"),
-                ("E in yard", "build walls and floors"),
-                ("X", "change build tool"),
                 ("E at door", "go inside"),
                 ("E / X inside", "use / move furniture"),
                 ("N twice", "fresh world"),

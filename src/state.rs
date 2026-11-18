@@ -39,7 +39,6 @@ pub(crate) struct Game {
     pub(crate) brain: DogBrain,
     pub(crate) camp: Camp,
     pub(crate) inv: Inventory,
-    pub(crate) tools: [Tool; 2],
     pub(crate) fishing: Fishing,
     pub(crate) fish_lesson: bool,
     pub(crate) cook_lesson: bool,

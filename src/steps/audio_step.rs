@@ -17,15 +17,6 @@ pub(crate) fn echo_and_quantise(g: &mut Game, _fr: &mut Frame) {
     }
 }
 
-pub(crate) fn tool_keys(g: &mut Game, _fr: &mut Frame) {
-    if is_key_pressed(KeyCode::X) && !g.picking && !g.inside {
-        g.tools[0] = g.tools[0].next();
-    }
-    if is_key_pressed(KeyCode::U) && g.two_player && !g.inside {
-        g.tools[1] = g.tools[1].next();
-    }
-}
-
 pub(crate) fn listening(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::F) {
         if g.listening {

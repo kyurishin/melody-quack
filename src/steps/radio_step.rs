@@ -39,7 +39,7 @@ pub(crate) fn report_and_radio(g: &mut Game, _fr: &mut Frame) {
                 "-".to_string()
             }
         } else {
-            g.tools[0].name().to_string()
+            "-".to_string()
         };
         let report = format!(
             "mode={}|rec={}|echo={}|tape={}|tool={}|notes={}",

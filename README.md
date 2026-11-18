@@ -51,8 +51,8 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | --- | --- | --- |
 | move | WASD (or arrows when alone) | IJKL (or arrows) |
 | sing / cast | 1 2 3 4 5 6 (notes D E F# A B C) | 7 8 9 0 - = |
-| act: sit, pick up, fish, cook, build, use furniture | E | O |
-| build tool outdoors; turn or move furniture indoors | X | U |
+| act: sit, pick up, fish, cook, use furniture | E | O |
+| turn or move furniture indoors | X | U |
 | bag, quests, stored furniture | M | Backspace |
 | pixel emoji | Z | . |
 | talk to your companion | Enter | |
@@ -97,7 +97,7 @@ Press V (or start a new game) to choose who you are and who your friend is. W/S 
 | fox | a hoarse, breathy bellow (with a teal scarf and a big bushy tail) |
 | sea otter | smashes a shell on his belly, so every note is a tuned clack |
 
-**Your companion** is a little AI bandmate. It fetches sticks for the fire, wood and stones for building and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
+**Your companion** is a little AI bandmate. It fetches sticks for the fire, wood, stones and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
 
 ### Talking with your companion
 
@@ -143,10 +143,6 @@ Seven of 120 species grow near the trees each real day (more when it rains). Pic
 
 Sitting by the fire, E puts the pot on and 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, sizzle. Every hit on the beat fills the pot; a full pot makes a dish from what you caught: campfire tea, grilled fish, fish stew, golden koi soup, and mushroom dishes. Serve them on your table at home.
 
-### Building
-
-Outdoors, face an empty square and press E to build: wood walls, stone walls (up to three high) and plank floors. X switches tools; remove gives the material back. Every block plays a note as it goes up.
-
 ### Your home and acorns
 
 Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming, fishing, cooking and from your friend's errands, then spend them at the **catalogue** in the corner (E): W/S switches tabs (catalogue, diary, fishdex, mushrooms), A/D browses, E buys, Esc closes. E places what you bought, X turns it; face a piece and X picks it up to move it (or sell it back for half at the catalogue). Wallpaper and floors cost 10 acorns once, then switch for free. Everything is saved.
@@ -191,7 +187,7 @@ Z (player 2: .) shows a pixel emoji above your head; press again to step through
 
 ### Two players
 
-Press P for local co-op on one keyboard: the screen splits outdoors, and you share the world, bag, house, loop and diary. Both can gather, build, sit, cook, fish (hit rings together for double), use every piece of furniture and go b2b at the DJ booth. Player 2's notes show in golden brown on the loop grid.
+Press P for local co-op on one keyboard: the screen splits outdoors, and you share the world, bag, house, loop and diary. Both can gather, sit, cook, fish (hit rings together for double), use every piece of furniture and go b2b at the DJ booth. Player 2's notes show in golden brown on the loop grid.
 
 ## Making music
 

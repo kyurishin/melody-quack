@@ -276,19 +276,6 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
         b.cube(p + vec3(0.035, 0.03, 0.0), vec3(0.06, 0.06, 0.03), c);
         b.cube(p + vec3(0.0, -0.02, 0.0), vec3(0.06, 0.06, 0.03), c);
     }
-    if let Some((x, z, tool)) = ex.ghost {
-        let pulse = 0.35 + 0.15 * (view.time * 6.0).sin();
-        let t = view.world.get(x, z).map(|t| (t.kind, t.stack)).unwrap_or((Kind::Grass, 0));
-        let base_h = if matches!(t.0, Kind::WoodWall | Kind::StoneWall) { 0.5 + WALL_HEIGHT * t.1 as f32 } else { 0.5 };
-        let (col, h) = match tool {
-            Tool::WoodWall => (Color::new(0.9, 0.7, 0.45, pulse), WALL_HEIGHT),
-            Tool::StoneWall => (Color::new(0.8, 0.82, 0.9, pulse), WALL_HEIGHT),
-            Tool::Floor => (Color::new(0.95, 0.8, 0.6, pulse), 0.06),
-            Tool::Remove => (Color::new(1.0, 0.4, 0.45, pulse), 0.04),
-        };
-        let y = if tool == Tool::Remove { base_h + 0.03 } else { base_h + h / 2.0 };
-        b.cube(vec3(x as f32 + 0.5, y, z as f32 + 0.5), vec3(1.0, h, 1.0), col);
-    }
     for p in view.particles {
         let fade = (p.life / p.max_life).clamp(0.0, 1.0);
         let c = mix(fog, p.color, 0.4 + 0.6 * fade);
@@ -340,7 +327,6 @@ pub(crate) struct Extras {
     pub(crate) cat: Vec2,
     pub(crate) pot: bool,
     pub(crate) hearts: Vec<(Vec3, f32)>,
-    pub(crate) ghost: Option<(i32, i32, Tool)>,
     pub(crate) friend_rod: Option<Vec2>,
     pub(crate) sticks: Vec<Vec2>,
 }
