@@ -1129,6 +1129,11 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
         }
     };
+    if let Some(e) = net::cast_error() {
+        if g.venue.cast_note != e {
+            g.venue.cast_note = e;
+        }
+    }
     if g.venue.input_pick {
         source_list(g, fr, fresh, x, y, w, h);
         return;
@@ -4180,9 +4185,19 @@ fn source_list(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32
     ui_rect(x + 4.0, y + 22.0, w - 8.0, h - 26.0, Color::from_rgba(52, 40, 102, 255));
     ui_text("what should the room hear?", x + 10.0, y + 33.0, 9.0, cream());
     let rows = (((h - 70.0) / 16.0).floor() as usize).max(1);
+    if g.venue.inputs.is_empty() {
+        g.venue.inputs = net::inputs();
+    }
     let n = g.venue.inputs.len();
     if n == 0 {
-        ui_text("no sound devices found on this computer.", x + 10.0, y + 50.0, 8.0, Color::from_rgba(255, 140, 120, 255));
+        match net::inputs_note() {
+            Some(note) => {
+                for (i, l) in ui_wrap(&note, 8.0, w - 24.0).iter().enumerate() {
+                    ui_text(l, x + 10.0, y + 50.0 + i as f32 * 10.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+                }
+            }
+            None => ui_text("no sound devices found on this computer.", x + 10.0, y + 50.0, 8.0, Color::from_rgba(255, 140, 120, 255)),
+        }
     }
     let most = n.saturating_sub(rows);
     if !fresh {

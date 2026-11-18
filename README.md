@@ -243,7 +243,7 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
 - **Asking to play:** in the chapel, E at the booth opens the decks; ask to play the rave that's on. The request goes to the admin's post, and every yes is good for one set and earns the DJ 1 euro of credit, shown at the decks.
 - **Playing:**
   - **in-game decks:** beat and melody on or off, the sound, the tempo, and six pads; everyone in the room hears the same mix.
-  - **from this computer** (desktop app): click **stream my sound** and pick a source from the list. The game streams it (128 kbps MP3) through the server to everyone in the room, in the browser and the desktop apps, a second or two behind like any radio. A meter shows your level.
+  - **from this computer** (the website or the desktop app): click **stream my sound** and pick a source from the list. In the browser, say **allow** when it asks to use your sound inputs; the list then shows them. The game streams it (128 kbps MP3) through the server to everyone in the room, in the browser and the desktop apps, a second or two behind like any radio. A meter shows your level.
     - The list shows recording inputs only: Serato Virtual Audio, a mixer, a controller's master out or a microphone. The game never records everything your computer plays, so notifications, calls and other apps stay private.
   - **a stream link:** paste any https stream under "real audio".
 - **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
@@ -333,7 +333,7 @@ Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the
 - **Server:** `cd server && cargo test` and `cargo build --release`; `server/Dockerfile` builds an image.
 - **Tests:** `cargo test` (game), `cd server && cargo test` (server), `python3 -m unittest discover -s tests -v` (source checks).
 
-The game's MP3 encoder is LAME (LGPL); with the source public, anyone can rebuild it with their own LAME.
+The game's MP3 encoder is LAME (LGPL), and the website uses lamejs (`web/lame.min.js`, LGPL), loaded only when a DJ streams; with the source public, anyone can rebuild them with their own LAME.
 
 ## How it's made
 

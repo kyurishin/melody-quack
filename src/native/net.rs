@@ -193,6 +193,14 @@ pub fn can_cast() -> bool {
     true
 }
 
+pub fn inputs_note() -> Option<String> {
+    None
+}
+
+pub fn cast_error() -> Option<String> {
+    None
+}
+
 pub fn casting() -> bool {
     live::casting()
 }

@@ -1220,6 +1220,114 @@
             }
           };
           importObject.env.net_state = function () { return net.state; };
+          var cast = { inputs: [], listState: 0, state: 0, error: "", level: 0, stop: null, out: null };
+          function castList() {
+            return navigator.mediaDevices.enumerateDevices().then(function (all) {
+              cast.inputs = all.filter(function (d) { return d.kind === "audioinput" && d.deviceId !== "communications"; }).map(function (d, i) {
+                return { id: d.deviceId, label: d.label || (d.deviceId === "default" ? "default input" : "sound input " + (i + 1)) };
+              });
+              cast.listState = 2;
+            });
+          }
+          importObject.env.cast_inputs_request = function () {
+            if (cast.listState === 1) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { cast.listState = -1; return; }
+            cast.listState = 1;
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+              s.getTracks().forEach(function (t) { t.stop(); });
+              return castList();
+            }).catch(function () { cast.listState = -1; });
+          };
+          importObject.env.cast_inputs_state = function () { return cast.listState; };
+          importObject.env.cast_inputs_len = function () { return bytesOf(cast.inputs.map(function (d) { return d.label.replace(/\n/g, " "); }).join("\n")).length; };
+          importObject.env.cast_inputs_get = function (out) {
+            var b = bytesOf(cast.inputs.map(function (d) { return d.label.replace(/\n/g, " "); }).join("\n"));
+            new Uint8Array(wasm_memory.buffer, out, b.length).set(b);
+          };
+          function loadLame() {
+            if (window.lamejs) return Promise.resolve();
+            return new Promise(function (ok, fail) {
+              var s = document.createElement("script");
+              s.src = "lame.min.js";
+              s.onload = function () { ok(); };
+              s.onerror = function () { fail(new Error("the mp3 encoder didn't load")); };
+              document.head.appendChild(s);
+            });
+          }
+          function b64(bytes) {
+            var s = "";
+            for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+            return btoa(s);
+          }
+          function castStop() {
+            if (cast.stop) { try { cast.stop(); } catch (e) {} }
+            cast.stop = null;
+            cast.state = 0;
+            cast.level = 0;
+          }
+          importObject.env.cast_stop = castStop;
+          importObject.env.cast_start = function (index) {
+            castStop();
+            var dev = cast.inputs[index];
+            if (!dev) return 0;
+            cast.state = 1;
+            cast.error = "";
+            var constraints = { audio: { deviceId: { exact: dev.id }, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 } };
+            Promise.all([loadLame(), navigator.mediaDevices.getUserMedia(constraints)]).then(function (res) {
+              var stream = res[1];
+              var Ctx = window.AudioContext || window.webkitAudioContext;
+              var ctx;
+              try { ctx = new Ctx({ sampleRate: 48000 }); } catch (e) { ctx = new Ctx(); }
+              var rate = ctx.sampleRate === 44100 || ctx.sampleRate === 32000 ? ctx.sampleRate : 48000;
+              var enc = new window.lamejs.Mp3Encoder(2, rate, 128);
+              var src = ctx.createMediaStreamSource(stream);
+              var proc = ctx.createScriptProcessor(4096, 2, 2);
+              var mute = ctx.createGain();
+              mute.gain.value = 0;
+              var pending = [];
+              var size = 0;
+              proc.onaudioprocess = function (e) {
+                var inb = e.inputBuffer;
+                var l = inb.getChannelData(0);
+                var r = inb.numberOfChannels > 1 ? inb.getChannelData(1) : l;
+                var li = new Int16Array(l.length), ri = new Int16Array(r.length), peak = 0;
+                for (var i = 0; i < l.length; i++) {
+                  var a = Math.max(-1, Math.min(1, l[i])), b = Math.max(-1, Math.min(1, r[i]));
+                  li[i] = a * 32767; ri[i] = b * 32767;
+                  var m = Math.max(Math.abs(a), Math.abs(b));
+                  if (m > peak) peak = m;
+                }
+                cast.level = Math.max(peak, cast.level * 0.9);
+                var mp3 = enc.encodeBuffer(li, ri);
+                if (mp3.length) { pending.push(new Uint8Array(mp3)); size += mp3.length; }
+                if (size >= 1200 && net.ws && net.state === 2) {
+                  var all = new Uint8Array(size), at = 0;
+                  pending.forEach(function (p) { all.set(p, at); at += p.length; });
+                  pending = []; size = 0;
+                  try { net.ws.send("aud " + b64(all)); } catch (err) {}
+                }
+              };
+              src.connect(proc);
+              proc.connect(mute);
+              mute.connect(ctx.destination);
+              if (ctx.resume) ctx.resume();
+              cast.state = 2;
+              cast.stop = function () {
+                proc.onaudioprocess = null;
+                try { src.disconnect(); proc.disconnect(); mute.disconnect(); } catch (e) {}
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                try { ctx.close(); } catch (e) {}
+              };
+            }).catch(function (e) {
+              cast.state = -1;
+              cast.error = (e && e.name === "NotAllowedError") ? "the browser wasn't allowed to use that input" : ((e && e.message) || "that input couldn't start");
+            });
+            return 1;
+          };
+          importObject.env.cast_state = function () { return cast.state; };
+          importObject.env.cast_level = function () { return cast.state === 2 ? cast.level : -1; };
+          importObject.env.cast_error_len = function () { return bytesOf(cast.error).length; };
+          importObject.env.cast_error_get = function (out) { var b = bytesOf(cast.error); new Uint8Array(wasm_memory.buffer, out, b.length).set(b); };
           importObject.env.net_recv_len = function () {
             if (!net.queue.length) return -1;
             net.now = bytesOf(net.queue.shift());
