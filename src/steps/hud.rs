@@ -77,29 +77,32 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         for &(lane, lx, lw) in &fr.lanes {
             let cell = lw / LOOP_STEPS as f32;
             ui_round_frame(lx - 4.0, fr.grid_y - 2.0, lw + 8.0, 18.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
-            let mid = fr.grid_y + 7.0;
-            let head = lx + (fr.step as f32 + 0.5) * cell;
-            ui_round(lx + 2.0, mid - 1.0, lw - 4.0, 2.0, 1.0, Color::new(ui::skin::PURPLE.r, ui::skin::PURPLE.g, ui::skin::PURPLE.b, 0.6));
-            ui_round(lx + 2.0, mid - 1.0, (head - lx - 2.0).max(0.0), 2.0, 1.0, Color::new(1.0, 0.6, 0.8, 0.95));
-            for k in (0..LOOP_STEPS).step_by(4) {
-                let tall = if k % 16 == 0 { 5.0 } else { 3.0 };
-                ui_rect(lx + k as f32 * cell, mid - tall / 2.0, 0.6, tall, Color::new(1.0, 1.0, 1.0, if k % 16 == 0 { 0.55 } else { 0.3 }));
+            for slot in 0..6 {
+                let ry = fr.grid_y + 1.0 + (5 - slot) as f32 * 2.0;
+                let lane_c = note_color(slot);
+                ui_rect(lx, ry + 0.6, lw, 0.6, Color::new(lane_c.r, lane_c.g, lane_c.b, 0.12));
             }
+            for k in (0..LOOP_STEPS).step_by(4) {
+                let a = if k % 16 == 0 { 0.6 } else { 0.22 };
+                ui_rect(lx + k as f32 * cell, fr.grid_y, 0.5, 14.0, Color::new(1.0, 1.0, 1.0, a));
+            }
+            ui_round(lx + fr.step as f32 * cell, fr.grid_y, cell, 14.0, 1.2, Color::new(1.0, 0.86, 0.94, 0.28));
             for &(at, id) in &g.looper.notes {
                 if lane.map(|who| note_owner(id) != who).unwrap_or(false) {
                     continue;
                 }
                 let slot = note_slot(id).min(5);
-                let nx = lx + (at + 0.5) * cell;
-                let ny = fr.grid_y + 1.5 + (5 - slot) as f32 * 2.2;
+                let nx = lx + at * cell + 0.3;
+                let ny = fr.grid_y + 1.0 + (5 - slot) as f32 * 2.0;
                 let mut color = note_color(slot);
                 if lane.is_none() && note_owner(id) == 1 {
                     color = Color::new(color.r * 0.75, color.g * 0.75, color.b * 0.75, 1.0);
                 }
-                ui_round(nx - 1.2, ny, 2.4, 2.0, 1.0, color);
+                let hot = (at.floor() as usize) == fr.step;
+                ui_round(nx, ny, (cell - 0.6).max(1.5), 1.8, 0.6, if hot { WHITE } else { color });
             }
-            ui_round(head - 1.8, fr.grid_y, 3.6, 14.0, 1.8, Color::new(0.1, 0.06, 0.18, 0.5));
-            ui_round(head - 1.5, fr.grid_y + 0.5, 3.0, 13.0, 1.5, Color::from_rgba(255, 240, 220, 255));
+            let head = lx + fr.step as f32 * cell;
+            ui_round(head - 0.5, fr.grid_y - 1.0, 1.4, 16.0, 0.7, ui::skin::CREAM);
         }
     }
 
