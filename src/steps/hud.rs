@@ -76,10 +76,10 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     if fr.show_grid {
         for &(lane, lx, lw) in &fr.lanes {
             let cell = lw / LOOP_STEPS as f32;
-            ui_round_frame(lx - 4.0, fr.grid_y - 2.0, lw + 8.0, 18.0, 6.0, Color::new(0.16, 0.12, 0.29, 0.86), Color::new(0.45, 0.36, 0.7, 0.9));
+            ui_round_frame(lx - 4.0, fr.grid_y - 2.0, lw + 8.0, 18.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
             let mid = fr.grid_y + 7.0;
             let head = lx + (fr.step as f32 + 0.5) * cell;
-            ui_round(lx + 2.0, mid - 1.0, lw - 4.0, 2.0, 1.0, Color::new(0.55, 0.45, 0.85, 0.7));
+            ui_round(lx + 2.0, mid - 1.0, lw - 4.0, 2.0, 1.0, Color::new(ui::skin::PURPLE.r, ui::skin::PURPLE.g, ui::skin::PURPLE.b, 0.6));
             ui_round(lx + 2.0, mid - 1.0, (head - lx - 2.0).max(0.0), 2.0, 1.0, Color::new(1.0, 0.6, 0.8, 0.95));
             for k in (0..LOOP_STEPS).step_by(4) {
                 let tall = if k % 16 == 0 { 5.0 } else { 3.0 };
@@ -360,8 +360,8 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         let size = if ui_measure_as(ui::Face::Label, &fr.hint, 9.0) > low_w() - 30.0 { 7.0 } else { 9.0 };
         let w = ui_measure_as(ui::Face::Label, &fr.hint, size);
         let hy = if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
-        ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, Color::new(0.16, 0.12, 0.29, 0.9), Color::new(0.55, 0.45, 0.82, 0.9));
-        ui_text_as(ui::Face::Label, &fr.hint, (low_w() - w) / 2.0, hy, size, Color::from_rgba(255, 240, 220, 255));
+        ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, ui::skin::PANEL, ui::skin::EDGE_STRONG);
+        ui_text_as(ui::Face::Label, &fr.hint, (low_w() - w) / 2.0, hy, size, ui::skin::CREAM);
     }
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
@@ -441,12 +441,12 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
 
 fn card_color(i: usize, glow: f32) -> Color {
     let base = match i {
-        0 => Color::from_rgba(255, 128, 98, 255),
-        1 => Color::from_rgba(255, 128, 190, 255),
-        2 => Color::from_rgba(102, 152, 255, 255),
-        3 => Color::from_rgba(108, 214, 140, 255),
-        4 => Color::from_rgba(112, 184, 240, 255),
-        _ => Color::from_rgba(255, 210, 80, 255),
+        0 => Color::from_rgba(255, 127, 110, 255),
+        1 => ui::skin::PINK,
+        2 => ui::skin::BLUE,
+        3 => ui::skin::MINT,
+        4 => ui::skin::CYAN,
+        _ => ui::skin::GOLD,
     };
     let k = glow * 0.25;
     Color::new(base.r + (1.0 - base.r) * k, base.g + (1.0 - base.g) * k, base.b + (1.0 - base.b) * k, 0.92 + glow * 0.08)

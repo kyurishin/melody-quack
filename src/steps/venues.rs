@@ -2065,7 +2065,7 @@ fn place_label(text: &str, sub: &str) {
     if !sub.is_empty() {
         let size = if ui_measure(sub, 9.0) > low_w() - 24.0 { 7.0 } else { 9.0 };
         let sw = ui_measure(sub, size);
-        ui_round_frame((low_w() - sw) / 2.0 - 8.0, low_h() - 19.0, sw + 16.0, 15.0, 6.0, ui::skin::PANEL, Color::new(0.55, 0.45, 0.82, 0.9));
+        ui_round_frame((low_w() - sw) / 2.0 - 8.0, low_h() - 19.0, sw + 16.0, 15.0, 6.0, ui::skin::PANEL, ui::skin::EDGE_STRONG);
         ui_text(sub, (low_w() - sw) / 2.0, low_h() - 8.0, size, ui::skin::CREAM);
     }
 }

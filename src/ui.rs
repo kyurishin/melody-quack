@@ -360,13 +360,19 @@ pub(crate) fn ui_line(a: Vec2, b: Vec2, thick: f32, color: Color) {
 
 pub(crate) mod skin {
     use macroquad::prelude::Color;
-    pub(crate) const PANEL: Color = Color::new(0.16, 0.12, 0.29, 0.92);
-    pub(crate) const PANEL_SOLID: Color = Color::new(0.16, 0.12, 0.29, 1.0);
-    pub(crate) const EDGE: Color = Color::new(0.45, 0.36, 0.7, 0.9);
-    pub(crate) const TAB: Color = Color::new(0.24, 0.18, 0.4, 1.0);
-    pub(crate) const PINK: Color = Color::new(1.0, 0.5, 0.71, 1.0);
-    pub(crate) const PINK_EDGE: Color = Color::new(1.0, 0.75, 0.86, 1.0);
-    pub(crate) const CREAM: Color = Color::new(1.0, 0.95, 0.87, 1.0);
-    pub(crate) const GOLD: Color = Color::new(1.0, 0.84, 0.36, 1.0);
-    pub(crate) const INK: Color = Color::new(0.17, 0.11, 0.25, 1.0);
+    pub(crate) const PANEL: Color = Color::new(0.161, 0.114, 0.251, 0.94);
+    pub(crate) const PANEL_SOLID: Color = Color::new(0.161, 0.114, 0.251, 1.0);
+    pub(crate) const EDGE: Color = Color::new(0.404, 0.259, 0.498, 1.0);
+    pub(crate) const EDGE_STRONG: Color = Color::new(0.541, 0.353, 0.643, 1.0);
+    pub(crate) const TAB: Color = Color::new(0.2, 0.137, 0.302, 1.0);
+    pub(crate) const PINK: Color = Color::new(0.957, 0.471, 0.718, 1.0);
+    pub(crate) const PINK_EDGE: Color = Color::new(0.976, 0.682, 0.827, 1.0);
+    pub(crate) const CREAM: Color = Color::new(1.0, 0.941, 0.78, 1.0);
+    pub(crate) const MUTED: Color = Color::new(0.733, 0.667, 0.804, 1.0);
+    pub(crate) const GOLD: Color = Color::new(1.0, 0.827, 0.365, 1.0);
+    pub(crate) const PURPLE: Color = Color::new(0.663, 0.525, 1.0, 1.0);
+    pub(crate) const MINT: Color = Color::new(0.502, 0.878, 0.698, 1.0);
+    pub(crate) const BLUE: Color = Color::new(0.478, 0.722, 1.0, 1.0);
+    pub(crate) const CYAN: Color = Color::new(0.455, 0.847, 0.863, 1.0);
+    pub(crate) const INK: Color = Color::new(0.0902, 0.0706, 0.149, 1.0);
 }
