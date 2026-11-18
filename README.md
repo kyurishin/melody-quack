@@ -71,6 +71,8 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | P | one or two players (split screen outdoors) |
 | N twice | fresh world |
 
+![Home: the top bar, the loop grid and the six note cards](web/shots/home.webp)
+
 **The screen:** along the top, the logo, then the tabs **Music** (music mode on or off), **Chat** (talk to your companion), **Items** (your bag), **H** (help) and **Settings** (the pause menu). On the right, the radio pill: play/pause turns the beat on or off, the label shows the quantise setting (click to change it) or the song that's on, and the slider is the master volume. Under it, the time and weather, the campfire's fuel, wood, stone and fish, dishes discovered and your acorns. At the bottom, the loop grid (notes in their pitch rows, the current step lit) and the six note cards. On narrow screens the tabs shrink to icons.
 
 **The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
@@ -98,6 +100,8 @@ Press V (or start a new game) to choose who you are and who your friend is. W/S 
 ### Talking with your companion
 
 Press **Enter** or the **Chat** tab to open the talk box. Call your companion by its animal ("otter", "dog", "labrador"...), by any other animal in the game, or just "buddy", "partner" or "pal", and it answers. Its replies are written by Claude Haiku 5.5 through the game server, in a cheerful voice with a touch of old storybook fantasy. The talk box keeps the whole conversation (scroll with the wheel, the arrow keys, Page Up/Down or the scroll bar), and the latest exchange also shows in a little card at the bottom left while you play.
+
+![Talking with your companion](web/shots/partner.webp)
 
 It can also do what you ask:
 
@@ -234,6 +238,8 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
 - **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
 - **Practice:** offline, anyone can practise on the decks; only you hear it.
 - **The DJ lounge:** in the chapel, DJs and the admin get a **lounge** button on the right of the screen. It leads to a cosy backstage room with sofas, lamps and the goose's bar, where other DJs hang out too and the room chat carries on. The wall TV above the sofa plays the same pixel channels as the TV at home. E in front of the sofa or the armchair sits you down (a seat someone is already in is skipped); any move key stands you up, and everyone sees who's sitting. E at the bar buys a cola (3 acorns), club-mate (4), sparkling water (2), vanilla ice cream (5) or a franzbroetchen (6), and each one gives you its own effect for 30 seconds that everyone in the room sees: fizzy bubbles, green sparks, blue ripples, falling snow or a warm golden glow. The **club** button, Esc or the lounge door takes you back to the dance floor.
+
+![The DJ lounge: the wall tv, the sofa and the goose's bar](web/shots/lounge.webp)
 
 ![The jungle at sunset](web/shots/jungle.webp)
 
