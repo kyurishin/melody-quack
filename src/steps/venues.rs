@@ -328,6 +328,11 @@ fn online(g: &mut Game, dt: f32) {
         let parts: Vec<&str> = line.split(' ').collect();
         let finding = |g: &Game, code: &str| g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false);
         match parts.first().copied().unwrap_or("") {
+            "otterline" if parts.len() >= 3 => {
+                let say = parts[2..].join(" ");
+                steps::partner::reply(g, parts[1], &say);
+            }
+            "otterno" if parts.len() >= 2 => steps::partner::refused(g, parts[1]),
             "event" if parts.len() >= 7 => {
                 let ms = parts[1].parse::<f64>().unwrap_or(0.0);
                 let mut starts = get_time() + ms / 1000.0;
@@ -1919,6 +1924,10 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
             fresh = true;
         }
     }
+    if g.venue.at == Venue::None && g.venue.overlay == Overlay::None && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) && steps::partner::can_talk(g) {
+        open_talk(g);
+        fresh = true;
+    }
     if g.venue.at == Venue::None && g.venue.overlay == Overlay::None {
         if !can_use(g) || !is_key_pressed(KeyCode::E) {
             return false;
@@ -1942,7 +1951,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     match g.venue.at {
         Venue::None => {
             blit(g);
-            ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, 0.6));
+            ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.07, 0.05, 0.15, if g.venue.overlay == Overlay::Talk { 0.3 } else { 0.6 }));
         }
         Venue::PcBang => pcbang(g, fr, fresh),
         Venue::Chapel => chapel(g, fr, fresh),
@@ -1954,6 +1963,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Decks => decks(g, fr, fresh),
         Overlay::Account => account_panel(g, fr, fresh),
         Overlay::Bar => bar_panel(g, fr, fresh),
+        Overlay::Talk => talk_box(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -4275,4 +4285,98 @@ fn draw_treat(b: &mut Batch, feet: Vec3, kind: usize, left: f32, time: f32) {
         }
     }
     b.unlit = was;
+}
+
+pub(crate) fn open_talk(g: &mut Game) {
+    g.venue.overlay = Overlay::Talk;
+    g.venue.opened_at = get_time();
+    g.venue.partner.draft.clear();
+    while get_char_pressed().is_some() {}
+}
+
+fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let (name, noun) = {
+        let ch = &g.cast_list[g.players[1].character];
+        (ch.name, ch.noun)
+    };
+    let w = 290f32.min(low_w() - 12.0);
+    let notice = !g.venue.partner.noticed;
+    let log: Vec<(Color, String)> = g
+        .venue
+        .partner
+        .log
+        .iter()
+        .flat_map(|(otter, text)| {
+            let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
+            ui_wrap(&format!("{who}: {text}"), 8.0, w - 20.0).into_iter().map(move |l| (col, l))
+        })
+        .collect();
+    let shown: Vec<(Color, String)> = log.into_iter().rev().take(6).rev().collect();
+    let tips = if notice {
+        ui_wrap(&format!("say \"{noun}\" and your {noun} answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 7.0, w - 20.0)
+    } else {
+        ui_wrap(&format!("say \"{noun}\" to talk to your {noun}.   enter: send   esc: close"), 7.0, w - 20.0)
+    };
+    let h = 30.0 + shown.len() as f32 * 9.5 + 22.0 + tips.len() as f32 * 9.0 + 6.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = (low_h() - h - 8.0).round();
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
+    ui_text_as(ui::Face::Display, "talk", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    let sub_line = format!("with your {name}");
+    ui_text(&sub_line, x + 14.0 + ui_measure_as(ui::Face::Display, "talk", 11.0), y + 15.0, 8.0, ui::skin::MUTED);
+    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
+    let mut ty = y + 30.0;
+    for (c, l) in &shown {
+        ui_text(l, x + 10.0, ty, 8.0, *c);
+        ty += 9.5;
+    }
+    let (fx, fy, fw, fh) = (x + 8.0, ty - 2.0, w - 16.0, 16.0);
+    ui_round_frame(fx, fy, fw, fh, 4.0, ui::skin::CREAM, ui::skin::EDGE_STRONG);
+    let caret = if (fr.time * 2.0).fract() < 0.6 { "|" } else { "" };
+    let draft = &g.venue.partner.draft;
+    let mut view: String = draft.clone();
+    while view.len() > 1 && ui_measure(&view, 8.0) > fw - 12.0 {
+        view.remove(0);
+    }
+    if draft.is_empty() {
+        ui_text_raw(&format!("{caret}say something..."), fx + 5.0, fy + 11.0, 8.0, Color::from_rgba(150, 130, 160, 255));
+    } else {
+        ui_text_raw(&format!("{view}{caret}"), fx + 5.0, fy + 11.0, 8.0, ui::skin::INK);
+    }
+    let mut tyy = fy + fh + 10.0;
+    for t in &tips {
+        ui_text(t, x + 10.0, tyy, 7.0, ui::skin::MUTED);
+        tyy += 9.0;
+    }
+    if fresh {
+        return;
+    }
+    if fr.click && hit(fr, fx, fy, fw, fh) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text(&format!("say something to your {noun}"), &g.venue.partner.draft) {
+            g.venue.partner.draft = text.chars().filter(|c| !c.is_control()).take(160).collect();
+        }
+        fr.click = false;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.15;
+    while let Some(ch) = get_char_pressed() {
+        if settled && !ch.is_control() && g.venue.partner.draft.chars().count() < 160 && !shortcut_held() {
+            g.venue.partner.draft.push(ch);
+        }
+    }
+    paste_into(&mut g.venue.partner.draft, 160, |c| !c.is_control());
+    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
+        g.venue.partner.draft.pop();
+    }
+    let send = settled && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter));
+    if send {
+        let text = std::mem::take(&mut g.venue.partner.draft);
+        steps::partner::send(g, &text);
+        g.venue.overlay = Overlay::None;
+        return;
+    }
+    if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
 }

@@ -6,6 +6,7 @@ use macroquad::prelude::*;
 pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
     fr.delivered = None;
     fr.delivered_by = 1usize;
+    steps::partner::tick(g, fr.dt);
     if !g.inside && g.players[0].carrying.is_some() && g.players[0].pos.distance(STICK_DROP) < 0.9 {
         fr.delivered = g.players[0].carrying.take();
         fr.delivered_by = 0;
@@ -27,6 +28,7 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
             fr.delivered_by = 1;
         }
     } else if !g.inside {
+        let job_dir = steps::partner::job_step(g, fr.dt);
         let cat_pos = g.players[0].pos;
         let dog = &mut g.players[1];
         let want_fire = g.camp.fuel < FUEL_WANT;
@@ -36,10 +38,16 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
         if g.first_pick {
             g.brain.rest = g.brain.rest.max(0.5);
         }
+        let wanted = g.venue.partner.want.map(|w| w.0);
+        if let Some(d) = job_dir {
+            dir = d;
+        } else {
         match &mut g.brain.task {
             Task::Idle => {
                 dog.seated = false;
-                let errand = if g.first_pick || (g.jam && g.camp.fuel > 40.0) {
+                let errand = if wanted.is_some() && !g.first_pick {
+                    wanted
+                } else if g.first_pick || (g.jam && g.camp.fuel > 40.0) {
                     None
                 } else if want_fire {
                     Some(Carry::Stick)
@@ -111,6 +119,10 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
                 if dog.pos.distance(STICK_DROP) < 0.45 {
                     fr.delivered = dog.carrying.take();
                     g.brain.rest = if want_fire { 0.0 } else if fr.delivered == Some(Carry::Acorn) { 14.0 } else { 5.0 };
+                    if let Some((c, n)) = g.venue.partner.want {
+                        g.venue.partner.want = if n > 1 { Some((c, n - 1)) } else { None };
+                        g.brain.rest = 0.0;
+                    }
                     next = Some(Task::Idle);
                 }
             }
@@ -128,6 +140,7 @@ pub(crate) fn friend_and_deliveries(g: &mut Game, fr: &mut Frame) {
                     }
                 }
             }
+        }
         }
         let target = match &g.brain.task {
             Task::Seek { spot, .. } => Some(*spot),

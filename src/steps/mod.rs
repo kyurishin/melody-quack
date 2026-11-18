@@ -19,6 +19,7 @@ pub(crate) mod world_step;
 pub(crate) mod draw_scene;
 pub(crate) mod hud;
 pub(crate) mod topbar;
+pub(crate) mod partner;
 pub(crate) mod popups;
 pub(crate) mod shop;
 pub(crate) mod overlays;

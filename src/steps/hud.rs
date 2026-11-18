@@ -366,6 +366,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, ui::skin::PANEL, ui::skin::EDGE_STRONG);
         ui_text_as(ui::Face::Label, &fr.hint, (low_w() - w) / 2.0, hy, size, ui::skin::CREAM);
     }
+    steps::partner::draw_card(g, fr);
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
         let a = life.min(1.0);

@@ -7,6 +7,7 @@ use ui::{skin, Face};
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Tab {
     Music,
+    Chat,
     Items,
     Help,
     Settings,
@@ -37,6 +38,7 @@ thread_local! {
 fn tab_name(t: Tab) -> &'static str {
     match t {
         Tab::Music => "Music",
+        Tab::Chat => "Chat",
         Tab::Items => "Items",
         Tab::Help => "Help",
         Tab::Settings => "Settings",
@@ -57,7 +59,7 @@ fn radio_label(g: &Game, time: f32, room: f32) -> String {
 
 pub(crate) fn layout(g: &Game) -> Bar {
     let lw = low_w();
-    let all = [Tab::Music, Tab::Items, Tab::Help, Tab::Settings];
+    let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Help, Tab::Settings];
     let tab_w = |t: Tab, words: bool| if words { 21.0 + ui_measure_as(Face::Label, tab_name(t), TAB_SIZE) } else { 18.0 };
     let label_w = if g.now_playing.is_empty() { ui_measure_as(Face::Label, &radio_label(g, 0.0, 999.0), 8.5).max(30.0) } else { 70.0 };
     let logo_w = |text: bool| if text { 24.0 + ui_measure_as(Face::Display, LOGO, 10.5) } else { 20.0 };
@@ -93,6 +95,7 @@ pub(crate) fn layout(g: &Game) -> Bar {
 fn active(g: &Game, t: Tab) -> bool {
     match t {
         Tab::Music => g.music_mode,
+        Tab::Chat => g.venue.overlay == venues::Overlay::Talk,
         Tab::Items => g.show_inventory,
         Tab::Help => g.show_help,
         Tab::Settings => g.paused,
@@ -139,6 +142,11 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
         if fr.ux > x && fr.ux < x + w {
             match t {
                 Tab::Music => g.music_mode = !g.music_mode,
+                Tab::Chat => {
+                    if steps::partner::can_talk(g) {
+                        steps::venues::open_talk(g);
+                    }
+                }
                 Tab::Items => {
                     g.show_inventory = !g.show_inventory;
                     g.bag_owner = 0;
@@ -173,6 +181,13 @@ fn icon(t: Tab, x: f32, y: f32, c: Color) {
             ui_round(x, y - 2.3, 8.0, 6.3, 1.0, c);
             ui_line(vec2(x + 4.0, y - 2.0), vec2(x + 4.0, y + 3.6), 0.6, skin::TAB);
             ui_line(vec2(x + 0.4, y - 2.0), vec2(x + 7.6, y - 2.0), 0.6, skin::TAB);
+        }
+        Tab::Chat => {
+            ui_round(x, y - 4.0, 8.5, 6.0, 2.2, c);
+            ui_tri(vec2(x + 1.5, y + 1.5), vec2(x + 4.0, y + 1.5), vec2(x + 1.0, y + 4.2), c);
+            for k in 0..3 {
+                ui_circle(x + 2.3 + k as f32 * 2.0, y - 1.0, 0.6, skin::TAB);
+            }
         }
         Tab::Help => {
             ui_circle(x + 4.0, y, 4.3, c);

@@ -69,6 +69,8 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | P | one or two players (split screen outdoors) |
 | N twice | fresh world |
 
+**Talking with your partner:** press Enter (or the **Chat** tab) to open the talk box. Say your partner's animal (for example "otter", "dog" or "labrador") and it answers in a little card at the bottom left, written by Claude Haiku 5.5 through the game server. It can also do what you ask: **cook** at the campfire, go **fishing** off the dock, **collect** sticks, stones or acorns (three trips), come and **sit** with you, or **hum** a tune; now and then it hums on its own. Each player gets 60 messages a day (with a short pause between them) and the server stops at 5000 a day, so the bill stays small. What you type to it goes to Anthropic to write the reply; your name is not sent. The server needs `ANTHROPIC_API_KEY` (a Fly secret); without it the partner just says it can't talk right now.
+
 **The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
 
 ## Characters and your companion

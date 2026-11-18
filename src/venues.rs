@@ -46,6 +46,7 @@ pub(crate) enum Overlay {
     Decks,
     Account,
     Bar,
+    Talk,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -103,6 +104,7 @@ pub(crate) struct Peer {
 
 #[derive(Default)]
 pub(crate) struct VenueState {
+    pub(crate) partner: steps::partner::Partner,
     pub(crate) dj_key: String,
     pub(crate) key_draft: String,
     pub(crate) key_sent: bool,

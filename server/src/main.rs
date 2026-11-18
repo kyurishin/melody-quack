@@ -2,6 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 mod accounts;
+mod otter;
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -218,6 +219,7 @@ struct Hub {
     live: HashMap<String, Live>,
     accounts: accounts::Accounts,
     casts: HashMap<String, Cast>,
+    otter: otter::Otter,
 }
 
 impl Hub {
@@ -246,6 +248,7 @@ impl Hub {
             live: HashMap::new(),
             accounts: accounts::Accounts::default(),
             casts: HashMap::new(),
+            otter: otter::Otter::default(),
         }
     }
 
@@ -418,7 +421,7 @@ impl Hub {
     }
 
     fn handle(&mut self, id: u32, line: &str, now: i64) {
-        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ");
+        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ") || (line.starts_with("otter ") && line.len() <= otter::MAX_LINE);
         if (line.len() > MAX_LINE && !bulky) || line.len() > MAX_BULK || !self.clients.contains_key(&id) {
             return;
         }
@@ -887,6 +890,29 @@ impl Hub {
                     }
                 }
             }
+            "otter" => {
+                let Some(ask) = otter::parse_ask(rest) else {
+                    return;
+                };
+                let token = self.clients[&id].token;
+                match self.otter.admit(token, now) {
+                    Err(why) => self.say(id, format!("otterno {}", why.word())),
+                    Ok(()) => {
+                        let tx = self.clients[&id].tx.clone();
+                        let key = self.otter.key.clone().unwrap_or_default();
+                        let url = self.otter.url.clone();
+                        match (tx, tokio::runtime::Handle::try_current()) {
+                            (Some(tx), Ok(rt)) => {
+                                rt.spawn(async move {
+                                    let (action, say) = otter::ask(key, url, ask).await;
+                                    let _ = tx.send(Message::text(format!("otterline {action} {say}")));
+                                });
+                            }
+                            _ => self.say(id, "otterno asleep".to_string()),
+                        }
+                    }
+                }
+            }
             "emo" => {
                 let nums: Vec<u32> = rest.split(' ').filter_map(|n| n.parse().ok()).collect();
                 if nums.len() == 2 && nums[0] < 2 && nums[1] < 64 {
@@ -958,6 +984,9 @@ async fn main() {
     }
     first.accounts.load();
     println!("sign-in: {}", if first.accounts.providers().is_empty() { "off (set --public-url)".to_string() } else { first.accounts.providers().join(", ") });
+    first.otter.key = std::env::var("ANTHROPIC_API_KEY").ok().map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+    first.otter.url = std::env::var("MQ_CLAUDE_URL").unwrap_or_default();
+    println!("the otter is {}", if first.otter.key.is_some() { "awake" } else { "asleep (no ANTHROPIC_API_KEY)" });
     first.load_djs();
     println!("{} dj(s) on the list, admin key {}", first.djs.len(), if first.admin_key.is_some() { "set" } else { "not set" });
     let hub = Arc::new(Mutex::new(first));
@@ -1133,6 +1162,43 @@ mod tests {
         h.handle(admin, "removedj priori", 0);
         assert!(said(&mut h, admin)[0].starts_with("djerror"));
         assert!(!std::fs::read_to_string(&path).unwrap().contains("priori"));
+    }
+
+    #[tokio::test]
+    async fn the_otter_answers_through_the_server() {
+        let mock = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = mock.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let (mut s, _) = mock.accept().await.unwrap();
+            let mut buf = vec![0u8; 65536];
+            let mut got = Vec::new();
+            loop {
+                let n = s.read(&mut buf).await.unwrap();
+                got.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&got).to_string();
+                if let Some(head) = text.find("\r\n\r\n") {
+                    let len = text[..head].lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap())).unwrap_or(0);
+                    if got.len() >= head + 4 + len {
+                        assert!(text.contains("x-api-key: test-key") && text.contains("claude-haiku-5-5"));
+                        break;
+                    }
+                }
+            }
+            let body = r#"{"stop_reason":"end_turn","content":[{"type":"text","text":"{\"say\":\"off to the dock!\",\"action\":\"fish\"}"}]}"#;
+            let reply = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", body.len(), body);
+            s.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let mut h = hub();
+        h.otter.key = Some("test-key".to_string());
+        h.otter.url = format!("http://127.0.0.1:{port}/v1/messages");
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let me = h.connect(Some(tx));
+        h.handle(me, r#"otter {"friend":"otter","who":"ky","ctx":"day","history":[],"text":"otter, catch a fish please"}"#, 0);
+        let got = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+        assert_eq!(got.to_text().unwrap(), "otterline fish off to the dock!");
+        h.handle(me, r#"otter {"text":"otter again"}"#, 100);
+        assert_eq!(rx.recv().await.unwrap().to_text().unwrap(), "otterno busy");
     }
 
     #[test]

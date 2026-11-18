@@ -57,47 +57,7 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
                 }
                 if g.cook_progress >= COOK_GOAL {
                     g.cook_progress = 0;
-                    let fish_n = g.inv.fish[0] + g.inv.fish[1] + g.inv.fish[2];
-                    let mush_n = g.inv.mush[0] + g.inv.mush[1] + g.inv.mush[2];
-                    let take = |stock: &mut [u32; 3], n: u32| {
-                        for _ in 0..n {
-                            if let Some(k) = (0..3).find(|k| stock[*k] > 0) {
-                                stock[k] -= 1;
-                            }
-                        }
-                    };
-                    let dish = if g.inv.mush[2] > 0 {
-                        g.inv.mush[2] -= 1;
-                        7
-                    } else if g.inv.fish[2] > 0 {
-                        g.inv.fish[2] -= 1;
-                        3
-                    } else if fish_n >= 1 && mush_n >= 1 {
-                        take(&mut g.inv.fish, 1);
-                        take(&mut g.inv.mush, 1);
-                        6
-                    } else if mush_n >= 2 {
-                        take(&mut g.inv.mush, 2);
-                        5
-                    } else if fish_n >= 2 {
-                        take(&mut g.inv.fish, 2);
-                        2
-                    } else if mush_n == 1 {
-                        take(&mut g.inv.mush, 1);
-                        4
-                    } else if fish_n == 1 {
-                        take(&mut g.inv.fish, 1);
-                        1
-                    } else {
-                        0
-                    };
-                    let new = !g.dishes.contains(&dish);
-                    if new {
-                        g.dishes.push(dish);
-                    }
-                    let earned = if new { 10 } else { 5 };
-                    g.inv.acorns += earned;
-                    quest_event(&mut g.quests, QuestKind::Cook, 1, &mut g.inv, &mut g.toasts);
+                    let (dish, new, earned) = cook_dish(g);
                     g.toasts.push((
                         if new { format!("new dish: {}! +{} acorns", DISHES[dish], earned) } else { format!("cooked {} again - yum, +{} acorns", DISHES[dish], earned) },
                         3.5,
@@ -451,4 +411,49 @@ pub(crate) fn session_and_playback(g: &mut Game, fr: &mut Frame) {
             }
         }
     }
+}
+
+pub(crate) fn cook_dish(g: &mut Game) -> (usize, bool, u32) {
+    let fish_n = g.inv.fish[0] + g.inv.fish[1] + g.inv.fish[2];
+    let mush_n = g.inv.mush[0] + g.inv.mush[1] + g.inv.mush[2];
+    let take = |stock: &mut [u32; 3], n: u32| {
+        for _ in 0..n {
+            if let Some(k) = (0..3).find(|k| stock[*k] > 0) {
+                stock[k] -= 1;
+            }
+        }
+    };
+    let dish = if g.inv.mush[2] > 0 {
+        g.inv.mush[2] -= 1;
+        7
+    } else if g.inv.fish[2] > 0 {
+        g.inv.fish[2] -= 1;
+        3
+    } else if fish_n >= 1 && mush_n >= 1 {
+        take(&mut g.inv.fish, 1);
+        take(&mut g.inv.mush, 1);
+        6
+    } else if mush_n >= 2 {
+        take(&mut g.inv.mush, 2);
+        5
+    } else if fish_n >= 2 {
+        take(&mut g.inv.fish, 2);
+        2
+    } else if mush_n == 1 {
+        take(&mut g.inv.mush, 1);
+        4
+    } else if fish_n == 1 {
+        take(&mut g.inv.fish, 1);
+        1
+    } else {
+        0
+    };
+    let new = !g.dishes.contains(&dish);
+    if new {
+        g.dishes.push(dish);
+    }
+    let earned = if new { 10 } else { 5 };
+    g.inv.acorns += earned;
+    quest_event(&mut g.quests, QuestKind::Cook, 1, &mut g.inv, &mut g.toasts);
+    (dish, new, earned)
 }
