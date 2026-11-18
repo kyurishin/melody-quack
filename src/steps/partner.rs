@@ -50,6 +50,12 @@ pub(crate) fn called(text: &str, name: &str, noun: &str) -> bool {
     })
 }
 
+pub(crate) const CALLS: [&str; 4] = ["partner", "buddy", "friend", "pal"];
+
+pub(crate) fn called_any(text: &str, cast: &[Character]) -> bool {
+    cast.iter().any(|c| called(text, c.name, c.noun)) || CALLS.iter().any(|w| called(text, w, w))
+}
+
 fn friend(g: &Game) -> (&'static str, &'static str) {
     let ch = &g.cast_list[g.players[1].character];
     (ch.name, ch.noun)
@@ -126,8 +132,8 @@ pub(crate) fn send(g: &mut Game, text: &str) {
     let history: Vec<(bool, String)> = g.venue.partner.log.iter().rev().take(8).rev().cloned().collect();
     push(g, false, text.clone());
     g.venue.partner.noticed = true;
-    let (name, noun) = friend(g);
-    if !called(&text, name, noun) {
+    let (_, noun) = friend(g);
+    if !called_any(&text, &g.cast_list) {
         return;
     }
     if !g.companion && !g.two_player {
@@ -441,6 +447,9 @@ mod tests {
         assert!(called("good dog", lab.name, lab.noun));
         assert!(called("labrador, come here", lab.name, lab.noun));
         assert!(!called("hey otter", lab.name, lab.noun));
+        assert!(called_any("hey owl", &cast) && called_any("fox, come here", &cast) && called_any("hi buddy", &cast));
+        assert!(called_any("ginger tabby!", &cast) && called_any("hey shiba", &cast));
+        assert!(!called_any("what a nice day", &cast));
     }
 
     #[test]

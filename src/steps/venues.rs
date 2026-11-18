@@ -4335,9 +4335,9 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let shown: Vec<(Color, String)> = log[end.saturating_sub(rows)..end].to_vec();
     let total = log.len();
     let tips = if notice {
-        ui_wrap(&format!("say \"{noun}\" and your {noun} answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 7.0, w - 20.0)
+        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") and it answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 7.0, w - 20.0)
     } else {
-        ui_wrap(&format!("say \"{noun}\" to talk to your {noun}.   enter: send   esc: close"), 7.0, w - 20.0)
+        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") to talk.   enter: send   esc: close"), 7.0, w - 20.0)
     };
     let log_h = rows.min(total.max(1)) as f32 * 9.5;
     let h = 30.0 + log_h + 22.0 + tips.len() as f32 * 9.0 + 6.0;
