@@ -166,6 +166,7 @@ async fn main() {
     let sizzle = audio.load_ringing(render_sizzle());
     let plink = audio.load(render_plink());
     let splash = audio.load(render_splash());
+    audio.seal();
     let fixed = [&kick, &clap, &hat, &crackle, &lid, &chop, &sizzle, &plink, &splash];
     let dj_sounds = [&open_hat, &tom, &rim, &bass];
     while !voices.iter().flatten().chain(marimba.iter()).chain(bells.iter()).chain(piano.iter()).chain(fixed).chain(dj_sounds).all(|s| audio.is_loaded(s)) {

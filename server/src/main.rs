@@ -974,6 +974,19 @@ impl Hub {
                     self.say(other, line.clone());
                 }
             }
+            "hsnd" => {
+                if self.homes.code_of(id).is_none() {
+                    return;
+                }
+                let clean = homes::clean_sounds(rest);
+                if clean.is_empty() {
+                    return;
+                }
+                let line = format!("hsnd {clean}");
+                for guest in self.homes.guests_of(id) {
+                    self.say(guest, line.clone());
+                }
+            }
             "homeleave" => self.home_leave(id),
             "otter" => {
                 let Some(ask) = otter::parse_ask(rest) else {

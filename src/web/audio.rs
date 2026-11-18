@@ -27,6 +27,8 @@ pub struct Audio {
     boost: std::cell::Cell<bool>,
     bank: std::cell::RefCell<Vec<Sound>>,
     jam: std::cell::RefCell<Option<(f64, Vec<(f32, u16, f32)>)>>,
+    share: std::cell::RefCell<Option<Vec<(u16, f32)>>>,
+    sealed: std::cell::Cell<u16>,
 }
 
 fn add(samples: &[f32]) -> u32 {
@@ -46,6 +48,8 @@ impl Audio {
             boost: std::cell::Cell::new(false),
             bank: std::cell::RefCell::new(Vec::new()),
             jam: std::cell::RefCell::new(None),
+            share: std::cell::RefCell::new(None),
+            sealed: std::cell::Cell::new(0),
         }
     }
 
@@ -55,6 +59,27 @@ impl Audio {
 
     pub fn stop_jam(&self) -> Vec<(f32, u16, f32)> {
         self.jam.borrow_mut().take().map(|(_, events)| events).unwrap_or_default()
+    }
+
+    pub fn seal(&self) {
+        self.sealed.set(self.bank.borrow().len() as u16);
+    }
+
+    pub fn share(&self, on: bool) {
+        let mut s = self.share.borrow_mut();
+        if on && s.is_none() {
+            *s = Some(Vec::new());
+        } else if !on {
+            *s = None;
+        }
+    }
+
+    pub fn take_shared(&self) -> Vec<(u16, f32)> {
+        self.share.borrow_mut().as_mut().map(std::mem::take).unwrap_or_default()
+    }
+
+    pub fn shared_id_ok(&self, id: u16) -> bool {
+        id < self.sealed.get()
     }
 
     pub fn play_id(&self, id: u16, volume: f32) {
@@ -81,6 +106,14 @@ impl Audio {
         let mix = self.mix.get();
         let level = mix[channel.min(3)] * mix[4];
         if channel <= 2 {
+            let id = Self::id_of(sound);
+            if id < self.sealed.get() {
+                if let Some(out) = self.share.borrow_mut().as_mut() {
+                    if out.len() < 64 {
+                        out.push((id, volume));
+                    }
+                }
+            }
             if let Some((start, events)) = self.jam.borrow_mut().as_mut() {
                 if events.len() < 20000 {
                     events.push(((macroquad::time::get_time() - *start) as f32, Self::id_of(sound), volume * mix[channel.min(3)]));

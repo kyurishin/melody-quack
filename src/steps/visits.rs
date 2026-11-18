@@ -28,6 +28,8 @@ pub(crate) struct Visits {
     pub(crate) away: Option<Away>,
     pub(crate) clock: f32,
     pub(crate) gone_clock: f32,
+    pub(crate) sharing: bool,
+    pub(crate) heard: f64,
 }
 
 pub(crate) fn home_code(token: u64) -> String {
@@ -148,6 +150,26 @@ pub(crate) fn on_message(g: &mut Game, parts: &[&str]) -> bool {
                 v.bodies.push(body);
             }
         }
+        "hsnd" if parts.len() >= 2 => {
+            if !visiting(g) || !g.inside {
+                return true;
+            }
+            for pair in parts[1].split(',').take(64) {
+                if let Some((id, v)) = pair.split_once(':') {
+                    if let (Ok(id), Ok(v)) = (id.parse::<u16>(), v.parse::<f32>()) {
+                        if g.audio.shared_id_ok(id) && v.is_finite() {
+                            g.audio.play_id(id, v.clamp(0.0, 1.5) * 0.9);
+                        }
+                    }
+                }
+            }
+            let now = get_time();
+            if now - g.venue.visits.heard > 20.0 {
+                let host = g.venue.visits.away.as_ref().map(|a| a.host_name.clone()).unwrap_or_default();
+                g.toasts.push((format!("{host} is on the decks"), 3.0));
+            }
+            g.venue.visits.heard = now;
+        }
         "hgone" if parts.len() >= 2 => {
             if let Ok(id) = parts[1].parse::<u32>() {
                 let v = &mut g.venue.visits;
@@ -230,8 +252,25 @@ pub(crate) fn go_home(g: &mut Game, why: &str) {
     g.toasts.push((why.to_string(), 3.0));
 }
 
+fn share_set(g: &mut Game, online: bool) {
+    let hosting = online && !visiting(g) && g.inside && g.dj[0] && g.venue.visits.peers.iter().any(|p| p.here);
+    g.audio.share(hosting);
+    if hosting && !g.venue.visits.sharing {
+        g.toasts.push(("your guests can hear your set".to_string(), 3.0));
+    }
+    g.venue.visits.sharing = hosting;
+    if hosting {
+        let sounds = g.audio.take_shared();
+        if !sounds.is_empty() {
+            let list: Vec<String> = sounds.iter().map(|(id, v)| format!("{}:{:.2}", id, v.clamp(0.0, 1.5))).collect();
+            net::send(&format!("hsnd {}", list.join(",")));
+        }
+    }
+}
+
 pub(crate) fn tick(g: &mut Game, dt: f32) {
     let online = net::state() == 2;
+    share_set(g, online);
     if !online {
         g.venue.visits.sent_code = false;
         if visiting(g) {
