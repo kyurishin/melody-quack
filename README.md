@@ -331,7 +331,7 @@ cargo run --release -- --port 7777 --djs djs.txt --admin '<admin key>' --admin-n
 | `--accounts` | `MQ_ACCOUNTS` | folder for sign-ins and cloud saves |
 | `--google-id`, `--google-secret` | `MQ_GOOGLE_ID`, `MQ_GOOGLE_SECRET` | Google sign-in (an OAuth "web application" client with redirect `https://your.server/auth/google`) |
 | `--apple-id`, `--apple-team`, `--apple-key-id`, `--apple-key` | `MQ_APPLE_*` | Apple sign-in (Apple Developer Program: a Services ID with return URL `https://your.server/auth/apple` and a `.p8` key) |
-| `--every`, `--rave`, `--rave-in` | | when the secret rave starts: every N minutes (default and most 180, so the countdown is never longer than 3 hours), at a unix time, or in N seconds |
+| `--every`, `--rave`, `--rave-in` | | when the secret rave starts: every N minutes (default and most 150, so the doors are never more than 3 hours away), at a unix time, or in N seconds |
 | | `ANTHROPIC_API_KEY` (or `ai`) | the Claude API key for your companion's chat; without it the companion can't talk |
 | | `MQ_CLAUDE_URL` | a different Claude endpoint (for tests) |
 

@@ -99,6 +99,7 @@ pub(crate) fn on_message(g: &mut Game, parts: &[&str]) -> bool {
             if let (Ok(id), Ok(ch)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>()) {
                 if !g.venue.visits.knocks.iter().any(|k| k.0 == id) {
                     g.venue.visits.knocks.push((id, ch % g.cast_list.len(), show_name(parts[3])));
+                    steps::notify::push(steps::notify::Kind::Visit, Some(ch % g.cast_list.len()), format!("{} knocked on your door", show_name(parts[3])));
                     g.audio.play_ch(3, &g.bells[2], 0.5);
                 }
             }

@@ -100,6 +100,7 @@ pub(crate) fn quest_event(quests: &mut Quests, kind: QuestKind, amount: u32, inv
                 q.done = true;
                 inv.acorns += q.reward();
                 toasts.push((format!("daily quest done: {} - +{} acorns", q.label(), q.reward()), 3.5));
+                crate::steps::notify::push(crate::steps::notify::Kind::Quest, None, format!("quest done: {} +{} acorns", q.label(), q.reward()));
             }
         }
     }

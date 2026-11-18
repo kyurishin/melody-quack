@@ -134,6 +134,7 @@ pub(crate) fn on_message(g: &mut Game, parts: &[&str]) -> bool {
                 if came {
                     let n = f.name.clone();
                     g.toasts.push((format!("{n} is online"), 2.5));
+                    steps::notify::push(steps::notify::Kind::Friend, Some(ch), format!("{n} is now online"));
                 }
             }
         }
@@ -148,6 +149,7 @@ pub(crate) fn on_message(g: &mut Game, parts: &[&str]) -> bool {
                 g.venue.chat.unread.push(code);
             }
             if !reading {
+                steps::notify::push(steps::notify::Kind::Message, Some(ch), format!("{name} sent you a message"));
                 g.toasts.push((format!("{name} sent you a message"), 3.0));
                 g.audio.play_ch(3, &g.bells[3], 0.35);
             }
@@ -167,6 +169,16 @@ pub(crate) fn on_message(g: &mut Game, parts: &[&str]) -> bool {
             room_line(g, name.clone(), ch, text.clone(), false);
             if g.venue.overlay != venues::Overlay::Talk {
                 g.toasts.push((format!("{name}: {text}"), 4.0));
+            }
+        }
+        "news" if parts.len() >= 3 => {
+            if let Ok(id) = parts[1].parse::<i64>() {
+                steps::notify::news(id, parts[2..].join(" "));
+            }
+        }
+        "newsgone" if parts.len() >= 2 => {
+            if let Ok(id) = parts[1].parse::<i64>() {
+                steps::notify::news_gone(g, id);
             }
         }
         _ => return false,
@@ -204,7 +216,7 @@ pub(crate) fn make_portraits(g: &Game) {
     FACES.with(|f| *f.borrow_mut() = faces);
 }
 
-fn avatar(ch: usize, x: f32, y: f32, s: f32, tint: Color) {
+pub(crate) fn avatar(ch: usize, x: f32, y: f32, s: f32, tint: Color) {
     ui_round(x, y, s, s, 4.0, tint);
     let (kx, ky) = ui_scale();
     FACES.with(|f| {

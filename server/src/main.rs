@@ -19,6 +19,8 @@ const MAX_BULK: usize = 140 * 1024;
 const ROOM_CAP: u32 = 100;
 
 const LEAD_MS: i64 = 30 * 60 * 1000;
+const MAX_NEWS: usize = 10;
+const NEWS_KEEP_MS: i64 = 14 * 24 * 60 * 60 * 1000;
 const WINDOW_MS: i64 = 10 * 1000;
 const HEAD_START_MS: i64 = 5 * 60 * 1000;
 const PRIORITY: usize = 30;
@@ -208,6 +210,8 @@ struct Hub {
     sent: Vec<(u32, String)>,
     djs: Vec<(String, String)>,
     djs_path: Option<String>,
+    news: Vec<(i64, String)>,
+    news_path: Option<String>,
     admin_key: Option<String>,
     admin_name: String,
     muted: Vec<String>,
@@ -238,6 +242,8 @@ impl Hub {
             sent: Vec::new(),
             djs: Vec::new(),
             djs_path: None,
+            news: Vec::new(),
+            news_path: None,
             admin_key: None,
             admin_name: "admin".to_string(),
             muted: Vec::new(),
@@ -296,6 +302,22 @@ impl Hub {
 
     fn crowd(&self, code: &str) -> u32 {
         self.clients.values().filter(|c| c.room.as_deref() == Some(code)).map(|c| c.players).sum()
+    }
+
+    fn load_news(&mut self) {
+        let Some(path) = self.news_path.clone() else { return };
+        if let Ok(text) = std::fs::read_to_string(path) {
+            self.news = text.lines().filter_map(|l| l.split_once(' ')).filter_map(|(t, m)| Some((t.parse::<i64>().ok()?, homes::clean_text(m)))).filter(|(_, m)| !m.is_empty()).collect();
+            let extra = self.news.len().saturating_sub(MAX_NEWS);
+            self.news.drain(..extra);
+        }
+    }
+
+    fn save_news(&self) {
+        if let Some(path) = &self.news_path {
+            let text: String = self.news.iter().map(|(t, m)| format!("{t} {m}\n")).collect();
+            let _ = std::fs::write(path, text);
+        }
     }
 
     fn load_djs(&mut self) {
@@ -479,6 +501,10 @@ impl Hub {
                     let line = format!("patreon {}", self.patreon);
                     self.say(id, line);
                 }
+                let news: Vec<String> = self.news.iter().filter(|(t, _)| now - t < NEWS_KEEP_MS).map(|(t, m)| format!("news {t} {m}")).collect();
+                for line in news {
+                    self.say(id, line);
+                }
                 let providers = self.accounts.providers();
                 if !providers.is_empty() {
                     self.say(id, format!("providers {}", providers.join(" ")));
@@ -569,6 +595,36 @@ impl Hub {
                 for admin in self.admins() {
                     self.say(admin, format!("done {}", ask.id));
                     self.brief(admin);
+                }
+            }
+            "announce" => {
+                if !self.clients[&id].admin {
+                    return;
+                }
+                let text = homes::clean_text(rest);
+                if text.is_empty() {
+                    return;
+                }
+                self.news.push((now, text.clone()));
+                let extra = self.news.len().saturating_sub(MAX_NEWS);
+                self.news.drain(..extra);
+                self.save_news();
+                let all: Vec<u32> = self.clients.keys().copied().collect();
+                for to in all {
+                    self.say(to, format!("news {now} {text}"));
+                }
+            }
+            "unannounce" => {
+                if !self.clients[&id].admin {
+                    return;
+                }
+                if let Ok(t) = rest.trim().parse::<i64>() {
+                    self.news.retain(|(at, _)| *at != t);
+                    self.save_news();
+                    let all: Vec<u32> = self.clients.keys().copied().collect();
+                    for to in all {
+                        self.say(to, format!("newsgone {t}"));
+                    }
                 }
             }
             "newdj" | "removedj" => {
@@ -1110,7 +1166,7 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1).cloned());
     let port: u16 = arg("--port").or_else(|| std::env::var("PORT").ok()).and_then(|p| p.parse().ok()).unwrap_or(7777);
-    let every = arg("--every").and_then(|m| m.parse::<i64>().ok()).unwrap_or(180).clamp(45, 180) * 60_000;
+    let every = arg("--every").and_then(|m| m.parse::<i64>().ok()).unwrap_or(150).clamp(45, 150) * 60_000;
     let now = unix_ms();
     let start = if let Some(secs) = arg("--rave-in").and_then(|s| s.parse::<i64>().ok()) {
         now + secs * 1000
@@ -1125,6 +1181,8 @@ async fn main() {
     };
     let mut first = Hub::new(start, every, now as u64);
     first.djs_path = arg("--djs").or_else(|| std::env::var("MQ_DJS").ok());
+    first.news_path = arg("--news").or_else(|| std::env::var("MQ_NEWS").ok()).or_else(|| first.djs_path.as_ref().map(|d| std::path::Path::new(d).with_file_name("news.txt").to_string_lossy().to_string()));
+    first.load_news();
     first.admin_key = arg("--admin").or_else(|| std::env::var("MQ_ADMIN").ok()).filter(|k| !k.trim().is_empty());
     if let Some(name) = arg("--admin-name").or_else(|| std::env::var("MQ_ADMIN_NAME").ok()) {
         let name = clean(&name.replace('|', ""), 16);
@@ -1400,6 +1458,25 @@ mod tests {
         assert_eq!(said(&mut h, b), vec!["fstat AAA-AAA-AAA 0 0 -".to_string()]);
         h.handle(b, "dm AAA-AAA-AAA still there?", 3000);
         assert_eq!(said(&mut h, b), vec!["dmno AAA-AAA-AAA offline".to_string()]);
+    }
+
+    #[test]
+    fn only_the_admin_can_announce_and_everyone_hears_it() {
+        let mut h = hub();
+        h.admin_key = Some("k".to_string());
+        let (adm, fan) = (h.connect(None), h.connect(None));
+        h.handle(fan, "announce free cake", 5);
+        assert!(said(&mut h, fan).is_empty());
+        h.handle(adm, "dj k", 0);
+        said(&mut h, adm);
+        h.handle(adm, "announce autumn jam this friday", 10);
+        assert_eq!(said(&mut h, fan), vec!["news 10 autumn jam this friday".to_string()]);
+        let late = h.connect(None);
+        h.handle(late, "hello 7", 20);
+        assert!(said(&mut h, late).contains(&"news 10 autumn jam this friday".to_string()));
+        h.handle(adm, "unannounce 10", 30);
+        assert_eq!(said(&mut h, fan), vec!["newsgone 10".to_string()]);
+        assert!(h.news.is_empty());
     }
 
     #[test]

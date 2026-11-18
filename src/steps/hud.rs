@@ -375,7 +375,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
         let a = life.min(1.0);
-        ui_text_as(ui::Face::Notice, text, fr.edge + 8.0, toast_y + k as f32 * 12.5, 9.0, Color::new(1.0, 0.95, 0.85, a));
+        ui_text_as(ui::Face::Notice, text, fr.edge + if g.two_player || radio::touch_ui() { 8.0 } else { 34.0 }, toast_y + k as f32 * 12.5, 9.0, Color::new(1.0, 0.95, 0.85, a));
     }
 }
 
