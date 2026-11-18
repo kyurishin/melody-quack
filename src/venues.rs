@@ -929,15 +929,17 @@ impl VenueState {
         won
     }
 
-    pub(crate) fn spare(&mut self, why: &str) {
+    pub(crate) fn spare(&mut self, why: &str) -> bool {
         self.term.push(why.to_string());
         self.term.push("so he hands you a spare code: his own little rave, open any time.".to_string());
-        if let Some(r) = self.secret.clone() {
-            self.deliver(r);
+        match self.secret.clone() {
+            Some(r) => self.deliver(r),
+            None => false,
         }
     }
 
-    pub(crate) fn deliver(&mut self, r: Rave) {
+    pub(crate) fn deliver(&mut self, r: Rave) -> bool {
+        let had_flag = self.flag;
         self.secret = Some(r.clone());
         self.claimed = true;
         if self.ctf_type() == 0 {
@@ -955,6 +957,7 @@ impl VenueState {
                 self.term.push(format!("tip: {tip}"));
             }
         }
+        self.flag && !had_flag
     }
 
     fn capture(&mut self, code: &str) {

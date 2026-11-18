@@ -369,7 +369,11 @@ fn online(g: &mut Game, dt: f32) {
             "code" if parts.len() >= 2 => {
                 let info = g.venue.tonight.as_ref().map(|t| t.info.clone()).unwrap_or_default();
                 if let Some(r) = rave_from(parts[1], &info) {
-                    g.venue.deliver(r);
+                    if g.venue.deliver(r) {
+                        for n in [0usize, 2, 4, 5] {
+                            g.audio.play_ch(3, &g.bells[n], 0.45);
+                        }
+                    }
                 }
             }
             "nocode" if parts.len() >= 2 => {
@@ -379,7 +383,11 @@ fn online(g: &mut Game, dt: f32) {
                     "list" => format!("the first 30 have tonight's code. it opens to everyone in {}.", clock(ms)),
                     _ => "tonight's list is full. a hundred is a hundred.".to_string(),
                 };
-                g.venue.spare(&why);
+                if g.venue.spare(&why) {
+                    for n in [0usize, 2, 4, 5] {
+                        g.audio.play_ch(3, &g.bells[n], 0.45);
+                    }
+                }
             }
             "early" if parts.len() >= 3 => {
                 if finding(g, parts[1]) {
