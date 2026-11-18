@@ -984,7 +984,7 @@ async fn main() {
     }
     first.accounts.load();
     println!("sign-in: {}", if first.accounts.providers().is_empty() { "off (set --public-url)".to_string() } else { first.accounts.providers().join(", ") });
-    first.otter.key = std::env::var("ANTHROPIC_API_KEY").ok().map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+    first.otter.key = ["ANTHROPIC_API_KEY", "ai", "AI"].iter().find_map(|n| std::env::var(n).ok().map(|k| k.trim().to_string()).filter(|k| !k.is_empty()));
     first.otter.url = std::env::var("MQ_CLAUDE_URL").unwrap_or_default();
     println!("the otter is {}", if first.otter.key.is_some() { "awake" } else { "asleep (no ANTHROPIC_API_KEY)" });
     first.load_djs();
