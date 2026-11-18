@@ -316,7 +316,7 @@ Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the
 - **Server:** `cd server && cargo test` and `cargo build --release`; `server/Dockerfile` builds an image.
 - **Tests:** `cargo test` (game), `cd server && cargo test` (server), `python3 -m unittest discover -s tests -v` (source checks).
 
-Notes for contributors are in `HANDOFF.md`. The game's MP3 encoder is LAME (LGPL); with the source public, anyone can rebuild it with their own LAME.
+The game's MP3 encoder is LAME (LGPL); with the source public, anyone can rebuild it with their own LAME.
 
 ## How it's made
 
