@@ -47,6 +47,7 @@ pub(crate) enum Face {
     Accent,
     Icon,
     Notice,
+    Gothic,
 }
 
 impl Face {
@@ -55,7 +56,12 @@ impl Face {
     }
 
     fn grid(self) -> f32 {
-        if self == Face::Display { 7.0 } else { 8.0 }
+        match self {
+            Face::Display => 7.0,
+            Face::Notice => 11.0,
+            Face::Gothic => 21.0,
+            _ => 8.0,
+        }
     }
 
     fn scale(self) -> f32 {
@@ -63,6 +69,7 @@ impl Face {
             Face::Display => 1.25,
             Face::Data => 0.85,
             Face::Accent => 0.62,
+            Face::Notice => 1.22,
             _ => 1.0,
         }
     }
@@ -75,14 +82,15 @@ thread_local! {
 }
 
 pub(crate) fn load_ui_font() {
-    let files: [&[u8]; 7] = [
+    let files: [&[u8]; 8] = [
         include_bytes!("../assets/fonts/04B_03.ttf"),
         include_bytes!("../assets/fonts/04B_09.ttf"),
         include_bytes!("../assets/fonts/04B_19.ttf"),
         include_bytes!("../assets/fonts/04B_11.ttf"),
         include_bytes!("../assets/fonts/04B_20.ttf"),
         include_bytes!("../assets/fonts/04B_21.ttf"),
-        include_bytes!("../assets/fonts/04B_25.ttf"),
+        include_bytes!("../assets/fonts/PixelifySans-Regular.ttf"),
+        include_bytes!("../assets/fonts/Jacquard12-Regular.ttf"),
     ];
     let fonts: Vec<Option<Font>> = files
         .iter()
@@ -168,7 +176,7 @@ fn font_px(size: f32, ky: f32, font: &Option<Font>, face: Face) -> u16 {
 pub(crate) fn ui_measure(text: &str, size: f32) -> f32 {
     let (kx, ky) = ui_scale();
     let (font, face) = current();
-    measure_text(text, font.as_ref(), font_px(size, ky, &font, face), 1.0).width / kx
+    measure_text(&spaced(text, face), font.as_ref(), font_px(size, ky, &font, face), 1.0).width / kx
 }
 
 pub(crate) fn ui_wrap(text: &str, size: f32, width: f32) -> Vec<String> {
@@ -224,9 +232,15 @@ pub(crate) fn ui_text_raw(text: &str, x: f32, y: f32, size: f32, color: Color) {
     text_at(text, x, y, size, color, false);
 }
 
+fn spaced(text: &str, face: Face) -> std::borrow::Cow<'_, str> {
+    if face == Face::Notice && text.contains(' ') { std::borrow::Cow::Owned(text.replace(' ', "  ")) } else { std::borrow::Cow::Borrowed(text) }
+}
+
 fn text_at(text: &str, x: f32, y: f32, size: f32, color: Color, with_shadow: bool) {
     let (kx, ky) = ui_scale();
     let (font, face) = current();
+    let wide = spaced(text, if font.is_some() { face } else { Face::Body });
+    let text: &str = &wide;
     let mut font_size = font_px(size, ky, &font, face);
     let sx0 = (x * kx).round();
     if font.is_some() {

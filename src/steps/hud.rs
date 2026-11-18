@@ -221,8 +221,8 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         let msg = if g.ringing { "echo on  (G)" } else { "echo off  (G)" };
         let a = g.ring_flash.min(1.0);
         let w = ui_measure_as(ui::Face::Notice, msg, 9.0) + 12.0;
-        ui_rect((low_w() - w) / 2.0, 26.0, w, 16.0, Color::new(0.1, 0.08, 0.2, 0.7 * a));
-        ui_text_as(ui::Face::Notice, msg, (low_w() - w) / 2.0 + 6.0, 37.0, 9.0, Color::new(0.8, 0.95, 1.0, a));
+        ui_round((low_w() - w) / 2.0, 52.0, w, 16.0, 5.0, Color::new(0.1, 0.08, 0.2, 0.7 * a));
+        ui_text_as(ui::Face::Notice, msg, (low_w() - w) / 2.0 + 6.0, 63.0, 9.0, Color::new(0.8, 0.95, 1.0, a));
     }
 
     fr.inside_hint = if g.inside && steps::visits::visiting(g) {
@@ -375,7 +375,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
         let a = life.min(1.0);
-        ui_text_as(ui::Face::Notice, text, fr.edge + 8.0, toast_y + k as f32 * 11.0, 9.0, Color::new(1.0, 0.95, 0.85, a));
+        ui_text_as(ui::Face::Notice, text, fr.edge + 8.0, toast_y + k as f32 * 12.5, 9.0, Color::new(1.0, 0.95, 0.85, a));
     }
 }
 

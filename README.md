@@ -350,11 +350,11 @@ The game's MP3 encoder is LAME (LGPL), and the website uses lamejs (`web/lame.mi
 ## How it's made
 
 - The world renders at your screen's own resolution (up to 1440 lines), then a soft glow pass picks out lamps, fire, neon and lit windows, blurs them at low resolution and adds them back with a gentle colour grade; lamp light is worked out at every corner, so it fades smoothly across floors and walls. Menus are drawn afterwards, with rounded panels built from triangles and pixel fonts snapped to their pixel grid so they stay crisp. A line that would run off the window shrinks until it fits.
-- Seven pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings, 04b21 for little pixel icons and 04b25 for announcements, status lines and the chat with your companion. The terminal keeps the built-in font so its columns line up.
+- Eight pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings, 04b21 for little pixel icons, Pixelify Sans for announcements, status lines and the chat with your companion, and Jacquard 12 for the St. Bassilica sign. The terminal keeps the built-in font so its columns line up.
 - Everything is built from coloured boxes every frame: the animals, the cottage, the fire, the chapel, the crowd, even the fishing line.
 - Faces are shaded from a fixed light, with distance fog, an evening tint and flickering campfire light; trees and walls between the camera and you turn see-through.
 - Every meow, woof, drum, sizzle, splash and crackle is synthesised at startup and mixed by a tiny built-in mixer (desktop) or Web Audio (browser).
 - Mic sync finds onsets in the low end, autocorrelates them for the tempo and phase-locks the loop.
 - The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, streams DJs' audio, and asks Claude Haiku 5.5 for your companion's replies (a short game-state summary plus the last few lines, answered as structured JSON: what to say and which action to take).
 
-Fonts: 04b03, 04b09, 04b11, 04b19, 04b20, 04b21 and 04b25 by Yuji Oshimoto (www.04.jp.org), free pixel fonts.
+Fonts: 04b03, 04b09, 04b11, 04b19, 04b20 and 04b21 by Yuji Oshimoto (www.04.jp.org), free pixel fonts. Pixelify Sans (The Pixelify Sans Project Authors) and Jacquard 12 (The Soft Type Project Authors), SIL Open Font License 1.1.

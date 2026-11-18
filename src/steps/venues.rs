@@ -2094,9 +2094,16 @@ fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f
 }
 
 fn place_label(text: &str, sub: &str) {
-    let w = ui_measure_as(ui::Face::Display, text, 8.5) + 12.0;
-    ui_round_frame(4.0, 4.0, w, 16.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
-    ui_text_bold(ui::Face::Display, text, 10.0, 15.0, 8.5, ui::skin::GOLD);
+    if text == "st. bassilica" {
+        let shade = Color::new(0.06, 0.03, 0.12, 0.85);
+        let (kx, ky) = ui_scale();
+        ui_text_as(ui::Face::Gothic, text, 8.0 + 1.0 / kx, 19.0 + 1.0 / ky, 14.0, shade);
+        ui_text_as(ui::Face::Gothic, text, 8.0, 19.0, 14.0, ui::skin::GOLD);
+    } else {
+        let w = ui_measure_as(ui::Face::Display, text, 8.5) + 12.0;
+        ui_round_frame(4.0, 4.0, w, 16.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+        ui_text_bold(ui::Face::Display, text, 10.0, 15.0, 8.5, ui::skin::GOLD);
+    }
     if !sub.is_empty() {
         let size = if ui_measure(sub, 9.0) > low_w() - 24.0 { 7.0 } else { 9.0 };
         let sw = ui_measure(sub, size);
@@ -4374,7 +4381,7 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     };
     let w = 380f32.min(low_w() - 12.0);
     let notice = !g.venue.partner.noticed;
-    const ROW: f32 = 9.5;
+    const ROW: f32 = 12.0;
     const GAP: f32 = 4.0;
     let mut lines: Vec<(Color, String, f32)> = Vec::new();
     for (k, (otter, text)) in g.venue.partner.log.iter().enumerate() {
@@ -4445,7 +4452,7 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_text(&sub_line, x + 14.0 + ui_measure_as(ui::Face::Display, "talk", 11.0), y + 15.0, 8.0, ui::skin::MUTED);
     let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
     let log_top = y + 23.0;
-    let mut ly = log_top + 7.0;
+    let mut ly = log_top + 9.5;
     for (i, (c, l, lead)) in shown.iter().enumerate() {
         if i > 0 {
             ly += *lead;

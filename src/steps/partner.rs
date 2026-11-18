@@ -417,7 +417,7 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
         lines.drain(..lines.len() - 10);
         lines[0].2 = 0.0;
     }
-    let h = 8.0 + lines.iter().enumerate().map(|(i, l)| 9.5 + if i > 0 { l.2 } else { 0.0 }).sum::<f32>();
+    let h = 8.0 + lines.iter().enumerate().map(|(i, l)| 12.0 + if i > 0 { l.2 } else { 0.0 }).sum::<f32>();
     let x = 6.0;
     let bottom = if fr.show_grid { fr.grid_y - 31.0 } else { fr.bar_y - 26.0 };
     let y = (bottom - h).max(44.0);
@@ -425,13 +425,13 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
     let panel = Color::new(ui::skin::PANEL.r, ui::skin::PANEL.g, ui::skin::PANEL.b, 0.9 * fade);
     let edge = Color::new(ui::skin::EDGE.r, ui::skin::EDGE.g, ui::skin::EDGE.b, fade);
     ui_round_frame(x, y, w, h, 6.0, panel, edge);
-    let mut ly = y + 11.0;
+    let mut ly = y + 13.0;
     for (i, (c, l, lead)) in lines.iter().enumerate() {
         if i > 0 {
             ly += *lead;
         }
         ui_text_as(ui::Face::Notice, l, x + 7.0, ly, 8.0, Color::new(c.r, c.g, c.b, fade));
-        ly += 9.5;
+        ly += 12.0;
     }
 }
 
