@@ -306,3 +306,5 @@ Notes for contributors are in `HANDOFF.md`. The game's MP3 encoder is LAME (LGPL
 - Every meow, woof, drum, sizzle, splash and crackle is synthesised at startup and mixed by a tiny built-in mixer (desktop) or Web Audio (browser).
 - Mic sync finds onsets in the low end, autocorrelates them for the tempo and phase-locks the loop.
 - The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, and streams DJs' audio.
+
+Fonts: 04b03, 04b09, 04b11, 04b19, 04b20 and 04b21 by Yuji Oshimoto (www.04.jp.org), free pixel fonts.

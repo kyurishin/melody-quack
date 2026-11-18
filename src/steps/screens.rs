@@ -389,10 +389,10 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             },
         );
         ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.06, 0.04, 0.14, 0.55));
-        ui_rect(x, y, w, h, Color::new(0.1, 0.08, 0.2, 0.92));
+        ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL, ui::skin::EDGE);
         let title = "paused";
-        ui_text(title, x + (w - ui_measure(title, 18.0)) / 2.0, y + 22.0, 18.0, Color::from_rgba(255, 226, 150, 255));
-        ui_text("mixer", x + 10.0, y + 34.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.55));
+        ui_text_as(ui::Face::Display, title, x + (w - ui_measure_as(ui::Face::Display, title, 18.0)) / 2.0, y + 23.0, 18.0, Color::from_rgba(255, 226, 150, 255));
+        ui_text_as(ui::Face::Accent, "mixer", x + 10.0, y + 35.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.55));
         for r in 0..5 {
             let cy = row_y(r);
             let mut name = labels[r].clone();

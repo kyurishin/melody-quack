@@ -17,9 +17,9 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         };
         let w = (low_w() - 16.0).min(250.0);
         let x = (low_w() - w) / 2.0;
-        let y = 42.0;
-        ui_rect(x, y, w, 30.0, Color::new(0.1, 0.08, 0.2, 0.83));
-        ui_text(heading, x + 8.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
+        let y = 42.0 + steps::topbar::drop(g);
+        ui_round_frame(x, y, w, 30.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+        ui_text_as(ui::Face::Display, heading, x + 10.0, y + 13.0, 12.0, Color::from_rgba(255, 226, 150, 255));
         let line = ui_wrap(message, 10.0, w - 16.0);
         if let Some(first) = line.first() {
             ui_text(first, x + 8.0, y + 24.0, 10.0, WHITE);
@@ -32,12 +32,12 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         let top = if g.first_pick { 24.0 } else { 30.0 };
         let x = (low_w() - w) / 2.0;
         let h = preview_h + if g.first_pick { 100.0 } else { 76.0 };
-        ui_rect(x, top, w, h, Color::new(0.1, 0.08, 0.2, 0.94));
+        ui_round_frame(x, top, w, h, 8.0, ui::skin::PANEL, ui::skin::EDGE);
         let mut y = top + 16.0;
         if g.first_pick {
-            let title = "melody quack";
-            let tw = ui_measure(title, 22.0);
-            ui_text(title, (low_w() - tw) / 2.0, y + 6.0, 22.0, Color::from_rgba(255, 226, 150, 255));
+            let title = "Melody Quack";
+            let tw = ui_measure_as(ui::Face::Display, title, 14.0);
+            ui_text_as(ui::Face::Display, title, (low_w() - tw) / 2.0, y + 5.0, 14.0, Color::from_rgba(255, 226, 150, 255));
             y += 24.0;
         }
         {
@@ -59,7 +59,7 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
             ui_text(&name, x + 80.0, y, 12.0, col);
             y += 14.0;
         }
-        ui_text("W/S row   A/D change   E or esc: done", x + 12.0, y + 6.0, 11.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        ui_text_fit("W/S row   A/D change   E or esc: done", x + 12.0, y + 6.0, 10.0, w - 24.0, Color::new(1.0, 1.0, 1.0, 0.7));
     }
 
     if g.sleep_fade > 0.0 {
@@ -204,9 +204,8 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
         ];
         let (x, y, w, h) = help_box();
         ui_rect(0.0, 0.0, low_w(), low_h(), Color::new(0.03, 0.02, 0.08, 0.55));
-        ui_rect(x, y, w, h, Color::new(0.1, 0.08, 0.2, 0.97));
-        ui_rect(x, y, w, 3.0, Color::from_rgba(255, 214, 110, 255));
-        ui_text("help", x + 10.0, y + 15.0, 13.0, Color::from_rgba(255, 226, 150, 255));
+        ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
+        ui_text_as(ui::Face::Display, "help", x + 10.0, y + 16.0, 13.0, Color::from_rgba(255, 226, 150, 255));
         let tab_w = (w - 20.0) / 3.0;
         for (k, (name, _)) in pages.iter().enumerate() {
             let tx = x + 10.0 + k as f32 * tab_w;

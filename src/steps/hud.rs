@@ -40,11 +40,16 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         for i in 0..6 {
             let x = start_x + i as f32 * box_w;
             let glow = g.players[0].key_glow[i];
-            let mut bg = note_color(i);
-            bg.a = 0.55 + glow * 0.45;
+            let bg = card_color(i, glow);
             let lift = glow * 3.0;
-            ui_rect(x + 2.0, fr.bar_y - lift, box_w - 4.0, 28.0, bg);
-            ui_text(&format!("{} {}", i + 1, NOTE_NAMES[i]), x + 6.0, fr.bar_y + 12.0 - lift, 12.0, fr.ink);
+            ui_round(x + 2.0, fr.bar_y - lift + 1.5, box_w - 4.0, 28.0, 5.0, Color::new(0.08, 0.05, 0.16, 0.45));
+            ui_round_frame(x + 2.0, fr.bar_y - lift, box_w - 4.0, 28.0, 5.0, bg, Color::new(1.0, 1.0, 1.0, 0.35 + glow * 0.5));
+            for k in 0..3 {
+                let wave = 0.35 + 0.65 * ((fr.time * 7.0 + k as f32 * 1.7 + i as f32).sin() * 0.5 + 0.5) * glow.max(0.15);
+                let bh = 4.0 + 14.0 * wave * if k == 1 { 1.0 } else { 0.7 };
+                ui_round(x + box_w - 13.0 + k as f32 * 3.0, fr.bar_y - lift + 22.0 - bh, 1.8, bh, 0.9, Color::new(1.0, 1.0, 1.0, 0.45 + glow * 0.4));
+            }
+            ui_text_as(ui::Face::Label, &format!("{} {}", i + 1, NOTE_NAMES[i]), x + 6.0, fr.bar_y + 12.5 - lift, 11.0, fr.ink);
             let label = if g.inside && g.dj[0] {
                 DJ_PADS[0][i]
             } else if g.cooking && i < 4 {
@@ -54,7 +59,8 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
             } else {
                 SPELL_NAMES[i]
             };
-            ui_text(label, x + 6.0, fr.bar_y + 24.0 - lift, 12.0, fr.ink);
+            let word = if ui_measure_as(ui::Face::Label, label, 11.0) > box_w - 20.0 { 8.0 } else { 11.0 };
+            ui_text_as(ui::Face::Label, label, x + 6.0, fr.bar_y + 24.5 - lift, word, fr.ink);
         }
         fr.grid_x = start_x + 2.0;
         fr.grid_w = box_w * 6.0 - 4.0;
@@ -70,25 +76,30 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     if fr.show_grid {
         for &(lane, lx, lw) in &fr.lanes {
             let cell = lw / LOOP_STEPS as f32;
-            ui_rect(lx, fr.grid_y, lw, 14.0, Color::new(0.1, 0.08, 0.2, 0.5));
+            ui_round_frame(lx - 4.0, fr.grid_y - 2.0, lw + 8.0, 18.0, 6.0, Color::new(0.16, 0.12, 0.29, 0.86), Color::new(0.45, 0.36, 0.7, 0.9));
+            let mid = fr.grid_y + 7.0;
+            let head = lx + (fr.step as f32 + 0.5) * cell;
+            ui_round(lx + 2.0, mid - 1.0, lw - 4.0, 2.0, 1.0, Color::new(0.55, 0.45, 0.85, 0.7));
+            ui_round(lx + 2.0, mid - 1.0, (head - lx - 2.0).max(0.0), 2.0, 1.0, Color::new(1.0, 0.6, 0.8, 0.95));
             for k in (0..LOOP_STEPS).step_by(4) {
-                let a = if k % 16 == 0 { 0.6 } else { 0.25 };
-                ui_rect(lx + k as f32 * cell, fr.grid_y, 0.34, 14.0, Color::new(1.0, 1.0, 1.0, a));
+                let tall = if k % 16 == 0 { 5.0 } else { 3.0 };
+                ui_rect(lx + k as f32 * cell, mid - tall / 2.0, 0.6, tall, Color::new(1.0, 1.0, 1.0, if k % 16 == 0 { 0.55 } else { 0.3 }));
             }
-            ui_rect(lx + fr.step as f32 * cell, fr.grid_y, cell, 14.0, Color::new(1.0, 1.0, 1.0, 0.3));
             for &(at, id) in &g.looper.notes {
                 if lane.map(|who| note_owner(id) != who).unwrap_or(false) {
                     continue;
                 }
                 let slot = note_slot(id).min(5);
-                let nx = lx + at * cell + 0.3;
-                let ny = fr.grid_y + 1.0 + (5 - slot) as f32 * 2.0;
+                let nx = lx + (at + 0.5) * cell;
+                let ny = fr.grid_y + 1.5 + (5 - slot) as f32 * 2.2;
                 let mut color = note_color(slot);
                 if lane.is_none() && note_owner(id) == 1 {
                     color = Color::new(color.r * 0.75, color.g * 0.75, color.b * 0.75, 1.0);
                 }
-                ui_rect(nx, ny, (cell - 0.6).max(1.5), 1.7, color);
+                ui_round(nx - 1.2, ny, 2.4, 2.0, 1.0, color);
             }
+            ui_round(head - 1.8, fr.grid_y, 3.6, 14.0, 1.8, Color::new(0.1, 0.06, 0.18, 0.5));
+            ui_round(head - 1.5, fr.grid_y + 0.5, 3.0, 13.0, 1.5, Color::from_rgba(255, 240, 220, 255));
         }
     }
 
@@ -151,39 +162,57 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         }
     }
 
-    ui_rect(0.0, 0.0, low_w(), 17.0, Color::new(0.1, 0.08, 0.2, 0.4));
-    fr.mode = if g.cooking { "cooking".to_string() } else if g.music_mode { format!("music  q:{}", g.looper.quantise.label()) } else { "spells".to_string() };
-    if g.two_player {
-        ui_text(g.cast_list[g.players[0].character].name, 6.0, 12.0, 12.0, Color::from_rgba(255, 226, 190, 255));
-        ui_text(g.cast_list[g.players[1].character].name, fr.half + 6.0, 12.0, 12.0, Color::from_rgba(240, 206, 140, 255));
-        ui_text(&fr.mode, 76.0, 12.0, 12.0, WHITE);
+    if steps::topbar::shown(g) {
+        steps::topbar::draw(g, fr);
     } else {
-        ui_text(&fr.mode, fr.edge + 6.0, 12.0, 12.0, WHITE);
-        if !g.now_playing.is_empty() && fr.right_edge - 144.0 - fr.edge - ui_measure(&fr.mode, 12.0) > 40.0 {
-            let left = fr.edge + 6.0 + ui_measure(&fr.mode, 12.0) + 12.0;
-            let room = fr.right_edge - 118.0 - 8.0 - left;
-            let line = ui_ticker(&format!("~ {now_playing}", now_playing = g.now_playing), 12.0, room, fr.time);
-            ui_text(&line, left, 12.0, 12.0, Color::from_rgba(255, 214, 110, 255));
+        ui_rect(0.0, 0.0, low_w(), 17.0, Color::new(0.1, 0.08, 0.2, 0.4));
+        fr.mode = if g.cooking { "cooking".to_string() } else if g.music_mode { format!("music  q:{}", g.looper.quantise.label()) } else { "spells".to_string() };
+        if g.two_player {
+            ui_text(g.cast_list[g.players[0].character].name, 6.0, 12.0, 12.0, Color::from_rgba(255, 226, 190, 255));
+            ui_text(g.cast_list[g.players[1].character].name, fr.half + 6.0, 12.0, 12.0, Color::from_rgba(240, 206, 140, 255));
+            ui_text(&fr.mode, 76.0, 12.0, 12.0, WHITE);
+        } else {
+            ui_text(&fr.mode, fr.edge + 6.0, 12.0, 12.0, WHITE);
+            if !g.now_playing.is_empty() && fr.right_edge - 144.0 - fr.edge - ui_measure(&fr.mode, 12.0) > 40.0 {
+                let left = fr.edge + 6.0 + ui_measure(&fr.mode, 12.0) + 12.0;
+                let room = fr.right_edge - 118.0 - 8.0 - left;
+                let line = ui_ticker(&format!("~ {now_playing}", now_playing = g.now_playing), 12.0, room, fr.time);
+                ui_text(&line, left, 12.0, 12.0, Color::from_rgba(255, 214, 110, 255));
+            }
         }
-    }
-    (fr.meter_x, fr.meter_y) = if g.two_player { (6.0, 27.0) } else { (fr.right_edge - 118.0, 12.0) };
-    ui_text("fire", fr.meter_x, fr.meter_y, 12.0, Color::from_rgba(255, 200, 140, 255));
-    ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.35));
-    fr.fill = (g.camp.fuel / 180.0).min(1.0);
-    fr.fire_col = if g.camp.lit { Color::from_rgba(255, 150, 60, 255) } else { Color::from_rgba(120, 110, 110, 255) };
-    ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0 * fr.fill, 6.0, fr.fire_col);
-    {
-        let hx = fr.right_edge - 46.0;
-        ui_rect(hx - 2.0, 2.0, 12.0, 13.0, Color::from_rgba(255, 214, 110, 255));
-        ui_text("H", hx + 1.0, 12.0, 12.0, Color::from_rgba(36, 26, 71, 255));
-        ui_text("help", hx + 14.0, 12.0, 12.0, WHITE);
-    }
-    {
-        let sk = sky();
-        let temp = sk.temp.map(|t| format!(" {:.0}C", t)).unwrap_or_default();
-        let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
-        let wx = if g.two_player { fr.half - ui_measure(&line, 9.0) - 6.0 } else { fr.right_edge - ui_measure(&line, 9.0) - 4.0 };
-        ui_text(&line, wx, 38.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        (fr.meter_x, fr.meter_y) = if g.two_player { (6.0, 27.0) } else { (fr.right_edge - 118.0, 12.0) };
+        ui_text("fire", fr.meter_x, fr.meter_y, 12.0, Color::from_rgba(255, 200, 140, 255));
+        ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.35));
+        fr.fill = (g.camp.fuel / 180.0).min(1.0);
+        fr.fire_col = if g.camp.lit { Color::from_rgba(255, 150, 60, 255) } else { Color::from_rgba(120, 110, 110, 255) };
+        ui_rect(fr.meter_x + 24.0, fr.meter_y - 7.0, 40.0 * fr.fill, 6.0, fr.fire_col);
+        {
+            let hx = fr.right_edge - 46.0;
+            ui_rect(hx - 2.0, 2.0, 12.0, 13.0, Color::from_rgba(255, 214, 110, 255));
+            ui_text("H", hx + 1.0, 12.0, 12.0, Color::from_rgba(36, 26, 71, 255));
+            ui_text("help", hx + 14.0, 12.0, 12.0, WHITE);
+        }
+        {
+            let sk = sky();
+            let temp = sk.temp.map(|t| format!(" {:.0}C", t)).unwrap_or_default();
+            let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
+            let wx = if g.two_player { fr.half - ui_measure(&line, 9.0) - 6.0 } else { fr.right_edge - ui_measure(&line, 9.0) - 4.0 };
+            ui_text(&line, wx, 38.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        }
+        fr.fish_total = g.inv.fish.iter().sum();
+        fr.items = [
+            (Color::from_rgba(176, 124, 76, 255), format!("{}", g.inv.wood)),
+            (Color::from_rgba(168, 170, 184, 255), format!("{}", g.inv.stone)),
+            (Color::from_rgba(140, 190, 210, 255), format!("{}", fr.fish_total)),
+            (Color::from_rgba(255, 140, 160, 255), format!("{}/{}", g.dishes.len(), DISHES.len())),
+            (ACORN_COLOR, format!("{}", g.inv.acorns)),
+        ];
+        fr.ix = fr.right_edge - 6.0 - fr.items.len() as f32 * 24.0;
+        for (col, text) in fr.items.iter() {
+            ui_rect(fr.ix, 21.0, 6.0, 6.0, *col);
+            ui_text(text, fr.ix + 8.0, 27.0, 11.0, WHITE);
+            fr.ix += 24.0;
+        }
     }
     if g.ring_flash > 0.0 {
         let msg = if g.ringing { "echo on  (G)" } else { "echo off  (G)" };
@@ -191,21 +220,6 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         let w = ui_measure(msg, 12.0) + 12.0;
         ui_rect((low_w() - w) / 2.0, 26.0, w, 16.0, Color::new(0.1, 0.08, 0.2, 0.7 * a));
         ui_text(msg, (low_w() - w) / 2.0 + 6.0, 38.0, 12.0, Color::new(0.8, 0.95, 1.0, a));
-    }
-
-    fr.fish_total = g.inv.fish.iter().sum();
-    fr.items = [
-        (Color::from_rgba(176, 124, 76, 255), format!("{}", g.inv.wood)),
-        (Color::from_rgba(168, 170, 184, 255), format!("{}", g.inv.stone)),
-        (Color::from_rgba(140, 190, 210, 255), format!("{}", fr.fish_total)),
-        (Color::from_rgba(255, 140, 160, 255), format!("{}/{}", g.dishes.len(), DISHES.len())),
-        (ACORN_COLOR, format!("{}", g.inv.acorns)),
-    ];
-    fr.ix = fr.right_edge - 6.0 - fr.items.len() as f32 * 24.0;
-    for (col, text) in fr.items.iter() {
-        ui_rect(fr.ix, 21.0, 6.0, 6.0, *col);
-        ui_text(text, fr.ix + 8.0, 27.0, 11.0, WHITE);
-        fr.ix += 24.0;
     }
 
     fr.inside_hint = if g.inside {
@@ -343,10 +357,11 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         }
     }
     if !fr.hint.is_empty() && !g.picking {
-        let w = ui_measure(&fr.hint, 12.0);
+        let size = if ui_measure_as(ui::Face::Label, &fr.hint, 9.0) > low_w() - 30.0 { 7.0 } else { 9.0 };
+        let w = ui_measure_as(ui::Face::Label, &fr.hint, size);
         let hy = if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
-        ui_rect((low_w() - w) / 2.0 - 4.0, hy - 9.0, w + 8.0, 12.0, Color::new(0.1, 0.08, 0.2, 0.5));
-        ui_text(&fr.hint, (low_w() - w) / 2.0, hy, 12.0, Color::from_rgba(255, 236, 200, 255));
+        ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, Color::new(0.16, 0.12, 0.29, 0.9), Color::new(0.55, 0.45, 0.82, 0.9));
+        ui_text_as(ui::Face::Label, &fr.hint, (low_w() - w) / 2.0, hy, size, Color::from_rgba(255, 240, 220, 255));
     }
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
@@ -369,10 +384,10 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
         let furn_rows = if g.stored.is_empty() { 1 } else { g.stored.len().min(shown_items) };
         let h = 30.0 + lines.len() as f32 * 11.0 + 16.0 + g.quests.list.len() as f32 * 11.0 + 16.0 + furn_rows as f32 * 11.0 + 18.0;
         let x = 8.0;
-        let y = if fr.touch_ui && fr.portrait { 42.0 } else { 22.0 };
+        let y = if steps::topbar::shown(g) { 42.0 + steps::topbar::drop(g) } else if fr.touch_ui && fr.portrait { 42.0 } else { 22.0 };
         let h = h.min(low_h() - y - 4.0);
-        ui_rect(x, y, w, h, Color::new(0.08, 0.06, 0.16, 0.92));
-        ui_text(if g.two_player { if g.bag_owner == 0 { "bag - player 1" } else { "bag - player 2" } } else { "bag" }, x + 8.0, y + 13.0, 12.0, Color::from_rgba(255, 226, 150, 255));
+        ui_round_frame(x, y, w, h, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+        ui_text_as(ui::Face::Display, if g.two_player { if g.bag_owner == 0 { "bag - player 1" } else { "bag - player 2" } } else { "bag" }, x + 8.0, y + 14.0, 12.0, Color::from_rgba(255, 226, 150, 255));
         ui_rect(x + 8.0, y + 17.0, w - 16.0, 1.0, Color::new(1.0, 1.0, 1.0, 0.14));
         let mut ty = y + 29.0;
         for (n, line) in lines.iter().enumerate() {
@@ -381,7 +396,7 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
             ty += 11.0;
         }
         ty += 5.0;
-        ui_text("today's quests", x + 8.0, ty, 10.0, Color::from_rgba(150, 215, 255, 255));
+        ui_text_as(ui::Face::Accent, "today's quests", x + 8.0, ty, 10.0, Color::from_rgba(150, 215, 255, 255));
         ty += 11.0;
         for q in &g.quests.list {
             let mark = if q.done { "[x]" } else { "[ ]" };
@@ -397,7 +412,7 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
             ty += 11.0;
         }
         ty += 5.0;
-        ui_text(&format!("furniture in the bag ({})", g.stored.len()), x + 8.0, ty, 10.0, Color::from_rgba(255, 190, 210, 255));
+        ui_text_as(ui::Face::Accent, &format!("furniture in the bag ({})", g.stored.len()), x + 8.0, ty, 10.0, Color::from_rgba(255, 190, 210, 255));
         ty += 11.0;
         if g.stored.is_empty() {
             ui_text(if g.inside { "empty - M while carrying a piece puts it here" } else { "empty" }, x + 8.0, ty, 9.0, Color::new(1.0, 1.0, 1.0, 0.5));
@@ -422,4 +437,17 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
         };
         ui_text(bag_hint, x + (w - ui_measure(bag_hint, 9.0)) / 2.0, y + h - 6.0, 9.0, if g.bag_clear_armed > 0.0 { Color::from_rgba(255, 150, 150, 255) } else { Color::new(1.0, 1.0, 1.0, 0.6) });
     }
+}
+
+fn card_color(i: usize, glow: f32) -> Color {
+    let base = match i {
+        0 => Color::from_rgba(255, 128, 98, 255),
+        1 => Color::from_rgba(255, 128, 190, 255),
+        2 => Color::from_rgba(102, 152, 255, 255),
+        3 => Color::from_rgba(108, 214, 140, 255),
+        4 => Color::from_rgba(112, 184, 240, 255),
+        _ => Color::from_rgba(255, 210, 80, 255),
+    };
+    let k = glow * 0.25;
+    Color::new(base.r + (1.0 - base.r) * k, base.g + (1.0 - base.g) * k, base.b + (1.0 - base.b) * k, 0.92 + glow * 0.08)
 }

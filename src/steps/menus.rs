@@ -57,6 +57,9 @@ pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
             fr.help_closed = true;
         }
     }
+    if !g.paused && !g.picking && !fr.help_closed && steps::topbar::click(g, fr) {
+        return;
+    }
     if !g.paused && !g.picking && !fr.help_closed {
         let tap_ok = if radio::touch_ui() && !g.two_player {
             if low_h() > low_w() { fr.uy < low_h() * 0.55 && fr.uy > 20.0 } else { fr.ux > low_w() * 0.235 && fr.ux < low_w() * 0.765 && fr.uy > 20.0 }

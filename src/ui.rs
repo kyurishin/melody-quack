@@ -38,9 +38,123 @@ pub(crate) fn ui_rect(x: f32, y: f32, w: f32, h: f32, color: Color) {
     draw_rectangle((x * kx).round(), (y * ky).round(), (w * kx).round().max(1.0), (h * ky).round().max(1.0), color);
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Face {
+    Body,
+    Label,
+    Display,
+    Data,
+    Accent,
+    Icon,
+}
+
+impl Face {
+    fn index(self) -> usize {
+        self as usize
+    }
+
+    fn grid(self) -> f32 {
+        if self == Face::Display { 7.0 } else { 8.0 }
+    }
+
+    fn scale(self) -> f32 {
+        match self {
+            Face::Display => 1.25,
+            Face::Data => 0.85,
+            Face::Accent => 0.62,
+            _ => 1.0,
+        }
+    }
+}
+
+thread_local! {
+    static UI_FONTS: std::cell::RefCell<Vec<Option<Font>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static PIXEL_TEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FACE: std::cell::Cell<Face> = const { std::cell::Cell::new(Face::Body) };
+}
+
+pub(crate) fn load_ui_font() {
+    let files: [&[u8]; 6] = [
+        include_bytes!("../assets/fonts/04B_03.ttf"),
+        include_bytes!("../assets/fonts/04B_09.ttf"),
+        include_bytes!("../assets/fonts/04B_19.ttf"),
+        include_bytes!("../assets/fonts/04B_11.ttf"),
+        include_bytes!("../assets/fonts/04B_20.ttf"),
+        include_bytes!("../assets/fonts/04B_21.ttf"),
+    ];
+    let fonts: Vec<Option<Font>> = files
+        .iter()
+        .map(|bytes| {
+            load_ttf_font_from_bytes(bytes).ok().map(|mut f| {
+                f.set_filter(FilterMode::Nearest);
+                f
+            })
+        })
+        .collect();
+    UI_FONTS.with(|f| *f.borrow_mut() = fonts);
+}
+
+pub(crate) fn pixel_text(on: bool) {
+    PIXEL_TEXT.with(|p| p.set(on));
+}
+
+pub(crate) fn with_face<T>(face: Face, draw: impl FnOnce() -> T) -> T {
+    let before = FACE.with(|f| f.replace(face));
+    let out = draw();
+    FACE.with(|f| f.set(before));
+    out
+}
+
+pub(crate) fn ui_text_as(face: Face, text: &str, x: f32, y: f32, size: f32, color: Color) {
+    with_face(face, || ui_text(text, x, y, size, color));
+}
+
+pub(crate) fn ui_text_bold(face: Face, text: &str, x: f32, y: f32, size: f32, color: Color) {
+    let (kx, ky) = ui_scale();
+    let o = (ky / 1.5).max(1.0).round();
+    let edge = Color::new(0.1, 0.06, 0.18, color.a);
+    with_face(face, || {
+        for (dx, dy) in [(-o, 0.0), (o, 0.0), (0.0, -o), (0.0, o), (o, o), (-o, o)] {
+            ui_text_raw(text, x + dx / kx, y + dy / ky, size, edge);
+        }
+        ui_text_raw(text, x, y, size, color);
+    });
+}
+
+pub(crate) fn ui_text_fit(text: &str, x: f32, y: f32, size: f32, max_w: f32, color: Color) {
+    let mut s = size;
+    while s > 5.0 && ui_measure(text, s) > max_w {
+        s -= 1.0;
+    }
+    ui_text(text, x, y, s, color);
+}
+
+pub(crate) fn ui_measure_as(face: Face, text: &str, size: f32) -> f32 {
+    with_face(face, || ui_measure(text, size))
+}
+
+fn current() -> (Option<Font>, Face) {
+    let face = FACE.with(|f| f.get());
+    if PIXEL_TEXT.with(|p| p.get()) {
+        return (None, face);
+    }
+    (UI_FONTS.with(|f| f.borrow().get(face.index()).cloned().flatten()), face)
+}
+
+
+fn font_px(size: f32, ky: f32, font: &Option<Font>, face: Face) -> u16 {
+    if font.is_some() {
+        let px = size * ky * face.scale();
+        ((px / face.grid()).round().max(1.0) * face.grid()) as u16
+    } else {
+        (size * ky).round().max(1.0) as u16
+    }
+}
+
 pub(crate) fn ui_measure(text: &str, size: f32) -> f32 {
     let (kx, ky) = ui_scale();
-    measure_text(text, None, (size * ky).round() as u16, 1.0).width / kx
+    let (font, face) = current();
+    measure_text(text, font.as_ref(), font_px(size, ky, &font, face), 1.0).width / kx
 }
 
 pub(crate) fn ui_wrap(text: &str, size: f32, width: f32) -> Vec<String> {
@@ -89,25 +203,46 @@ pub(crate) fn ui_ticker(text: &str, size: f32, width: f32, time: f32) -> String 
 }
 
 pub(crate) fn ui_text(text: &str, x: f32, y: f32, size: f32, color: Color) {
+    text_at(text, x, y, size, color, true);
+}
+
+pub(crate) fn ui_text_raw(text: &str, x: f32, y: f32, size: f32, color: Color) {
+    text_at(text, x, y, size, color, false);
+}
+
+fn text_at(text: &str, x: f32, y: f32, size: f32, color: Color, with_shadow: bool) {
     let (kx, ky) = ui_scale();
-    let font_size = (size * ky).round() as u16;
+    let (font, face) = current();
+    let mut font_size = font_px(size, ky, &font, face);
+    let sx0 = (x * kx).round();
+    if font.is_some() {
+        let step = face.grid() as u16;
+        while font_size > step && sx0 + measure_text(text, font.as_ref(), font_size, 1.0).width > screen_width() - 2.0 {
+            font_size -= step;
+        }
+    }
     let shadow = (ky * 0.4).max(1.0).round();
-    let (sx, sy) = ((x * kx).round(), (y * ky).round());
-    draw_text_ex(
+    let lift = if font.is_some() { (font_size as f32 / 8.0).round() } else { 0.0 };
+    let (sx, sy) = ((x * kx).round(), (y * ky).round() - lift);
+    if with_shadow {
+        draw_text_ex(
         text,
         sx + shadow,
         sy + shadow,
         TextParams {
+            font: font.as_ref(),
             font_size,
             color: Color::new(0.05, 0.04, 0.1, color.a * 0.75),
             ..Default::default()
         },
-    );
+        );
+    }
     draw_text_ex(
         text,
         sx,
         sy,
         TextParams {
+            font: font.as_ref(),
             font_size,
             color,
             ..Default::default()
@@ -171,4 +306,67 @@ pub(crate) fn file_stem(name: &str) -> String {
     let clean: String = name.chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.' | '(' | ')')).take(48).collect();
     let clean = clean.trim().trim_start_matches('.').trim().to_string();
     if clean.is_empty() { "jam".to_string() } else { clean }
+}
+
+fn round_points(x: f32, y: f32, w: f32, h: f32, r: f32) -> Vec<Vec2> {
+    let (kx, ky) = ui_scale();
+    let (px, py, pw, ph) = (x * kx, y * ky, w * kx, h * ky);
+    let rr = (r * kx.min(ky)).min(pw / 2.0).min(ph / 2.0).max(0.0);
+    let corners = [(px + pw - rr, py + rr, -0.5), (px + pw - rr, py + ph - rr, 0.0), (px + rr, py + ph - rr, 0.5), (px + rr, py + rr, 1.0)];
+    let mut pts = Vec::with_capacity(32);
+    for (cx, cy, start) in corners {
+        for k in 0..=7 {
+            let a = (start + k as f32 / 7.0 * 0.5) * std::f32::consts::PI;
+            pts.push(vec2(cx + rr * a.cos(), cy + rr * a.sin()));
+        }
+    }
+    pts
+}
+
+pub(crate) fn ui_round(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
+    let pts = round_points(x, y, w, h, r);
+    let (kx, ky) = ui_scale();
+    let c = vec2((x + w / 2.0) * kx, (y + h / 2.0) * ky);
+    for i in 0..pts.len() {
+        draw_triangle(c, pts[i], pts[(i + 1) % pts.len()], color);
+    }
+}
+
+pub(crate) fn ui_round_frame(x: f32, y: f32, w: f32, h: f32, r: f32, fill: Color, border: Color) {
+    ui_round(x, y, w, h, r, fill);
+    let pts = round_points(x, y, w, h, r);
+    let thick = (ui_scale().1 * 0.5).max(1.0);
+    for i in 0..pts.len() {
+        let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+        draw_line(a.x, a.y, b.x, b.y, thick, border);
+    }
+}
+
+pub(crate) fn ui_circle(x: f32, y: f32, r: f32, color: Color) {
+    let (kx, ky) = ui_scale();
+    draw_circle(x * kx, y * ky, r * kx.min(ky), color);
+}
+
+pub(crate) fn ui_tri(a: Vec2, b: Vec2, c: Vec2, color: Color) {
+    let (kx, ky) = ui_scale();
+    let k = vec2(kx, ky);
+    draw_triangle(a * k, b * k, c * k, color);
+}
+
+pub(crate) fn ui_line(a: Vec2, b: Vec2, thick: f32, color: Color) {
+    let (kx, ky) = ui_scale();
+    draw_line(a.x * kx, a.y * ky, b.x * kx, b.y * ky, (thick * ky).max(1.0), color);
+}
+
+pub(crate) mod skin {
+    use macroquad::prelude::Color;
+    pub(crate) const PANEL: Color = Color::new(0.16, 0.12, 0.29, 0.92);
+    pub(crate) const PANEL_SOLID: Color = Color::new(0.16, 0.12, 0.29, 1.0);
+    pub(crate) const EDGE: Color = Color::new(0.45, 0.36, 0.7, 0.9);
+    pub(crate) const TAB: Color = Color::new(0.24, 0.18, 0.4, 1.0);
+    pub(crate) const PINK: Color = Color::new(1.0, 0.5, 0.71, 1.0);
+    pub(crate) const PINK_EDGE: Color = Color::new(1.0, 0.75, 0.86, 1.0);
+    pub(crate) const CREAM: Color = Color::new(1.0, 0.95, 0.87, 1.0);
+    pub(crate) const GOLD: Color = Color::new(1.0, 0.84, 0.36, 1.0);
+    pub(crate) const INK: Color = Color::new(0.17, 0.11, 0.25, 1.0);
 }

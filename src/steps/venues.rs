@@ -32,8 +32,21 @@ fn bevel(x: f32, y: f32, w: f32, h: f32, raised: bool) {
     ui_rect(x + 1.0, y + 1.0, w - 3.0, h - 3.0, grey);
 }
 
+thread_local! {
+    static RETRO: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 fn button(fr: &Frame, label: &str, x: f32, y: f32, w: f32, h: f32, on: bool) -> bool {
     let over = hit(fr, x, y, w, h);
+    if !RETRO.with(|r| r.get()) {
+        let pressed = over && is_mouse_button_down(MouseButton::Left);
+        let fill = if on { ui::skin::PINK } else if over { Color::new(0.36, 0.28, 0.6, 1.0) } else { ui::skin::TAB };
+        ui_round(x, y + 1.5, w, h, 5.0, Color::new(0.05, 0.03, 0.12, 0.55));
+        ui_round_frame(x, y + if pressed { 1.0 } else { 0.0 }, w, h, 5.0, fill, if on { ui::skin::PINK_EDGE } else { ui::skin::EDGE });
+        let tw = ui_measure_as(ui::Face::Label, label, 9.0);
+        ui_text_as(ui::Face::Label, label, x + (w - tw) / 2.0, y + h / 2.0 + 3.5 + if pressed { 1.0 } else { 0.0 }, 9.0, if on { ui::skin::INK } else { ui::skin::CREAM });
+        return over && fr.click;
+    }
     bevel(x, y, w, h, !(on || (over && is_mouse_button_down(MouseButton::Left))));
     if on {
         ui_rect(x + 2.0, y + 2.0, w - 4.0, h - 4.0, Color::from_rgba(27, 42, 138, 255));
@@ -1345,7 +1358,7 @@ fn tour_skip_rect(x: f32, y: f32, w: f32) -> (f32, f32, f32, f32) {
 }
 
 fn outdoor_banner_y(g: &Game) -> f32 {
-    if steps::overlays::first_steps_shown(g) { 76.0 } else { 42.0 }
+    steps::topbar::drop(g) + if steps::overlays::first_steps_shown(g) { 76.0 } else { 42.0 }
 }
 
 pub(crate) fn below_banners(g: &Game) -> f32 {
@@ -1378,9 +1391,9 @@ fn tour_banner(g: &mut Game, fr: &mut Frame, y: f32) {
     let Some((heading, lines, x, y, w, h)) = tour_layout(g, y) else {
         return;
     };
-    ui_rect(x, y, w, h, Color::new(0.1, 0.08, 0.2, 0.88));
-    ui_rect(x, y, 3.0, h, Color::from_rgba(176, 92, 255, 255));
-    ui_text(heading, x + 9.0, y + 12.0, 12.0, Color::from_rgba(255, 226, 150, 255));
+    ui_round_frame(x, y, w, h, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+    ui_round(x + 3.0, y + 3.0, 3.0, h - 6.0, 1.5, ui::skin::PINK);
+    ui_text_as(ui::Face::Display, heading, x + 11.0, y + 13.0, 12.0, Color::from_rgba(255, 226, 150, 255));
     for (i, l) in lines.iter().enumerate() {
         ui_text(l, x + 9.0, y + 24.0 + i as f32 * 10.0, 9.0, WHITE);
     }
@@ -1426,9 +1439,9 @@ fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
     } else if g.two_player && g.venue.at == Venue::None {
         (6.0, 40.0, 22.0, 15.0)
     } else if g.venue.at == Venue::None {
-        (6.0, 22.0, 22.0, 15.0)
+        (6.0, 24.0, 22.0, 17.0)
     } else {
-        (6.0, 26.0, 22.0, 15.0)
+        (6.0, 25.0, 22.0, 17.0)
     }
 }
 
@@ -1453,6 +1466,19 @@ pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
         return;
     }
     let (x, y, w, h) = mail_rect(g);
+    if !g.two_player {
+        ui_round_frame(x, y, w, h, 4.0, ui::skin::PANEL, ui::skin::EDGE);
+        let (ex, ey, ew, eh) = (x + 4.0, y + 4.0, w - 8.0, h - 8.0);
+        ui_round(ex, ey, ew, eh, 1.2, Color::from_rgba(255, 240, 220, 255));
+        ui_tri(vec2(ex + 0.4, ey + 0.4), vec2(ex + ew - 0.4, ey + 0.4), vec2(ex + ew / 2.0, ey + eh * 0.6), Color::from_rgba(255, 196, 120, 255));
+        ui_line(vec2(ex + 0.4, ey + 0.4), vec2(ex + ew / 2.0, ey + eh * 0.6), 0.5, ui::skin::INK);
+        ui_line(vec2(ex + ew - 0.4, ey + 0.4), vec2(ex + ew / 2.0, ey + eh * 0.6), 0.5, ui::skin::INK);
+        if (g.venue.tonight.is_some() && g.venue.mail_seen != mail_key(g)) || (g.venue.admin && !g.venue.requests.is_empty()) {
+            ui_circle(x + w - 1.0, y + 1.0, 4.2, Color::from_rgba(255, 90, 140, 255));
+            ui_text("1", x + w - 2.8, y + 3.8, 7.5, WHITE);
+        }
+        return;
+    }
     let paper = Color::from_rgba(255, 204, 72, 255);
     let fold = Color::from_rgba(240, 160, 60, 255);
     ui_rect(x, y, w, h, BLACK);
@@ -1691,9 +1717,13 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     let soft = Color::new(1.0, 0.97, 0.88, 0.7);
     let dj = g.venue.dj_page;
     let top = (low_h() * if dj { 0.12 } else { 0.3 }).round();
-    let title = "melody quack";
-    ui_text(title, cx - ui_measure(title, 26.0) / 2.0 + 2.0, top + 2.0, 26.0, BLACK);
-    ui_text(title, cx - ui_measure(title, 26.0) / 2.0, top, 26.0, gold);
+    let title = "Melody Quack";
+    let tw = ui_measure_as(ui::Face::Display, title, 26.0);
+    ui_text_as(ui::Face::Display, title, cx - tw / 2.0 + 2.0, top + 2.0, 26.0, BLACK);
+    ui_text_as(ui::Face::Display, title, cx - tw / 2.0, top, 26.0, gold);
+    let bob = (get_time() as f32 * 3.0).sin().round();
+    ui_text_as(ui::Face::Icon, "c", cx - tw / 2.0 - 22.0, top - 4.0 + bob, 16.0, Color::from_rgba(255, 128, 190, 255));
+    ui_text_as(ui::Face::Icon, "e", cx + tw / 2.0 + 8.0, top - 4.0 - bob, 16.0, Color::from_rgba(120, 200, 240, 255));
     let ask = if g.venue.name.is_empty() { "what's your name?" } else { "starting again. still you?" };
     ui_text(ask, cx - ui_measure(ask, 12.0) / 2.0, top + 34.0, 12.0, cream());
     let (w, h) = (170.0, 24.0);
@@ -2029,13 +2059,14 @@ fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f
 }
 
 fn place_label(text: &str, sub: &str) {
-    let w = ui_measure(text, 12.0) + 12.0;
-    ui_rect(6.0, 6.0, w, 16.0, Color::new(0.14, 0.1, 0.28, 0.85));
-    ui_text(text, 12.0, 17.0, 12.0, Color::from_rgba(255, 214, 110, 255));
+    let w = ui_measure_as(ui::Face::Display, text, 8.5) + 12.0;
+    ui_round_frame(4.0, 4.0, w, 16.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+    ui_text_bold(ui::Face::Display, text, 10.0, 15.0, 8.5, ui::skin::GOLD);
     if !sub.is_empty() {
-        let sw = ui_measure(sub, 9.0);
-        ui_rect((low_w() - sw) / 2.0 - 4.0, low_h() - 16.0, sw + 8.0, 12.0, Color::new(0.1, 0.08, 0.2, 0.6));
-        ui_text(sub, (low_w() - sw) / 2.0, low_h() - 7.0, 9.0, Color::from_rgba(255, 236, 200, 255));
+        let size = if ui_measure(sub, 9.0) > low_w() - 24.0 { 7.0 } else { 9.0 };
+        let sw = ui_measure(sub, size);
+        ui_round_frame((low_w() - sw) / 2.0 - 8.0, low_h() - 19.0, sw + 16.0, 15.0, 6.0, ui::skin::PANEL, Color::new(0.55, 0.45, 0.82, 0.9));
+        ui_text(sub, (low_w() - sw) / 2.0, low_h() - 8.0, size, ui::skin::CREAM);
     }
 }
 
@@ -2206,6 +2237,12 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
 }
 
 fn desktop(g: &mut Game, fr: &mut Frame) {
+    RETRO.with(|r| r.set(true));
+    desktop_inner(g, fr);
+    RETRO.with(|r| r.set(false));
+}
+
+fn desktop_inner(g: &mut Game, fr: &mut Frame) {
     let grey = Color::from_rgba(198, 195, 189, 255);
     let navy = Color::from_rgba(27, 42, 138, 255);
     let teal = Color::from_rgba(15, 143, 138, 255);
@@ -2573,6 +2610,12 @@ fn held_repeat(k: KeyCode) -> bool {
 }
 
 fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
+    pixel_text(true);
+    terminal_inner(g, fr, x, y, w, h, typed);
+    pixel_text(false);
+}
+
+fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
     let green = Color::from_rgba(198, 255, 61, 255);
     ui_rect(x, y, w, h, Color::from_rgba(8, 8, 14, 255));
     let max = if g.venue.hard() { 200 } else { 80 };
@@ -3565,9 +3608,9 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let x = (low_w() - w) / 2.0;
     let slim = look != 0;
     let hud_y = if slim { -17.0 } else { 0.0 };
-    ui_rect(x, 5.0, w, 34.0 + hud_y, Color::new(0.2, 0.16, 0.4, 0.88));
+    ui_round_frame(x, 4.0, w, 35.0 + hud_y, 7.0, ui::skin::PANEL, ui::skin::EDGE);
     if !slim {
-        ui_text(&r.title, (low_w() - ui_measure(&r.title, 14.0)) / 2.0, 19.0, 14.0, cream());
+        ui_text_bold(ui::Face::Display, &r.title, (low_w() - ui_measure_as(ui::Face::Display, &r.title, 13.0)) / 2.0, 20.0, 13.0, ui::skin::GOLD);
     }
     let shown = ui_ticker(&line, 9.0, w - 36.0, time);
     ui_text(&shown, x + 8.0, 33.0 + hud_y, 9.0, if live { Color::from_rgba(255, 110, 200, 255) } else { Color::from_rgba(198, 255, 61, 255) });
@@ -3578,8 +3621,8 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let code = format!("code {}", rot13(&r.code));
     let cw = ui_measure(&code, 9.0) + 10.0;
     let (code_x, code_y) = if slim { (6.0, low_h() - 18.0) } else { ((low_w() - cw) / 2.0, 42.0) };
-    ui_rect(code_x, code_y, cw, 12.0, Color::new(0.14, 0.1, 0.28, 0.85));
-    ui_text(&code, code_x + 5.0, code_y + 9.0, 9.0, cream());
+    ui_round_frame(code_x - 2.0, code_y - 1.0, cw + 4.0, 14.0, 5.0, ui::skin::PANEL, ui::skin::EDGE);
+    ui_text(&code, code_x + 5.0, code_y + 9.5, 9.0, cream());
     tour_banner(g, fr, if look != 0 { 26.0 } else { 58.0 });
     place_label(if lounge { "dj lounge" } else { "st. bassilica" }, if g.venue.chat_open {
         "enter: send   esc: close"
@@ -3723,10 +3766,10 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         1 => "connecting...".to_string(),
         _ => "offline".to_string(),
     };
-    let sw = ui_measure(&status, 9.0) + 18.0;
-    ui_rect(low_w() - sw - 6.0, 6.0, sw, 14.0, Color::new(0.14, 0.1, 0.28, 0.85));
-    ui_rect(low_w() - sw, 11.0, 4.0, 4.0, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
-    ui_text(&status, low_w() - sw + 8.0, 16.5, 9.0, cream());
+    let sw = ui_measure(&status, 9.0) + 20.0;
+    ui_round_frame(low_w() - sw - 4.0, 4.0, sw, 16.0, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+    ui_circle(low_w() - sw + 4.0, 12.0, 2.6, if net::state() == 2 { Color::from_rgba(140, 222, 168, 255) } else { Color::from_rgba(150, 146, 162, 255) });
+    ui_text(&status, low_w() - sw + 10.0, 15.5, 9.0, cream());
     mail_icon(g, fr);
 }
 
