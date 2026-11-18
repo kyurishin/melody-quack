@@ -57,7 +57,7 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
                 }
                 if g.cook_progress >= COOK_GOAL {
                     g.cook_progress = 0;
-                    let (dish, new, earned) = cook_dish(g);
+                    let (dish, new, earned) = cook_dish(g, Some(g.venue.kitchen.pot));
                     g.toasts.push((
                         if new { format!("new dish: {}! +{} acorns", DISHES[dish], earned) } else { format!("cooked {} again - yum, +{} acorns", DISHES[dish], earned) },
                         3.5,
@@ -414,41 +414,17 @@ pub(crate) fn session_and_playback(g: &mut Game, fr: &mut Frame) {
     }
 }
 
-pub(crate) fn cook_dish(g: &mut Game) -> (usize, bool, u32) {
-    let fish_n = g.inv.fish[0] + g.inv.fish[1] + g.inv.fish[2];
-    let mush_n = g.inv.mush[0] + g.inv.mush[1] + g.inv.mush[2];
-    let take = |stock: &mut [u32; 3], n: u32| {
-        for _ in 0..n {
-            if let Some(k) = (0..3).find(|k| stock[*k] > 0) {
-                stock[k] -= 1;
-            }
-        }
-    };
-    let dish = if g.inv.mush[2] > 0 {
-        g.inv.mush[2] -= 1;
-        7
-    } else if g.inv.fish[2] > 0 {
-        g.inv.fish[2] -= 1;
-        3
-    } else if fish_n >= 1 && mush_n >= 1 {
-        take(&mut g.inv.fish, 1);
-        take(&mut g.inv.mush, 1);
-        6
-    } else if mush_n >= 2 {
-        take(&mut g.inv.mush, 2);
-        5
-    } else if fish_n >= 2 {
-        take(&mut g.inv.fish, 2);
-        2
-    } else if mush_n == 1 {
-        take(&mut g.inv.mush, 1);
-        4
-    } else if fish_n == 1 {
-        take(&mut g.inv.fish, 1);
-        1
-    } else {
-        0
-    };
+pub(crate) fn cook_dish(g: &mut Game, chosen: Option<[u32; 6]>) -> (usize, bool, u32) {
+    let mut pot = chosen.unwrap_or_else(|| auto_pot(g.inv.fish, g.inv.mush));
+    for k in 0..3 {
+        pot[k] = pot[k].min(g.inv.fish[k]);
+        pot[3 + k] = pot[3 + k].min(g.inv.mush[k]);
+    }
+    for k in 0..3 {
+        g.inv.fish[k] -= pot[k];
+        g.inv.mush[k] -= pot[3 + k];
+    }
+    let dish = dish_for(pot);
     let new = !g.dishes.contains(&dish);
     if new {
         g.dishes.push(dish);

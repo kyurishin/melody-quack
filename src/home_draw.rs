@@ -176,7 +176,10 @@ pub(crate) fn draw_piece(b: &mut Batch, piece: &home::Piece, time: f32, alpha: f
                 bx(b, vec3(0.52, 0.535, 0.0), vec3(0.14, 0.08, 0.14), k(Color::from_rgba(250, 250, 250, 255)));
                 bx(b, vec3(0.0, 0.51, 0.0), vec3(0.28, 0.03, 0.18), k(Color::from_rgba(240, 160, 170, 255)));
             } else {
-                let food = [Color::from_rgba(170, 110, 60, 255), Color::from_rgba(240, 150, 80, 255), Color::from_rgba(200, 90, 70, 255), Color::from_rgba(250, 200, 70, 255), Color::from_rgba(150, 100, 70, 255), Color::from_rgba(180, 130, 90, 255), Color::from_rgba(210, 140, 100, 255), Color::from_rgba(240, 210, 120, 255)][(piece.state as usize - 1) % 8];
+                let food = {
+                    let (r, gg, bb) = DISH_COLOURS[(piece.state as usize - 1) % DISH_COLOURS.len()];
+                    Color::from_rgba(r, gg, bb, 255)
+                };
                 bx(b, vec3(0.0, 0.505, 0.0), vec3(0.48, 0.02, 0.34), k(Color::from_rgba(245, 245, 240, 255)));
                 bx(b, vec3(0.0, 0.54, 0.0), vec3(0.28, 0.06, 0.2), k(food));
                 let steam = (time * 1.5).fract();

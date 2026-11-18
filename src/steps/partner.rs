@@ -379,7 +379,7 @@ pub(crate) fn job_step(g: &mut Game, dt: f32) -> Option<Vec2> {
                 }
             }
             if g.venue.partner.job_t > 6.0 {
-                let (dish, new, earned) = steps::notes::cook_dish(g);
+                let (dish, new, earned) = steps::notes::cook_dish(g, None);
                 g.toasts.push((if new { format!("the {noun} cooked a new dish: {}! +{} acorns", DISHES[dish], earned) } else { format!("the {noun} cooked {} - yum, +{} acorns", DISHES[dish], earned) }, 3.5));
                 let c = g.players[1].character;
                 g.audio.play_ch(1, &g.voices[c][0], 0.6);

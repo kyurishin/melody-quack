@@ -89,7 +89,14 @@ pub(crate) fn outdoors(g: &mut Game, fr: &mut Frame) {
                     fr.fish_press[who] = true;
                 }
             } else if player.seated {
-                if g.camp.lit && near_fire(player) {
+                if g.camp.lit && near_fire(player) && !g.cooking {
+                    let pot = auto_pot(g.inv.fish, g.inv.mush);
+                    g.venue.kitchen.pot = pot;
+                    g.venue.kitchen.cook = who;
+                    g.venue.kitchen.row = 0;
+                    g.venue.overlay = crate::venues::Overlay::Pot;
+                    g.venue.opened_at = get_time();
+                } else if g.camp.lit && near_fire(player) {
                     g.cooking = !g.cooking;
                     g.cook_progress = 0;
                     g.music_mode = true;

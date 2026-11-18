@@ -1996,6 +1996,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Knock => knock_panel(g, fr, fresh),
         Overlay::Update => update_panel(g, fr, fresh),
         Overlay::NameJam => name_jam_box(g, fr, fresh),
+        Overlay::Pot => pot_panel(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -4641,6 +4642,120 @@ fn update_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         g.toasts.push(("the download page is open in your browser".to_string(), 4.0));
     }
     if yes || no {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+fn pot_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let have = [g.inv.fish[0], g.inv.fish[1], g.inv.fish[2], g.inv.mush[0], g.inv.mush[1], g.inv.mush[2]];
+    let mut pot = g.venue.kitchen.pot;
+    for k in 0..6 {
+        pot[k] = pot[k].min(have[k]);
+    }
+    let known: Vec<usize> = {
+        let mut d = g.dishes.clone();
+        d.sort();
+        d
+    };
+    let w = 330f32.min(low_w() - 12.0);
+    let row_h = 14.0;
+    let list_h = 6.0 * row_h;
+    let h = 58.0 + list_h + 30.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round().max(4.0);
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::GOLD);
+    ui_text_as(ui::Face::Display, "the pot", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    let used: u32 = pot.iter().sum();
+    let left_w = (w * 0.55).round();
+    ui_text_fit(&format!("pick up to {} things - {}/{} in", POT_MAX, used, POT_MAX), x + 12.0 + ui_measure_as(ui::Face::Display, "the pot", 11.0), y + 15.0, 8.0, left_w - 70.0, ui::skin::MUTED);
+    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false) && !fresh;
+    let mut click_row: Option<(usize, i32)> = None;
+    for (k, label) in POT_SLOTS.iter().enumerate() {
+        let ry = y + 26.0 + k as f32 * row_h;
+        let on = g.venue.kitchen.row == k;
+        if on {
+            ui_round(x + 6.0, ry - 1.0, left_w - 8.0, row_h - 1.0, 3.0, Color::new(1.0, 1.0, 1.0, 0.12));
+        }
+        let col = if have[k] == 0 { Color::new(1.0, 1.0, 1.0, 0.3) } else { ui::skin::CREAM };
+        ui_text_fit(label, x + 12.0, ry + 9.0, 8.0, left_w - 86.0, col);
+        ui_text(&format!("x{}", have[k]), x + left_w - 72.0, ry + 9.0, 8.0, ui::skin::MUTED);
+        let minus = button(fr, "-", x + left_w - 50.0, ry, 12.0, row_h - 2.0, false) && !fresh;
+        ui_text(&format!("{}", pot[k]), x + left_w - 33.0, ry + 9.0, 8.0, if pot[k] > 0 { ui::skin::GOLD } else { ui::skin::MUTED });
+        let plus = button(fr, "+", x + left_w - 24.0, ry, 12.0, row_h - 2.0, false) && !fresh;
+        if minus {
+            click_row = Some((k, -1));
+        }
+        if plus {
+            click_row = Some((k, 1));
+        }
+    }
+    let dish = dish_for(pot);
+    let found = known.contains(&dish);
+    let ly = y + 26.0 + list_h + 10.0;
+    let makes = if found { format!("makes: {}", DISHES[dish]) } else { "makes: a dish you have not found yet!".to_string() };
+    ui_text_fit(&makes, x + 12.0, ly, 8.0, left_w - 16.0, if found { ui::skin::CREAM } else { ui::skin::GOLD });
+    let rx = x + left_w + 6.0;
+    let rw = w - left_w - 14.0;
+    ui_round(rx, y + 24.0, rw, list_h + 14.0, 4.0, Color::new(1.0, 1.0, 1.0, 0.05));
+    ui_text_fit(&format!("recipes {}/{}", known.len(), DISHES.len()), rx + 5.0, y + 33.0, 8.0, rw - 10.0, ui::skin::GOLD);
+    let per = ((list_h - 2.0) / 18.0).floor().max(1.0) as usize;
+    let start = known.len().saturating_sub(per);
+    for (n, d) in known.iter().skip(start).enumerate() {
+        let yy = y + 43.0 + n as f32 * 18.0;
+        ui_text_fit(DISHES[*d], rx + 5.0, yy, 8.0, rw - 10.0, ui::skin::CREAM);
+        ui_text_fit(RECIPES[*d], rx + 5.0, yy + 8.0, 7.0, rw - 10.0, ui::skin::MUTED);
+    }
+    if known.is_empty() {
+        ui_text_fit("cook something to start your recipe book", rx + 5.0, y + 45.0, 7.0, rw - 10.0, ui::skin::MUTED);
+    }
+    let bw = (w - 26.0) / 2.0;
+    let by = y + h - 24.0;
+    let go = button(fr, "cook (enter)", x + 10.0, by, bw, 18.0, true) && !fresh;
+    let cancel = button(fr, "not now (esc)", x + 16.0 + bw, by, bw, 18.0, false) && !fresh;
+    ui_text_fit("w/s pick  a/d less/more", x + 12.0, ly + 10.0, 7.0, left_w - 16.0, ui::skin::MUTED);
+    if fresh {
+        return;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.2;
+    let k = &mut g.venue.kitchen;
+    if is_key_pressed(KeyCode::W) || is_key_pressed(KeyCode::Up) {
+        k.row = (k.row + 5) % 6;
+    }
+    if is_key_pressed(KeyCode::S) || is_key_pressed(KeyCode::Down) {
+        k.row = (k.row + 1) % 6;
+    }
+    let mut change = click_row;
+    if is_key_pressed(KeyCode::A) || is_key_pressed(KeyCode::Left) {
+        change = Some((k.row, -1));
+    }
+    if is_key_pressed(KeyCode::D) || is_key_pressed(KeyCode::Right) {
+        change = Some((k.row, 1));
+    }
+    if let Some((r, d)) = change {
+        k.row = r;
+        if d < 0 && pot[r] > 0 {
+            pot[r] -= 1;
+        } else if d > 0 && pot[r] < have[r] && used < POT_MAX {
+            pot[r] += 1;
+        }
+    }
+    k.pot = pot;
+    let go = go || (settled && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) || is_key_pressed(KeyCode::E)));
+    if go {
+        g.cooking = true;
+        g.cook_progress = 0;
+        g.music_mode = true;
+        if !g.cook_lesson {
+            g.cook_card = 7.0;
+            g.cook_lesson = true;
+            g.save_clock = 99.0;
+        }
+        g.toasts.push(("the pot goes on the fire".to_string(), 2.0));
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    } else if close || cancel || (settled && is_key_pressed(KeyCode::Escape)) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }

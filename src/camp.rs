@@ -63,7 +63,136 @@ pub(crate) fn draw_camp(b: &mut Batch, camp: &Camp, time: f32) {
     }
 }
 
-pub(crate) const DISHES: [&str; 8] = ["campfire tea", "grilled fish", "fish stew", "golden koi soup", "grilled mushrooms", "mushroom stew", "fish & mushroom hotpot", "golden truffle soup"];
+pub(crate) const DISHES: [&str; 21] = [
+    "campfire tea",
+    "grilled fish",
+    "fish stew",
+    "golden koi soup",
+    "grilled mushrooms",
+    "mushroom stew",
+    "fish & mushroom hotpot",
+    "golden truffle soup",
+    "smoked trout",
+    "golden fish chowder",
+    "fisherman's feast",
+    "river king's banquet",
+    "buttered mushrooms",
+    "truffle toast",
+    "forest risotto",
+    "truffle risotto",
+    "golden hotpot",
+    "lakeside pie",
+    "golden lakeside pie",
+    "woodland broth",
+    "moonlit broth",
+];
+
+pub(crate) const RECIPES: [&str; 21] = [
+    "an empty pot",
+    "1 common fish",
+    "2 fish, none rare",
+    "1 rare fish",
+    "1 common mushroom",
+    "2 mushrooms, none rare",
+    "1 fish + 1 mushroom",
+    "2 mushrooms, one rare",
+    "1 uncommon fish",
+    "2 fish, one rare",
+    "3 fish",
+    "3 fish, one rare",
+    "1 uncommon mushroom",
+    "1 rare mushroom",
+    "3 mushrooms",
+    "3 mushrooms, one rare",
+    "1 fish + 1 mushroom, one rare",
+    "2 fish + 1 mushroom",
+    "2 fish + 1 mushroom, one rare",
+    "1 fish + 2 mushrooms",
+    "1 fish + 2 mushrooms, one rare",
+];
+
+pub(crate) const DISH_COLOURS: [(u8, u8, u8); 21] = [
+    (170, 110, 60),
+    (240, 150, 80),
+    (200, 90, 70),
+    (250, 200, 70),
+    (150, 100, 70),
+    (180, 130, 90),
+    (210, 140, 100),
+    (240, 210, 120),
+    (196, 120, 84),
+    (246, 214, 150),
+    (226, 132, 96),
+    (255, 206, 96),
+    (214, 176, 112),
+    (232, 190, 120),
+    (236, 222, 180),
+    (226, 206, 150),
+    (250, 186, 90),
+    (214, 150, 88),
+    (244, 196, 104),
+    (150, 140, 96),
+    (170, 170, 210),
+];
+
+pub(crate) const POT_SLOTS: [&str; 6] = ["common fish", "uncommon fish", "rare fish", "common mushroom", "uncommon mushroom", "rare mushroom"];
+
+pub(crate) const POT_MAX: u32 = 3;
+
+pub(crate) fn dish_for(pot: [u32; 6]) -> usize {
+    let f = pot[0] + pot[1] + pot[2];
+    let m = pot[3] + pot[4] + pot[5];
+    let rare_fish = pot[2] > 0;
+    let rare = rare_fish || pot[5] > 0;
+    match (f, m) {
+        (1, 0) if rare_fish => 3,
+        (1, 0) if pot[1] > 0 => 8,
+        (1, 0) => 1,
+        (2, 0) => if rare_fish { 9 } else { 2 },
+        (3, 0) => if rare_fish { 11 } else { 10 },
+        (0, 1) if pot[5] > 0 => 13,
+        (0, 1) if pot[4] > 0 => 12,
+        (0, 1) => 4,
+        (0, 2) => if rare { 7 } else { 5 },
+        (0, 3) => if rare { 15 } else { 14 },
+        (1, 1) => if rare { 16 } else { 6 },
+        (2, 1) => if rare { 18 } else { 17 },
+        (1, 2) => if rare { 20 } else { 19 },
+        _ => 0,
+    }
+}
+
+pub(crate) fn auto_pot(fish: [u32; 3], mush: [u32; 3]) -> [u32; 6] {
+    let mut pot = [0u32; 6];
+    let low = |stock: [u32; 3]| (0..3).find(|k| stock[*k] > 0);
+    let fish_n: u32 = fish.iter().sum();
+    let mush_n: u32 = mush.iter().sum();
+    if mush[2] > 0 {
+        pot[5] = 1;
+        if mush_n > 1 {
+            pot[3 + low([mush[0], mush[1], 0]).unwrap_or(2)] += 1;
+        }
+    } else if fish[2] > 0 {
+        pot[2] = 1;
+    } else if fish_n >= 1 && mush_n >= 1 {
+        pot[low(fish).unwrap_or(0)] += 1;
+        pot[3 + low(mush).unwrap_or(0)] += 1;
+    } else if mush_n >= 2 || fish_n >= 2 {
+        let (stock, off) = if mush_n >= 2 { (mush, 3) } else { (fish, 0) };
+        let mut left = stock;
+        for _ in 0..2 {
+            if let Some(k) = low(left) {
+                left[k] -= 1;
+                pot[off + k] += 1;
+            }
+        }
+    } else if mush_n == 1 {
+        pot[3 + low(mush).unwrap_or(0)] = 1;
+    } else if fish_n == 1 {
+        pot[low(fish).unwrap_or(0)] = 1;
+    }
+    pot
+}
 
 pub(crate) const COOK_GOAL: u32 = 24;
 
