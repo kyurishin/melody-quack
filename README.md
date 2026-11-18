@@ -37,6 +37,8 @@ Like it? [Buy me a cuppa](https://paypal.me/kyurishin).
 
 The packages come from the Packages workflow ([Building](#building)); the Linux ones are for 64-bit Intel/AMD and need ALSA, X11 and OpenGL, which desktop systems have.
 
+**Updates:** the Mac and Linux apps check [the latest release](https://github.com/kyurishin/melody-quack/releases/latest) when they start. When a newer version is out they say so, and **download** opens the release page: install the new one over the old one, and your save stays. The browser version is always the newest. The pause menu shows which version you have.
+
 Every version connects to the rave server by itself. Without a connection everything still works offline: you just rave on your own.
 
 On a phone, the web version shows a stick on the left, six note buttons and a big E on the right, plus **mode**, **emoji**, **back** (the same as Esc) and **more** for the rest. Turn the phone sideways for the best view.
@@ -327,7 +329,7 @@ Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the
 
 - **Desktop:** `cargo run --release`. On Linux you need the ALSA, X11 and OpenGL development packages (`libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev` on Debian/Ubuntu) and a C compiler (for the MP3 encoder).
 - **Web:** `cargo build --release --target wasm32-unknown-unknown`, then copy the `.wasm` into `web/` next to `index.html`. Pushing to `main` builds and deploys GitHub Pages (`.github/workflows/pages.yml`).
-- **Packages:** `.github/workflows/packages.yml` builds the macOS .dmg (`packaging/macos/make-dmg.sh`), the Linux tarball and AppImage (`packaging/linux/make-linux.sh`) and the Arch package (`packaging/arch/PKGBUILD`) on every push. Starting it by hand puts them in a draft release; pushing a `v*` tag publishes a release.
+- **Packages:** `.github/workflows/packages.yml` builds the macOS .dmg (`packaging/macos/make-dmg.sh`), the Linux tarball and AppImage (`packaging/linux/make-linux.sh`) and the Arch package (`packaging/arch/PKGBUILD`) on every push. Starting it by hand puts them in a draft release; pushing a `v*` tag (after raising `version` in `Cargo.toml`) publishes a public release, which the apps' update check looks for.
 - **Server:** `cd server && cargo test` and `cargo build --release`; `server/Dockerfile` builds an image.
 - **Tests:** `cargo test` (game), `cd server && cargo test` (server), `python3 -m unittest discover -s tests -v` (source checks).
 

@@ -1928,6 +1928,12 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
             fresh = true;
         }
     }
+    if g.venue.overlay == Overlay::None && !g.venue.update_asked && get_time() > 6.0 && update::found().is_some() && g.venue.at == Venue::None && !g.paused && !g.picking && !g.first_pick {
+        g.venue.update_asked = true;
+        g.venue.overlay = Overlay::Update;
+        g.venue.opened_at = get_time();
+        fresh = true;
+    }
     if g.venue.overlay == Overlay::None && !g.venue.visits.knocks.is_empty() && !g.paused && !g.picking && !g.venue.chat_open && !g.venue.pc_open {
         g.venue.overlay = Overlay::Knock;
         g.venue.opened_at = get_time();
@@ -1975,6 +1981,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Talk => talk_box(g, fr, fresh),
         Overlay::Homes => homes_panel(g, fr, fresh),
         Overlay::Knock => knock_panel(g, fr, fresh),
+        Overlay::Update => update_panel(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -4588,6 +4595,39 @@ fn knock_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if yes || no {
         steps::visits::answer(g, id, yes);
         g.toasts.push((if yes { format!("you let {name} in") } else { format!("you told {name} not now") }, 3.0));
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+fn update_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let Some((version, url)) = update::found() else {
+        g.venue.overlay = Overlay::None;
+        return;
+    };
+    let w = 250f32.min(low_w() - 12.0);
+    let h = 82.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::GOLD);
+    ui_text_as(ui::Face::Display, "a new version!", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    ui_text_fit(&format!("melody quack {version} is out (you have {}).", update::VERSION), x + 10.0, y + 31.0, 8.0, w - 20.0, ui::skin::CREAM);
+    ui_text_fit("download it, then install it over this one. your save stays.", x + 10.0, y + 43.0, 8.0, w - 20.0, ui::skin::MUTED);
+    let bw = (w - 26.0) / 2.0;
+    let yes = button(fr, "download (Y)", x + 10.0, y + h - 26.0, bw, 18.0, true) && !fresh;
+    let no = button(fr, "later (N)", x + 16.0 + bw, y + h - 26.0, bw, 18.0, false) && !fresh;
+    if fresh {
+        return;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.3;
+    let yes = yes || (settled && is_key_pressed(KeyCode::Y));
+    let no = no || (settled && (is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape)));
+    if yes {
+        net::open_url(&url);
+        g.toasts.push(("the download page is open in your browser".to_string(), 4.0));
+    }
+    if yes || no {
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }

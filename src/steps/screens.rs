@@ -496,4 +496,6 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         }
         let hint = if radio::touch_ui() { "tap outside to play" } else { "click outside or esc to play" };
         ui_text(hint, x + (w - ui_measure(hint, 10.0)) / 2.0, y + h - 8.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));
+        let ver = format!("v{}", update::VERSION);
+        ui_text(&ver, x + w - 8.0 - ui_measure(&ver, 7.0), y + 12.0, 7.0, Color::new(1.0, 1.0, 1.0, 0.35));
 }

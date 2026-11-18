@@ -74,7 +74,7 @@ jobs:
           cd /build
           sudo -u builder MQ_DEFAULT_SERVER="$MQ_DEFAULT_SERVER" makepkg --noconfirm
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp /build/*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
+          for f in /build/*.pkg.tar.zst; do case "$f" in *-debug-*) ;; *) cp "$f" "$GITHUB_WORKSPACE/dist/" ;; esac; done
       - uses: actions/upload-artifact@v4
         with:
           name: melody-quack-arch
@@ -91,6 +91,17 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          name: Melody Quack ${{ github.ref_name }}
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            **Download for your computer:**
+            - **macOS** (Apple Silicon and Intel): `Melody-Quack-*.dmg`. Drag the duck into Applications. The first time, right-click the app and choose Open.
+            - **Linux, any distro:** `Melody-Quack-*-x86_64.AppImage` (`chmod +x` it and run it), or `melody-quack-*-linux-x86_64.tar.gz` and run `./install.sh`.
+            - **Arch Linux:** `sudo pacman -U melody-quack-*-x86_64.pkg.tar.zst`
+            - **Or play in your browser:** https://kyurishin.github.io/melody-quack/
+
+            Updating: install the new version over the old one. Your save stays. The game tells you when a newer version is out.
           files: dist/*
 
   preview:

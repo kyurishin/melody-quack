@@ -25,6 +25,7 @@ mod net;
 #[path = "web/net.rs"]
 mod net;
 
+mod update;
 mod util;
 mod ui;
 mod sound;
@@ -146,6 +147,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     ui::load_ui_font();
+    update::check();
     let audio = audio::Audio::new();
     let cast_list = roster();
     let voices: Vec<Vec<audio::Sound>> = cast_list.iter().map(|c| NOTES.iter().map(|n| audio.load_ringing(render_voice(c.voice, *n))).collect()).collect();
