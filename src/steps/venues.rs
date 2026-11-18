@@ -3848,7 +3848,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         1 => "connecting...",
         _ => "offline",
     };
-    let count = if net::state() == 2 && g.venue.joined { Some(format!("{} of 100 here", here(g))) } else { None };
+    let count = if net::state() == 2 && g.venue.joined { Some(format!("{} of 100", here(g))) } else { None };
     let sw = ui_measure(status, 9.0).max(count.as_deref().map(|c| ui_measure(c, 6.0)).unwrap_or(0.0)) + 20.0;
     let sh = if count.is_some() { 23.0 } else { 16.0 };
     ui_round_frame(low_w() - sw - 4.0, 4.0, sw, sh, 6.0, ui::skin::PANEL, ui::skin::EDGE);
