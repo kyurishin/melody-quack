@@ -93,9 +93,6 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
                 ui_rect(x + 34.0, gy + row as f32 * cell + 2.0, 14.0, cell - 4.0, Color::from_rgba(255, 120, 150, 255));
                 ui_text("mic", x + 35.0, gy + row as f32 * cell + cell * 0.68, 6.0, WHITE);
             }
-            if matches!(g.sampler.recording, Some((r, _)) if r == row) && (fr.time * 4.0).fract() < 0.6 {
-                ui_rect(x + 34.0, gy + row as f32 * cell + 2.0, 14.0, cell - 4.0, Color::from_rgba(255, 60, 70, 255));
-            }
             for k in 0..16 {
                 let cx = gx + k as f32 * cell;
                 let cy = gy + row as f32 * cell;
@@ -115,20 +112,14 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
                 }
             }
         }
-        let hint = if g.sampler.recording.is_some() {
-            "recording - make a sound into your mic"
-        } else if g.sampler.owner == 0 {
-            "WASD move  E step on/off  Space record  esc: close"
+        let hint = if g.sampler.owner != 0 {
+            "IJKL move  O step on/off  U close"
+        } else if get_time() - g.sampler.clear_armed < 2.5 {
+            "Space again: clear all pads"
         } else {
-            "IJKL move  O step on/off  Space record your sound  U close"
+            "WASD move  E step on/off  Space clear all  esc: close"
         };
         ui_text(hint, x + (w - ui_measure(hint, 9.0)) / 2.0, y + h - 18.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.8));
-        let note = "record only your own voice or sounds - recordings stay on this device and are left out of tapes";
-        let mut shown = note.to_string();
-        while ui_measure(&shown, 7.0) > w - 12.0 && shown.len() > 10 {
-            shown.pop();
-        }
-        ui_text(&shown, x + (w - ui_measure(&shown, 7.0)) / 2.0, y + h - 6.0, 7.0, Color::new(1.0, 1.0, 1.0, 0.5));
     }
     if g.ddr.on[0] || g.ddr.on[1] {
         let active: Vec<usize> = (0..2).filter(|w| g.ddr.on[*w]).collect();

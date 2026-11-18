@@ -20,7 +20,7 @@ pub(crate) fn draw_shop(g: &mut Game, _fr: &mut Frame) {
         ui_text("mushrooms", fish_x + ui_measure("fishdex", 11.0) + 5.0, y + 16.0, 11.0, tab_col(false));
         ui_rect(if g.shop_tab == 0 { x + 8.0 } else { diary_x }, y + 19.0, ui_measure(if g.shop_tab == 0 { "catalogue" } else { "diary" }, 14.0), 1.0, Color::from_rgba(255, 226, 150, 255));
         let wallet = format!("{}", g.inv.acorns);
-        ui_rect(x + w - 14.0 - ui_measure(&wallet, 11.0), y + 8.0, 6.0, 6.0, ACORN_COLOR);
+        ui_acorn(x + w - 12.0 - ui_measure(&wallet, 11.0), y + 10.5, 1.0);
         ui_text(&wallet, x + w - 6.0 - ui_measure(&wallet, 11.0), y + 15.0, 11.0, WHITE);
         if g.shop_tab == 0 {
             let row = home::row(g.shop_row);

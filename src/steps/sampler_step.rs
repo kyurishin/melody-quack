@@ -3,7 +3,7 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
-pub(crate) fn sampler(g: &mut Game, fr: &mut Frame) {
+pub(crate) fn sampler(g: &mut Game, _fr: &mut Frame) {
     if g.sampler.open && !g.inside {
         g.sampler.open = false;
     }
@@ -42,49 +42,15 @@ pub(crate) fn sampler(g: &mut Game, fr: &mut Frame) {
         if close {
             g.sampler.open = false;
         }
-        if is_key_pressed(KeyCode::Space) && g.sampler.recording.is_none() {
-            if g.sampler.pads[cy].is_some() {
-                g.sampler.pads[cy] = None;
-                g.toasts.push((format!("the {} row is back to the built-in sound", SAMPLER_ROWS[cy]), 2.0));
+        if o == 0 && is_key_pressed(KeyCode::Space) {
+            if get_time() - g.sampler.clear_armed < 2.5 {
+                g.sampler.grid = [[false; 16]; 4];
+                g.sampler.pads = [None, None, None, None];
+                g.sampler.clear_armed = 0.0;
+                g.save_clock = 99.0;
+                g.toasts.push(("the sampler is cleared".to_string(), 2.0));
             } else {
-                if g.microphone.is_none() {
-                    g.microphone = mic::start();
-                }
-                if let Some(m) = &g.microphone {
-                    if let Ok(mut det) = m.detector.lock() {
-                        det.capture_len = (det.rate * 1.5) as usize;
-                        det.capture = Some(Vec::new());
-                    }
-                    g.sampler.recording = Some((cy, 0.0));
-                } else {
-                    g.toasts.push(("no microphone - the built-in sounds still work".to_string(), 2.5));
-                }
-            }
-        }
-    }
-    if let Some((row, waited)) = g.sampler.recording {
-        let waited = waited + fr.dt;
-        let mut finished: Option<Option<Vec<f32>>> = None;
-        if let Some(m) = &g.microphone {
-            if let Ok(mut det) = m.detector.lock() {
-                let full = det.capture.as_ref().map(|c| c.len() >= det.capture_len).unwrap_or(true);
-                if full || waited > 6.0 {
-                    let raw = det.capture.take().unwrap_or_default();
-                    finished = Some(tidy_recording(&raw, det.rate));
-                }
-            }
-        } else {
-            finished = Some(None);
-        }
-        g.sampler.recording = Some((row, waited));
-        if let Some(result) = finished {
-            g.sampler.recording = None;
-            match result {
-                Some(samples) => {
-                    g.sampler.pads[row] = Some(g.audio.load(samples));
-                    g.toasts.push((format!("the {} row now plays your own sound", SAMPLER_ROWS[row]), 2.5));
-                }
-                None => g.toasts.push(("didn't hear anything - try again a bit louder".to_string(), 2.5)),
+                g.sampler.clear_armed = get_time();
             }
         }
     }

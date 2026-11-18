@@ -37,7 +37,7 @@ pub(crate) fn listening(g: &mut Game, fr: &mut Frame) {
         }
     }
 
-    if g.listening || g.sampler.recording.is_some() {
+    if g.listening {
         if let Some(m) = g.microphone.as_mut() {
             m.pump();
             if m.blocked() {

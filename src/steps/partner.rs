@@ -405,7 +405,7 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
     let mut lines: Vec<(Color, String, f32)> = Vec::new();
     for (k, (otter, text)) in p.log.iter().rev().take(2).rev().enumerate() {
         let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
-        for (i, l) in ui_wrap(&format!("{who}: {text}"), 8.0, w - 14.0).into_iter().enumerate() {
+        for (i, l) in ui::with_face(ui::Face::Notice, || ui_wrap(&format!("{who}: {text}"), 8.0, w - 14.0)).into_iter().enumerate() {
             lines.push((col, l, if i == 0 && k > 0 { 3.0 } else { 0.0 }));
         }
     }
@@ -430,7 +430,7 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
         if i > 0 {
             ly += *lead;
         }
-        ui_text(l, x + 7.0, ly, 8.0, Color::new(c.r, c.g, c.b, fade));
+        ui_text_as(ui::Face::Notice, l, x + 7.0, ly, 8.0, Color::new(c.r, c.g, c.b, fade));
         ly += 9.5;
     }
 }

@@ -176,6 +176,8 @@ pub(crate) struct VenueState {
     pub(crate) pending: Option<String>,
     pub(crate) term_flash: (String, f64),
     pub(crate) term_sel: Option<((usize, usize), (usize, usize))>,
+    pub(crate) term_scroll: usize,
+    pub(crate) term_bar: bool,
     pub(crate) term_drag: bool,
     pub(crate) practice: bool,
     pub(crate) tour: u8,

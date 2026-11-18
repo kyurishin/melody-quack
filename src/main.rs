@@ -283,7 +283,7 @@ async fn main() {
     let ddr = Ddr { on: [false; 2], arrows: Vec::new(), score: [0; 2], combo: [0; 2], judge: [None; 2], flash: [[0.0; 4]; 2], last_mic: -99.0 };
     let ddr_request: Option<(usize, usize)> = None;
     let quests = Quests { day: i64::MIN, list: Vec::new() };
-    let mut sampler = Sampler { open: false, owner: 0, grid: [[false; 16]; 4], cursor: (0, 0), pads: [None, None, None, None], recording: None, step: 0 };
+    let mut sampler = Sampler { open: false, owner: 0, grid: [[false; 16]; 4], cursor: (0, 0), pads: [None, None, None, None], clear_armed: 0.0, step: 0 };
     let mut saved_quests: Option<(i64, Vec<(u8, u32, u32, bool)>)> = None;
     let ddr_art: Vec<Vec<(usize, usize, Color)>> = (0..4).map(ddr_arrow_pixels).collect();
     let beat_style = 3usize;

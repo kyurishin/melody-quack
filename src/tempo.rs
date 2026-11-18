@@ -23,9 +23,6 @@ pub struct OnsetDetector {
     band_wait: [u32; 4],
     pub bands: [f32; 4],
     pub hits: VecDeque<(usize, f32)>,
-    pub capture: Option<Vec<f32>>,
-    pub capture_len: usize,
-    pub rate: f32,
 }
 
 impl OnsetDetector {
@@ -54,18 +51,10 @@ impl OnsetDetector {
             band_wait: [0; 4],
             bands: [0.0; 4],
             hits: VecDeque::new(),
-            capture: None,
-            capture_len: 0,
-            rate: sample_rate,
         }
     }
 
     pub fn push(&mut self, sample: f32) {
-        if let Some(c) = self.capture.as_mut() {
-            if c.len() < self.capture_len {
-                c.push(sample);
-            }
-        }
         self.lp1 += (sample - self.lp1) * self.coef;
         self.lp2 += (self.lp1 - self.lp2) * self.coef;
         self.low_energy += self.lp2 * self.lp2;

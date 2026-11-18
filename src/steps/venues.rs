@@ -2921,7 +2921,7 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
         let mut rest: Vec<char> = l.chars().collect();
         while !rest.is_empty() {
             let mut n = rest.len();
-            while n > 1 && ui_measure(&rest[..n].iter().collect::<String>(), 9.0) > w - 8.0 {
+            while n > 1 && ui_measure(&rest[..n].iter().collect::<String>(), 9.0) > w - 14.0 {
                 n -= 1;
             }
             lines.push((rest[..n].iter().collect(), c));
@@ -2930,7 +2930,46 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
             rest.drain(..n);
         }
     }
-    let start = lines.len().saturating_sub(rows);
+    let max_scroll = lines.len().saturating_sub(rows);
+    let (bx, by, bh) = (x + w - 6.0, y + 2.0, rows as f32 * 10.0);
+    let on_bar = max_scroll > 0 && fr.ux > bx - 3.0 && fr.ux < bx + 7.0 && fr.uy > by && fr.uy < by + bh;
+    if run_now || typed.iter().any(|c| !c.is_control()) {
+        g.venue.term_scroll = 0;
+    }
+    if hit(fr, x, y, w, h) {
+        let wheel = mouse_wheel().1;
+        if wheel > 0.0 {
+            g.venue.term_scroll += 3;
+        }
+        if wheel < 0.0 {
+            g.venue.term_scroll = g.venue.term_scroll.saturating_sub(3);
+        }
+    }
+    if is_key_pressed(KeyCode::PageUp) {
+        g.venue.term_scroll += rows.saturating_sub(1).max(1);
+    }
+    if is_key_pressed(KeyCode::PageDown) {
+        g.venue.term_scroll = g.venue.term_scroll.saturating_sub(rows.saturating_sub(1).max(1));
+    }
+    let thumb = if max_scroll > 0 { (bh * rows as f32 / lines.len() as f32).max(8.0) } else { bh };
+    if on_bar && is_mouse_button_pressed(MouseButton::Left) {
+        g.venue.term_bar = true;
+    }
+    if g.venue.term_bar {
+        if is_mouse_button_down(MouseButton::Left) && max_scroll > 0 {
+            let frac = ((fr.uy - by - thumb / 2.0) / (bh - thumb).max(1.0)).clamp(0.0, 1.0);
+            g.venue.term_scroll = ((1.0 - frac) * max_scroll as f32).round() as usize;
+        } else {
+            g.venue.term_bar = false;
+        }
+    }
+    g.venue.term_scroll = g.venue.term_scroll.min(max_scroll);
+    let start = max_scroll - g.venue.term_scroll;
+    if max_scroll > 0 {
+        ui_rect(bx, by, 4.0, bh, Color::new(1.0, 1.0, 1.0, 0.1));
+        let top = by + (bh - thumb) * (1.0 - g.venue.term_scroll as f32 / max_scroll as f32);
+        ui_rect(bx, top, 4.0, thumb, if g.venue.term_bar || on_bar { Color::from_rgba(230, 255, 140, 255) } else { Color::from_rgba(198, 255, 61, 190) });
+    }
     let point = |ux: f32, uy: f32| -> (usize, usize) {
         let row = (start + ((uy - y - 2.0) / 10.0).floor().max(0.0) as usize).min(lines.len().saturating_sub(1));
         let chars: Vec<char> = lines.get(row).map(|l| l.0.chars().collect()).unwrap_or_default();
@@ -2940,7 +2979,7 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
         }
         (row, k)
     };
-    let area = hit(fr, x, y + 2.0, w, rows as f32 * 10.0);
+    let area = hit(fr, x, y + 2.0, w - 10.0, rows as f32 * 10.0) && !g.venue.term_bar;
     if is_mouse_button_pressed(MouseButton::Left) && area && !lines.is_empty() {
         let p = point(fr.ux, fr.uy);
         g.venue.term_sel = Some((p, p));
@@ -2954,7 +2993,7 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
     }
     let ordered = g.venue.term_sel.map(|(a, b)| if a <= b { (a, b) } else { (b, a) });
     if let Some(((r0, c0), (r1, c1))) = ordered {
-        for r in r0.max(start)..=r1.min(lines.len().saturating_sub(1)) {
+        for r in r0.max(start)..=r1.min(lines.len().saturating_sub(1)).min(start + rows.saturating_sub(1)) {
             let chars: Vec<char> = lines[r].0.chars().collect();
             let from = if r == r0 { c0.min(chars.len()) } else { 0 };
             let to = if r == r1 { c1.min(chars.len()) } else { chars.len() };
@@ -2965,7 +3004,7 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
             }
         }
     }
-    for (i, (l, c)) in lines[start..].iter().enumerate() {
+    for (i, (l, c)) in lines[start..(start + rows).min(lines.len())].iter().enumerate() {
         ui_text(l, x + 4.0, y + 10.0 + i as f32 * 10.0, 9.0, *c);
     }
     let selected = |sel: ((usize, usize), (usize, usize))| -> String {
@@ -4340,7 +4379,7 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let mut lines: Vec<(Color, String, f32)> = Vec::new();
     for (k, (otter, text)) in g.venue.partner.log.iter().enumerate() {
         let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
-        for (i, l) in ui_wrap(&format!("{who}: {text}"), 8.0, w - 32.0).into_iter().enumerate() {
+        for (i, l) in ui::with_face(ui::Face::Notice, || ui_wrap(&format!("{who}: {text}"), 8.0, w - 32.0)).into_iter().enumerate() {
             let lead = if i == 0 && k > 0 { GAP } else { 0.0 };
             lines.push((col, l, lead));
         }
@@ -4411,7 +4450,7 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
         if i > 0 {
             ly += *lead;
         }
-        ui_text(l, x + 10.0, ly, 8.0, *c);
+        ui_text_as(ui::Face::Notice, l, x + 10.0, ly, 8.0, *c);
         ly += ROW;
     }
     let ty = log_top + 7.0 + log_h;

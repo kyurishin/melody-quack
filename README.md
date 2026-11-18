@@ -175,7 +175,7 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **record player**: plays your friend's tunes or a diary jam
 - **wind chime**, **speaker** (bigger echo), **subwoofer** (heavier kick), **steel pillar** (clang), **rug** (a little dance)
 - **dj booth**: first person on two turntables with a 132 bpm beat; 1-6 play pads, W/S tempo, A/D pattern (techno, house, breaks, classic, off), R records, Esc leaves. In two-player mode player 2 joins b2b with O. With friends visiting, everyone in the room hears your set
-- **mirror ball** (300), **dance arcade** (500: arrows from the music on your mic, or the game's beat), **wall tv** (1000: five pixel visual channels), **sampler** (180: a 16-step grid, Space records your own sound into a row)
+- **mirror ball** (300), **dance arcade** (500: arrows from the music on your mic, or the game's beat), **wall tv** (1000: five pixel visual channels), **sampler** (180: a 16-step grid; Space twice clears all the pads)
 - **techno club set** (free): one tap turns the room into a concrete club
 
 **Putting things away:** while carrying a piece, M puts it in your bag. In the bag at home, W/S picks a stored piece, E takes it out, X twice packs everything. Room upgrades store pieces that are in the way.
@@ -350,11 +350,11 @@ The game's MP3 encoder is LAME (LGPL), and the website uses lamejs (`web/lame.mi
 ## How it's made
 
 - The world renders at your screen's own resolution (up to 1440 lines), then a soft glow pass picks out lamps, fire, neon and lit windows, blurs them at low resolution and adds them back with a gentle colour grade; lamp light is worked out at every corner, so it fades smoothly across floors and walls. Menus are drawn afterwards, with rounded panels built from triangles and pixel fonts snapped to their pixel grid so they stay crisp. A line that would run off the window shrinks until it fits.
-- Six pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings and 04b21 for little pixel icons. The terminal keeps the built-in font so its columns line up.
+- Seven pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings, 04b21 for little pixel icons and 04b25 for announcements, status lines and the chat with your companion. The terminal keeps the built-in font so its columns line up.
 - Everything is built from coloured boxes every frame: the animals, the cottage, the fire, the chapel, the crowd, even the fishing line.
 - Faces are shaded from a fixed light, with distance fog, an evening tint and flickering campfire light; trees and walls between the camera and you turn see-through.
 - Every meow, woof, drum, sizzle, splash and crackle is synthesised at startup and mixed by a tiny built-in mixer (desktop) or Web Audio (browser).
 - Mic sync finds onsets in the low end, autocorrelates them for the tempo and phase-locks the loop.
 - The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, streams DJs' audio, and asks Claude Haiku 5.5 for your companion's replies (a short game-state summary plus the last few lines, answered as structured JSON: what to say and which action to take).
 
-Fonts: 04b03, 04b09, 04b11, 04b19, 04b20 and 04b21 by Yuji Oshimoto (www.04.jp.org), free pixel fonts.
+Fonts: 04b03, 04b09, 04b11, 04b19, 04b20, 04b21 and 04b25 by Yuji Oshimoto (www.04.jp.org), free pixel fonts.

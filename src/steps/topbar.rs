@@ -315,8 +315,7 @@ fn stats(g: &Game, fr: &mut Frame) {
     {
         let ax = x;
         ui_round_frame(ax, y, acorn_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
-        ui_circle(ax + 8.5, y + 7.0, 4.0, Color::from_rgba(255, 196, 60, 255));
-        ui_circle(ax + 8.5, y + 7.0, 2.6, Color::from_rgba(240, 160, 40, 255));
+        ui_acorn(ax + 8.5, y + 7.4, 1.0);
         ui_text_as(Face::Data, &acorns[0].1, ax + 15.0, y + 10.5, 9.0, skin::CREAM);
     }
     x -= 3.0 + dish_w;

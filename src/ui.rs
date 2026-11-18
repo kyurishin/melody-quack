@@ -46,6 +46,7 @@ pub(crate) enum Face {
     Data,
     Accent,
     Icon,
+    Notice,
 }
 
 impl Face {
@@ -74,13 +75,14 @@ thread_local! {
 }
 
 pub(crate) fn load_ui_font() {
-    let files: [&[u8]; 6] = [
+    let files: [&[u8]; 7] = [
         include_bytes!("../assets/fonts/04B_03.ttf"),
         include_bytes!("../assets/fonts/04B_09.ttf"),
         include_bytes!("../assets/fonts/04B_19.ttf"),
         include_bytes!("../assets/fonts/04B_11.ttf"),
         include_bytes!("../assets/fonts/04B_20.ttf"),
         include_bytes!("../assets/fonts/04B_21.ttf"),
+        include_bytes!("../assets/fonts/04B_25.ttf"),
     ];
     let fonts: Vec<Option<Font>> = files
         .iter()
@@ -352,6 +354,16 @@ pub(crate) fn ui_round_frame(x: f32, y: f32, w: f32, h: f32, r: f32, fill: Color
         let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
         draw_line(a.x, a.y, b.x, b.y, thick, border);
     }
+}
+
+pub(crate) fn ui_acorn(cx: f32, cy: f32, alpha: f32) {
+    let c = |r: u8, g: u8, b: u8| Color::from_rgba(r, g, b, (alpha * 255.0) as u8);
+    ui_rect(cx - 0.5, cy - 5.2, 1.0, 1.8, c(92, 58, 30));
+    ui_round(cx - 2.9, cy - 1.6, 5.8, 6.0, 2.7, c(196, 122, 60));
+    ui_rect(cx - 0.6, cy + 4.1, 1.2, 1.0, c(160, 96, 46));
+    ui_rect(cx - 1.8, cy - 0.2, 0.9, 2.2, c(236, 176, 110));
+    ui_round(cx - 3.8, cy - 3.6, 7.6, 3.2, 1.5, c(112, 72, 38));
+    ui_rect(cx - 2.6, cy - 2.4, 5.2, 0.6, c(150, 100, 56));
 }
 
 pub(crate) fn ui_circle(x: f32, y: f32, r: f32, color: Color) {

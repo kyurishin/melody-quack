@@ -112,7 +112,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         if (fr.time * 2.0).fract() < 0.6 {
             ui_rect(fr.status_x, fr.status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
         }
-        ui_text("REC", fr.status_x + 9.0, fr.status_y, 12.0, WHITE);
+        ui_text_as(ui::Face::Notice, "REC", fr.status_x + 9.0, fr.status_y, 9.0, WHITE);
         fr.status_x += 34.0;
     }
     if g.listening {
@@ -124,9 +124,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         };
         ui_rect(fr.status_x + 1.0, fr.status_y - 7.0, 6.0, 6.0, dot);
         let text = if g.locked { format!("synced {:.0} bpm", g.looper.bpm) } else { "syncing...".to_string() };
-        ui_text(&text, fr.status_x + 12.0, fr.status_y, 12.0, if g.locked { Color::from_rgba(150, 255, 170, 255) } else { WHITE });
+        ui_text_as(ui::Face::Notice, &text, fr.status_x + 12.0, fr.status_y, 9.0, if g.locked { Color::from_rgba(150, 255, 170, 255) } else { WHITE });
     } else if g.looper.beat {
-        ui_text(&format!("beat {:.0} bpm", g.looper.bpm), fr.status_x, fr.status_y, 12.0, WHITE);
+        ui_text_as(ui::Face::Notice, &format!("beat {:.0} bpm", g.looper.bpm), fr.status_x, fr.status_y, 9.0, WHITE);
     }
     if let Some(msg) = g.mic_message {
         g.mic_message_clock += get_frame_time();
@@ -134,7 +134,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
             g.mic_message = None;
         } else {
             ui_rect(fr.grid_x - 1.0, fr.status_y - 21.0, 7.0, 7.0, Color::from_rgba(255, 90, 90, 255));
-            ui_text(msg, fr.grid_x + 9.0, fr.status_y - 14.0, 12.0, Color::from_rgba(255, 210, 160, 255));
+            ui_text_as(ui::Face::Notice, msg, fr.grid_x + 9.0, fr.status_y - 14.0, 9.0, Color::from_rgba(255, 210, 160, 255));
         }
     } else {
         g.mic_message_clock = 0.0;
@@ -143,7 +143,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         let label = format!("together {}:{:02}", t as u32 / 60, t as u32 % 60);
         let tw = ui_measure(&label, 11.0) + 36.0;
         let sx = fr.grid_x + (fr.grid_w - tw) / 2.0;
-        ui_text(&label, sx, fr.status_y, 11.0, Color::from_rgba(255, 236, 200, 255));
+        ui_text_as(ui::Face::Notice, &label, sx, fr.status_y, 9.0, Color::from_rgba(255, 236, 200, 255));
         for k in 0..3u8 {
             let col = if k < g.session_stars { Color::from_rgba(255, 214, 90, 255) } else { Color::new(1.0, 1.0, 1.0, 0.22) };
             ui_star(sx + ui_measure(&label, 11.0) + 4.0 + k as f32 * 11.0, fr.status_y - 8.0, 8.0, col);
@@ -153,13 +153,13 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     if g.ringing {
         let glow = 0.75 + 0.25 * (fr.time * 4.0).sin();
         fr.right_x -= ui_measure("~echo~", 12.0);
-        ui_text("~echo~", fr.right_x, fr.status_y, 12.0, Color::new(0.75, 0.95, 1.0, glow));
+        ui_text_as(ui::Face::Notice, "~echo~", fr.right_x, fr.status_y, 9.0, Color::new(0.75, 0.95, 1.0, glow));
         fr.right_x -= 10.0;
     }
     if let Some(t) = g.audio.tape_seconds() {
         let label = format!("tape {}:{:02}", t as u32 / 60, t as u32 % 60);
         fr.right_x -= ui_measure(&label, 12.0);
-        ui_text(&label, fr.right_x, fr.status_y, 12.0, Color::from_rgba(255, 216, 216, 255));
+        ui_text_as(ui::Face::Notice, &label, fr.right_x, fr.status_y, 9.0, Color::from_rgba(255, 216, 216, 255));
         if (fr.time * 2.0).fract() < 0.6 {
             ui_rect(fr.right_x - 9.0, fr.status_y - 7.0, 6.0, 6.0, Color::from_rgba(255, 70, 80, 255));
         }
@@ -220,9 +220,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     if g.ring_flash > 0.0 {
         let msg = if g.ringing { "echo on  (G)" } else { "echo off  (G)" };
         let a = g.ring_flash.min(1.0);
-        let w = ui_measure(msg, 12.0) + 12.0;
+        let w = ui_measure_as(ui::Face::Notice, msg, 9.0) + 12.0;
         ui_rect((low_w() - w) / 2.0, 26.0, w, 16.0, Color::new(0.1, 0.08, 0.2, 0.7 * a));
-        ui_text(msg, (low_w() - w) / 2.0 + 6.0, 38.0, 12.0, Color::new(0.8, 0.95, 1.0, a));
+        ui_text_as(ui::Face::Notice, msg, (low_w() - w) / 2.0 + 6.0, 37.0, 9.0, Color::new(0.8, 0.95, 1.0, a));
     }
 
     fr.inside_hint = if g.inside && steps::visits::visiting(g) {
@@ -302,7 +302,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         }
     } else if g.cooking {
         format!("cook on the beat {}/{} - {}: done", g.cook_progress, COOK_GOAL, if g.two_player { "E / O" } else { "E" })
-    } else if g.jam {
+    } else if g.jam || (!g.inside && g.camp.lit && g.players[0].seated && near_fire(&g.players[0])) {
         if fr.dog_jamming && g.partner_soloing {
             format!("the {} knows {} tune{} - answer back!", g.cast_list[g.players[1].character].noun, g.songbook.len(), if g.songbook.len() == 1 { "" } else { "s" })
         } else if fr.dog_jamming || (g.two_player && g.players[1].seated) {
@@ -365,7 +365,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         }
     }
     if !fr.hint.is_empty() && !g.picking {
-        let size = if ui_measure_as(ui::Face::Label, &fr.hint, 9.0) > low_w() - 30.0 { 7.0 } else { 9.0 };
+        let size = ui::with_face(ui::Face::Label, || fit_size(&fr.hint, 9.0, low_w() - 30.0));
         let w = ui_measure_as(ui::Face::Label, &fr.hint, size);
         let hy = if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 };
         ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, ui::skin::PANEL, ui::skin::EDGE_STRONG);
@@ -375,7 +375,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
         let a = life.min(1.0);
-        ui_text(text, fr.edge + 8.0, toast_y + k as f32 * 11.0, 12.0, Color::new(1.0, 0.95, 0.85, a));
+        ui_text_as(ui::Face::Notice, text, fr.edge + 8.0, toast_y + k as f32 * 11.0, 9.0, Color::new(1.0, 0.95, 0.85, a));
     }
 }
 
