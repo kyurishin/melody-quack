@@ -94,8 +94,8 @@ pub(crate) fn load_ui_font() {
     UI_FONTS.with(|f| *f.borrow_mut() = fonts);
 }
 
-pub(crate) fn pixel_text(on: bool) {
-    PIXEL_TEXT.with(|p| p.set(on));
+pub(crate) fn pixel_text(on: bool) -> bool {
+    PIXEL_TEXT.with(|p| p.replace(on))
 }
 
 pub(crate) fn with_face<T>(face: Face, draw: impl FnOnce() -> T) -> T {
@@ -119,6 +119,14 @@ pub(crate) fn ui_text_bold(face: Face, text: &str, x: f32, y: f32, size: f32, co
         }
         ui_text_raw(text, x, y, size, color);
     });
+}
+
+pub(crate) fn fit_size(text: &str, size: f32, max_w: f32) -> f32 {
+    let mut s = size;
+    while s > 5.0 && ui_measure(text, s) > max_w {
+        s -= 0.5;
+    }
+    s
 }
 
 pub(crate) fn ui_text_fit(text: &str, x: f32, y: f32, size: f32, max_w: f32, color: Color) {
@@ -145,7 +153,11 @@ fn current() -> (Option<Font>, Face) {
 fn font_px(size: f32, ky: f32, font: &Option<Font>, face: Face) -> u16 {
     if font.is_some() {
         let px = size * ky * face.scale();
-        ((px / face.grid()).round().max(1.0) * face.grid()) as u16
+        let mut steps = (px / face.grid()).round().max(1.0);
+        if steps < 2.0 && px >= face.grid() * 1.35 {
+            steps = 2.0;
+        }
+        (steps * face.grid()) as u16
     } else {
         (size * ky).round().max(1.0) as u16
     }

@@ -376,12 +376,12 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
 
 pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
     if g.show_inventory && !g.picking && !g.shop_open && !g.show_help {
-        let lines = [
-            format!("acorns  {}", g.inv.acorns),
-            format!("wood    {}   stone  {}", g.inv.wood, g.inv.stone),
-            format!("fish    {}   mushrooms  {}", g.inv.fish[0] + g.inv.fish[1] + g.inv.fish[2], g.inv.mush[0] + g.inv.mush[1] + g.inv.mush[2]),
-            format!("fishdex {}/{}   shrooms {}/{}", g.dex_counts.iter().filter(|n| **n > 0).count(), fish::COUNT, g.shroom_counts.iter().filter(|n| **n > 0).count(), mushroom::COUNT),
-            format!("dishes  {}/{}   tunes  {}", g.dishes.len(), DISHES.len(), g.songbook.len()),
+        let lines: [[(String, String); 2]; 5] = [
+            [("acorns".into(), format!("{}", g.inv.acorns)), (String::new(), String::new())],
+            [("wood".into(), format!("{}", g.inv.wood)), ("stone".into(), format!("{}", g.inv.stone))],
+            [("fish".into(), format!("{}", g.inv.fish[0] + g.inv.fish[1] + g.inv.fish[2])), ("mushrooms".into(), format!("{}", g.inv.mush[0] + g.inv.mush[1] + g.inv.mush[2]))],
+            [("fishdex".into(), format!("{}/{}", g.dex_counts.iter().filter(|n| **n > 0).count(), fish::COUNT)), ("shrooms".into(), format!("{}/{}", g.shroom_counts.iter().filter(|n| **n > 0).count(), mushroom::COUNT))],
+            [("dishes".into(), format!("{}/{}", g.dishes.len(), DISHES.len())), ("tunes".into(), format!("{}", g.songbook.len()))],
         ];
         let w = 210f32.min(low_w() - 16.0);
         let shown_items = 5usize;
@@ -390,17 +390,25 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
         let x = 8.0;
         let y = if steps::topbar::shown(g) { 42.0 + steps::topbar::drop(g) } else if fr.touch_ui && fr.portrait { 42.0 } else { 22.0 };
         let h = h.min(low_h() - y - 4.0);
-        ui_round_frame(x, y, w, h, 6.0, ui::skin::PANEL, ui::skin::EDGE);
+        ui_round_frame(x, y, w, h, 6.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
         ui_text_as(ui::Face::Display, if g.two_player { if g.bag_owner == 0 { "bag - player 1" } else { "bag - player 2" } } else { "bag" }, x + 8.0, y + 14.0, 12.0, Color::from_rgba(255, 226, 150, 255));
         ui_rect(x + 8.0, y + 17.0, w - 16.0, 1.0, Color::new(1.0, 1.0, 1.0, 0.14));
         let mut ty = y + 29.0;
-        for (n, line) in lines.iter().enumerate() {
-            let col = if n == 0 { Color::from_rgba(255, 236, 200, 255) } else { WHITE };
-            ui_text(line, x + 8.0, ty, 10.0, col);
+        let half = (w - 16.0) / 2.0;
+        for (n, pair) in lines.iter().enumerate() {
+            for (k, (label, value)) in pair.iter().enumerate() {
+                if label.is_empty() {
+                    continue;
+                }
+                let cx = x + 8.0 + k as f32 * half;
+                ui_text(label, cx, ty, 10.0, ui::skin::MUTED);
+                let vc = if n == 0 { ui::skin::GOLD } else { WHITE };
+                ui_text_as(ui::Face::Data, value, cx + half - 10.0 - ui_measure_as(ui::Face::Data, value, 10.0), ty, 10.0, vc);
+            }
             ty += 11.0;
         }
         ty += 5.0;
-        ui_text_as(ui::Face::Accent, "today's quests", x + 8.0, ty, 10.0, Color::from_rgba(150, 215, 255, 255));
+        ui_text_as(ui::Face::Label, "today's quests", x + 8.0, ty, 10.0, Color::from_rgba(150, 215, 255, 255));
         ty += 11.0;
         for q in &g.quests.list {
             let mark = if q.done { "[x]" } else { "[ ]" };
@@ -416,7 +424,7 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
             ty += 11.0;
         }
         ty += 5.0;
-        ui_text_as(ui::Face::Accent, &format!("furniture in the bag ({})", g.stored.len()), x + 8.0, ty, 10.0, Color::from_rgba(255, 190, 210, 255));
+        ui_text_as(ui::Face::Label, &format!("furniture in the bag ({})", g.stored.len()), x + 8.0, ty, 10.0, Color::from_rgba(255, 190, 210, 255));
         ty += 11.0;
         if g.stored.is_empty() {
             ui_text(if g.inside { "empty - M while carrying a piece puts it here" } else { "empty" }, x + 8.0, ty, 9.0, Color::new(1.0, 1.0, 1.0, 0.5));

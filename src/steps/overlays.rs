@@ -4,7 +4,7 @@ use crate::*;
 use macroquad::prelude::*;
 
 pub(crate) fn first_steps_shown(g: &Game) -> bool {
-    !g.picking && !g.show_help && g.first_steps > 0 && g.first_steps < 4
+    !g.picking && !g.show_help && !g.show_inventory && g.first_steps > 0 && g.first_steps < 4
 }
 
 pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
@@ -59,7 +59,7 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
             ui_text(&name, x + 80.0, y, 12.0, col);
             y += 14.0;
         }
-        ui_text_fit("W/S row   A/D change   E or esc: done", x + 12.0, y + 6.0, 10.0, w - 24.0, Color::new(1.0, 1.0, 1.0, 0.7));
+        ui_text_fit("W/S: row   A/D: change   E: done", x + 12.0, y + 6.0, 10.0, w - 24.0, Color::new(1.0, 1.0, 1.0, 0.8));
     }
 
     if g.sleep_fade > 0.0 {
@@ -219,11 +219,8 @@ pub(crate) fn draw_overlays(g: &mut Game, fr: &mut Frame) {
             let ry = y + 44.0 + n as f32 * 16.0;
             ui_rect(x + 10.0, ry, ui_measure(key, 11.0) + 8.0, 13.0, Color::new(1.0, 0.84, 0.43, 0.2));
             ui_text(key, x + 14.0, ry + 10.0, 11.0, Color::from_rgba(255, 226, 150, 255));
-            let mut t = text.to_string();
-            while ui_measure(&t, 11.0) > w - key_w - 24.0 && t.len() > 4 {
-                t.pop();
-            }
-            ui_text(&t, x + 16.0 + key_w, ry + 10.0, 11.0, WHITE);
+            let ts = fit_size(text, 11.0, w - key_w - 24.0);
+            ui_text(text, x + 16.0 + key_w, ry + 10.0, ts, WHITE);
         }
         let foot = if radio::touch_ui() { "tap a tab - tap outside to close" } else { "left/right: page   H or Esc: close" };
         ui_text(foot, x + (w - ui_measure(foot, 9.0)) / 2.0, y + h - 6.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.6));

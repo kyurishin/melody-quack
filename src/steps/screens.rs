@@ -418,35 +418,28 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         } else {
             "restart (R)"
         };
-        let mut btn_label = btn_label.to_string();
-        while ui_measure(&btn_label, 11.0) > btn_w - 6.0 && btn_label.len() > 4 {
-            btn_label.pop();
-        }
-        ui_text(&btn_label, btn_x + (btn_w - ui_measure(&btn_label, 11.0)) / 2.0, btn_y + 14.0, 11.0, WHITE);
+        let bs = fit_size(btn_label, 11.0, btn_w - 6.0);
+        ui_text(btn_label, btn_x + (btn_w - ui_measure(btn_label, bs)) / 2.0, btn_y + 14.0, bs, WHITE);
         for i in 0..toggles {
             let on = radio::flag(i as i32);
             let name = if i == 0 { "dj set" } else { "karaoke" };
             let key = if radio::touch_ui() { "" } else if i == 0 { " (J)" } else { " (K)" };
-            let mut label = format!("{}: {}{}", name, if on { "on" } else { "off" }, key);
-            while ui_measure(&label, 10.0) > toggle_w - 6.0 && label.len() > 4 {
-                label.pop();
-            }
+            let label = format!("{}: {}{}", name, if on { "on" } else { "off" }, key);
+            let ls = fit_size(&label, 10.0, toggle_w - 6.0);
             let fill = if on { Color::from_rgba(255, 214, 110, 255) } else if on_live(i) { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
             ui_rect(live_x[i], live_y, toggle_w, btn_h, fill);
             let ink = if on { Color::from_rgba(36, 26, 71, 255) } else { WHITE };
-            ui_text(&label, live_x[i] + (toggle_w - ui_measure(&label, 10.0)) / 2.0, live_y + 14.0, 10.0, ink);
+            ui_text(&label, live_x[i] + (toggle_w - ui_measure(&label, ls)) / 2.0, live_y + 14.0, ls, ink);
         }
         let acc_y = live_y + btn_h + 4.0;
         let comp_w = live_w;
         let on_comp = fr.ux > dex_x && fr.ux < dex_x + comp_w && fr.uy > acc_y && fr.uy < acc_y + btn_h;
         let noun = g.cast_list[g.players[1].character].noun;
-        let mut comp_label = format!("{}: {}{}", noun, if g.companion { "on" } else { "off" }, if radio::touch_ui() { "" } else { " (C)" });
-        while ui_measure(&comp_label, 10.0) > comp_w - 6.0 && comp_label.len() > 4 {
-            comp_label.pop();
-        }
+        let comp_label = format!("{}: {}{}", noun, if g.companion { "on" } else { "off" }, if radio::touch_ui() { "" } else { " (C)" });
+        let cs = fit_size(&comp_label, 10.0, comp_w - 6.0);
         let comp_fill = if g.companion { Color::from_rgba(140, 222, 168, 255) } else if on_comp { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) };
         ui_rect(dex_x, acc_y, comp_w, btn_h, comp_fill);
-        ui_text(&comp_label, dex_x + (comp_w - ui_measure(&comp_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, if g.companion { Color::from_rgba(36, 26, 71, 255) } else { WHITE });
+        ui_text(&comp_label, dex_x + (comp_w - ui_measure(&comp_label, cs)) / 2.0, acc_y + 14.0, cs, if g.companion { Color::from_rgba(36, 26, 71, 255) } else { WHITE });
         if !fr.just_paused && ((fr.click && on_comp && g.mix_drag.is_none()) || is_key_pressed(KeyCode::C)) {
             g.companion = !g.companion;
             g.save_clock = 99.0;
@@ -464,11 +457,12 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
         if !radio::touch_ui() {
             acc_label += " (A)";
         }
-        while ui_measure(&acc_label, 10.0) > acc_w - 6.0 && acc_label.len() > 4 {
-            acc_label.pop();
+        if fit_size(&acc_label, 10.0, acc_w - 6.0) < 8.5 {
+            acc_label = acc_label.trim_end_matches(" (A)").to_string();
         }
+        let as_ = fit_size(&acc_label, 10.0, acc_w - 6.0);
         ui_rect(acc_x, acc_y, acc_w, btn_h, if on_acc { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
-        ui_text(&acc_label, acc_x + (acc_w - ui_measure(&acc_label, 10.0)) / 2.0, acc_y + 14.0, 10.0, WHITE);
+        ui_text(&acc_label, acc_x + (acc_w - ui_measure(&acc_label, as_)) / 2.0, acc_y + 14.0, as_, WHITE);
         if !fr.just_paused && ((fr.click && on_acc && g.mix_drag.is_none()) || is_key_pressed(KeyCode::A)) {
             g.paused = false;
             g.restart_confirm = 0.0;

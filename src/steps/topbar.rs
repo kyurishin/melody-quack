@@ -191,7 +191,9 @@ fn icon(t: Tab, x: f32, y: f32, c: Color) {
         }
         Tab::Help => {
             ui_round(x - 0.5, y - 4.5, 9.0, 9.0, 1.5, skin::GOLD);
-            ui_text_as(Face::Label, "H", x + 1.6, y + 3.2, 7.0, skin::INK);
+            ui_rect(x + 1.7, y - 2.7, 1.4, 5.4, skin::INK);
+            ui_rect(x + 5.4, y - 2.7, 1.4, 5.4, skin::INK);
+            ui_rect(x + 1.7, y - 0.7, 5.1, 1.3, skin::INK);
         }
         Tab::Settings => {
             for k in 0..8 {

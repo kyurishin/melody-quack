@@ -2251,7 +2251,9 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
 
 fn desktop(g: &mut Game, fr: &mut Frame) {
     RETRO.with(|r| r.set(true));
+    let before = pixel_text(true);
     desktop_inner(g, fr);
+    pixel_text(before);
     RETRO.with(|r| r.set(false));
 }
 
@@ -2623,9 +2625,9 @@ fn held_repeat(k: KeyCode) -> bool {
 }
 
 fn terminal(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
-    pixel_text(true);
+    let before = pixel_text(true);
     terminal_inner(g, fr, x, y, w, h, typed);
-    pixel_text(false);
+    pixel_text(before);
 }
 
 fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, typed: &[char]) {
@@ -4356,13 +4358,13 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let start = fits_from(end);
     let shown: Vec<(Color, String, f32)> = lines[start..end].to_vec();
     let tips = if notice {
-        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") and it answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 7.0, w - 20.0)
+        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") and it answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 8.0, w - 20.0)
     } else {
-        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") to talk.   enter: send   esc: close"), 7.0, w - 20.0)
+        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") to talk.   enter: send   esc: close"), 8.0, w - 20.0)
     };
     let used: f32 = shown.iter().enumerate().map(|(i, l)| ROW + if i > 0 { l.2 } else { 0.0 }).sum();
     let log_h = if max_scroll > 0 { area_h } else { used.max(ROW) };
-    let h = 30.0 + log_h + 22.0 + tips.len() as f32 * 9.0 + 6.0;
+    let h = 30.0 + log_h + 22.0 + tips.len() as f32 * 10.0 + 6.0;
     let x = ((low_w() - w) / 2.0).round();
     let y = (low_h() - h - 8.0).round().max(4.0);
     ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
@@ -4416,8 +4418,8 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     let mut tyy = fy + fh + 10.0;
     for t in &tips {
-        ui_text(t, x + 10.0, tyy, 7.0, ui::skin::MUTED);
-        tyy += 9.0;
+        ui_text(t, x + 10.0, tyy, 8.0, ui::skin::MUTED);
+        tyy += 10.0;
     }
     if fresh {
         return;
