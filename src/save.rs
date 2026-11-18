@@ -114,6 +114,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     for (k, e) in p.diary.iter().enumerate() {
         let events = if k >= keep_from { e.events.iter().map(|(t, id, v)| format!("{:.2}:{}:{:.2}", t, id, v)).collect::<Vec<_>>().join(";") } else { String::new() };
         out += &format!("diary {:.0}|{}|{}|{}|{}|{}\n", e.when, e.seconds, e.stars, e.who.0, e.who.1, events);
+        if !e.name.is_empty() {
+            out += &format!("diaryname {}\n", e.name);
+        }
     }
     out
 }
@@ -251,6 +254,11 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                     p.shroomdex[k] = v.trim().parse().unwrap_or(0);
                 }
             }
+            "diaryname" => {
+                if let Some(last) = p.diary.last_mut() {
+                    last.name = crate::diary::clean_name(rest);
+                }
+            }
             "diary" => {
                 let parts: Vec<&str> = rest.splitn(6, '|').collect();
                 if parts.len() == 6 {
@@ -266,7 +274,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                         })
                         .collect();
                     if let (Ok(when), Ok(seconds), Ok(stars), Ok(a), Ok(b)) = (parts[0].parse::<f64>(), parts[1].parse::<u32>(), parts[2].parse::<u8>(), parts[3].parse::<usize>(), parts[4].parse::<usize>()) {
-                        p.diary.push(DiaryEntry { when, seconds, stars: stars.min(3), who: (a.min(characters - 1), b.min(characters - 1)), events });
+                        p.diary.push(DiaryEntry { when, seconds, stars: stars.min(3), who: (a.min(characters - 1), b.min(characters - 1)), events, name: String::new() });
                     }
                 }
             }

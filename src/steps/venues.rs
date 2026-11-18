@@ -1995,6 +1995,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Homes => homes_panel(g, fr, fresh),
         Overlay::Knock => knock_panel(g, fr, fresh),
         Overlay::Update => update_panel(g, fr, fresh),
+        Overlay::NameJam => name_jam_box(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -4642,6 +4643,120 @@ fn update_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if yes || no {
         g.venue.overlay = Overlay::None;
         fr.click = false;
+    }
+}
+
+pub(crate) fn open_name_jam(g: &mut Game, entry: Option<DiaryEntry>, rename: Option<f64>) {
+    let desk = &mut g.venue.jam;
+    desk.draft = match rename {
+        Some(when) => g.diary.iter().find(|e| e.when == when).map(|e| e.name.clone()).unwrap_or_default(),
+        None => String::new(),
+    };
+    desk.pending = entry;
+    desk.rename = rename;
+    desk.discard_armed = false;
+    g.venue.overlay = Overlay::NameJam;
+    g.venue.opened_at = get_time();
+    while get_char_pressed().is_some() {}
+}
+
+fn name_jam_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let renaming = g.venue.jam.rename.is_some();
+    let entry = match (&g.venue.jam.pending, g.venue.jam.rename) {
+        (Some(e), _) => Some(e.clone()),
+        (None, Some(when)) => g.diary.iter().find(|e| e.when == when).cloned(),
+        _ => None,
+    };
+    let Some(entry) = entry else {
+        g.venue.overlay = Overlay::None;
+        return;
+    };
+    let w = 260f32.min(low_w() - 12.0);
+    let h = 92.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::GOLD);
+    let title = if renaming { "rename this jam" } else { "name this jam" };
+    ui_text_as(ui::Face::Display, title, x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    let who = format!("{} + {}", g.cast_list[entry.who.0.min(g.cast_list.len() - 1)].noun, g.cast_list[entry.who.1.min(g.cast_list.len() - 1)].noun);
+    let about = format!("{}   {}:{:02}   {}", date_label(entry.when), entry.seconds / 60, entry.seconds % 60, who);
+    ui_text_fit(&about, x + 10.0, y + 30.0, 8.0, w - 56.0, ui::skin::MUTED);
+    for k in 0..3u8 {
+        let col = if k < entry.stars { Color::from_rgba(255, 214, 90, 255) } else { Color::new(1.0, 1.0, 1.0, 0.18) };
+        ui_star(x + w - 42.0 + k as f32 * 11.0, y + 22.0, 8.0, col);
+    }
+    let (fx, fy, fw, fh) = (x + 10.0, y + 38.0, w - 20.0, 16.0);
+    ui_round_frame(fx, fy, fw, fh, 4.0, ui::skin::CREAM, ui::skin::EDGE_STRONG);
+    let caret = if (fr.time * 2.0).fract() < 0.6 { "|" } else { "" };
+    let fallback = if renaming { shown_name(&entry) } else { format!("jam {}", g.diary.len() + 1) };
+    if g.venue.jam.draft.is_empty() {
+        ui_text_raw(&format!("{caret}{fallback}"), fx + 5.0, fy + 11.0, 8.0, Color::from_rgba(150, 130, 160, 255));
+    } else {
+        ui_text_raw(&format!("{}{caret}", g.venue.jam.draft), fx + 5.0, fy + 11.0, 8.0, ui::skin::INK);
+    }
+    let bw = (w - 26.0) / 2.0;
+    let by = y + h - 26.0;
+    let save = button(fr, "save (enter)", x + 10.0, by, bw, 18.0, true) && !fresh;
+    let other_label = if renaming {
+        "cancel (esc)"
+    } else if g.venue.jam.discard_armed {
+        "esc again: drop it"
+    } else {
+        "don't save (esc)"
+    };
+    let other = button(fr, other_label, x + 16.0 + bw, by, bw, 18.0, false) && !fresh;
+    if fresh {
+        return;
+    }
+    if fr.click && hit(fr, fx, fy, fw, fh) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text(title, &g.venue.jam.draft) {
+            g.venue.jam.draft = clean_name(&text);
+        }
+        fr.click = false;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.2;
+    while let Some(ch) = get_char_pressed() {
+        if settled && !ch.is_control() && ch != '|' && g.venue.jam.draft.chars().count() < NAME_MAX && !shortcut_held() {
+            g.venue.jam.draft.push(ch);
+        }
+    }
+    paste_into(&mut g.venue.jam.draft, NAME_MAX, |c| !c.is_control() && c != '|');
+    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
+        g.venue.jam.draft.pop();
+    }
+    let save = save || (settled && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)));
+    let esc = settled && is_key_pressed(KeyCode::Escape);
+    let name = clean_name(&g.venue.jam.draft);
+    if save {
+        if let Some(mut e) = g.venue.jam.pending.take() {
+            e.name = if name.is_empty() { fallback } else { name };
+            let stars = e.stars;
+            let label = e.name.clone();
+            g.diary.push(e);
+            g.toasts.push((format!("\"{}\" was written in the diary - {} star{}", label, stars, if stars == 1 { "" } else { "s" }), 3.5));
+        } else if let Some(when) = g.venue.jam.rename {
+            if let Some(e) = g.diary.iter_mut().find(|e| e.when == when) {
+                if !name.is_empty() {
+                    e.name = name;
+                }
+            }
+        }
+        g.venue.jam.rename = None;
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+        return;
+    }
+    let drop_now = other || (esc && (renaming || g.venue.jam.discard_armed));
+    if drop_now {
+        if g.venue.jam.pending.take().is_some() {
+            g.toasts.push(("that jam was not saved".to_string(), 2.5));
+        }
+        g.venue.jam.rename = None;
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    } else if esc {
+        g.venue.jam.discard_armed = true;
     }
 }
 

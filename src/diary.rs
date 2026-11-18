@@ -10,6 +10,27 @@ pub(crate) struct DiaryEntry {
     pub(crate) stars: u8,
     pub(crate) who: (usize, usize),
     pub(crate) events: Vec<(f32, u16, f32)>,
+    pub(crate) name: String,
+}
+
+pub(crate) const NAME_MAX: usize = 24;
+
+pub(crate) fn clean_name(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control() && *c != '|').take(NAME_MAX).collect::<String>().trim().to_string()
+}
+
+pub(crate) fn shown_name(entry: &DiaryEntry) -> String {
+    if entry.name.is_empty() { "untitled jam".to_string() } else { entry.name.clone() }
+}
+
+#[derive(Default)]
+pub(crate) struct JamDesk {
+    pub(crate) pending: Option<DiaryEntry>,
+    pub(crate) rename: Option<f64>,
+    pub(crate) draft: String,
+    pub(crate) discard_armed: bool,
+    pub(crate) picked: Vec<f64>,
+    pub(crate) delete_armed: f64,
 }
 
 pub(crate) fn stars_for(seconds: f32) -> u8 {

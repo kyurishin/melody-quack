@@ -88,8 +88,44 @@ pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
                     g.diary_row = (g.diary_row + 1) % n;
                 }
                 g.diary_row = g.diary_row.min(n - 1);
-                if shop_act && !fr.picker_closed {
-                    let idx = n - 1 - g.diary_row;
+                let idx = n - 1 - g.diary_row;
+                let when = g.diary[idx].when;
+                let playing_here = g.playback.map(|(p, _, _)| p == idx).unwrap_or(false);
+                if g.shop_owner == 0 && is_key_pressed(KeyCode::Space) {
+                    let picked = &mut g.venue.jam.picked;
+                    if let Some(k) = picked.iter().position(|w| *w == when) {
+                        picked.remove(k);
+                    } else {
+                        picked.push(when);
+                    }
+                    g.venue.jam.delete_armed = 0.0;
+                }
+                if g.shop_owner == 0 && is_key_pressed(KeyCode::R) {
+                    steps::venues::open_name_jam(g, None, Some(when));
+                }
+                if g.shop_owner == 0 && (is_key_pressed(KeyCode::Delete) || (!g.two_player && is_key_pressed(KeyCode::Backspace))) {
+                    if get_time() - g.venue.jam.delete_armed < 3.0 {
+                        let mut gone: Vec<f64> = g.venue.jam.picked.clone();
+                        if gone.is_empty() {
+                            gone.push(when);
+                        }
+                        let playing = g.playback.and_then(|(p, s, k)| g.diary.get(p).map(|e| (e.when, s, k)));
+                        let before = g.diary.len();
+                        g.diary.retain(|e| !gone.contains(&e.when));
+                        let removed = before - g.diary.len();
+                        g.playback = playing.and_then(|(w, s, k)| g.diary.iter().position(|e| e.when == w).map(|p| (p, s, k)));
+                        g.venue.jam.picked.clear();
+                        g.venue.jam.delete_armed = 0.0;
+                        g.diary_row = g.diary_row.min(g.diary.len().saturating_sub(1));
+                        g.toasts.push((format!("{} jam{} torn out of the diary", removed, if removed == 1 { "" } else { "s" }), 2.5));
+                    } else {
+                        g.venue.jam.delete_armed = get_time();
+                    }
+                }
+                if shop_act && !fr.picker_closed && playing_here {
+                    g.playback = None;
+                    g.toasts.push(("the record stops".to_string(), 2.0));
+                } else if shop_act && !fr.picker_closed && idx < g.diary.len() {
                     if !g.house.has(home::Item::RecordPlayer) {
                         g.toasts.push(("buy a record player to listen to your jams".to_string(), 2.5));
                     } else if g.diary[idx].events.is_empty() {
@@ -98,7 +134,7 @@ pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
                         g.playback = Some((idx, get_time(), 0));
                         g.house.record_on = true;
                         g.shop_open = false;
-                        g.toasts.push((format!("the record player plays your jam from {}", date_label(g.diary[idx].when)), 3.0));
+                        g.toasts.push((format!("the record player plays \"{}\"", shown_name(&g.diary[idx])), 3.0));
                     }
                 }
             }

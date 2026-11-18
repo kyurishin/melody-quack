@@ -108,7 +108,7 @@ pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
     if is_key_pressed(KeyCode::Tab) {
         g.music_mode = !g.music_mode;
     }
-    if is_key_pressed(KeyCode::R) {
+    if is_key_pressed(KeyCode::R) && !(g.shop_open && g.shop_tab == 1) {
         g.looper.recording = !g.looper.recording;
     }
     fr.shift_held = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);

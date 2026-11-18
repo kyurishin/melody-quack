@@ -50,6 +50,7 @@ pub(crate) enum Overlay {
     Homes,
     Knock,
     Update,
+    NameJam,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -107,6 +108,7 @@ pub(crate) struct Peer {
 
 #[derive(Default)]
 pub(crate) struct VenueState {
+    pub(crate) jam: crate::diary::JamDesk,
     pub(crate) partner: steps::partner::Partner,
     pub(crate) update_asked: bool,
     pub(crate) visits: steps::visits::Visits,

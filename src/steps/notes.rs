@@ -374,14 +374,15 @@ pub(crate) fn session_and_playback(g: &mut Game, fr: &mut Frame) {
             } else {
                 let events = g.audio.stop_jam();
                 if t >= 30.0 {
-                    g.diary.push(DiaryEntry {
+                    let entry = DiaryEntry {
                         when: miniquad::date::now(),
                         seconds: t as u32,
                         stars: stars_for(t),
                         who: (g.players[0].character, g.players[1].character),
                         events,
-                    });
-                    g.toasts.push((format!("the jam was written in the diary - {} star{}", stars_for(t), if stars_for(t) == 1 { "" } else { "s" }), 3.5));
+                        name: String::new(),
+                    };
+                    steps::venues::open_name_jam(g, Some(entry), None);
                 }
                 g.session = None;
                 g.session_stars = 0;

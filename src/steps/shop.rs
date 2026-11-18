@@ -66,23 +66,46 @@ pub(crate) fn draw_shop(g: &mut Game, _fr: &mut Frame) {
             let total: u32 = g.diary.iter().map(|e| e.stars as u32).sum();
             let n = g.diary.len();
             let first = g.diary_row.saturating_sub(shown / 2).min(n.saturating_sub(shown));
+            let playing = g.playback.map(|(p, _, _)| p);
             for r in first..(first + shown).min(n) {
-                let entry = &g.diary[n - 1 - r];
+                let idx = n - 1 - r;
+                let entry = &g.diary[idx];
                 let ry = y + 30.0 + (r - first) as f32 * row_h;
                 if r == g.diary_row {
                     ui_rect(x + 4.0, ry - 2.0, w - 8.0, row_h - 1.0, Color::new(1.0, 1.0, 1.0, 0.14));
                 }
+                let picked = g.venue.jam.picked.contains(&entry.when);
+                ui_rect(x + 8.0, ry + 2.0, 7.0, 7.0, Color::new(1.0, 1.0, 1.0, 0.35));
+                ui_rect(x + 9.0, ry + 3.0, 5.0, 5.0, if picked { Color::from_rgba(255, 128, 170, 255) } else { Color::new(0.12, 0.09, 0.2, 1.0) });
                 let mins = format!("{}:{:02}", entry.seconds / 60, entry.seconds % 60);
                 let who = format!("{} + {}", g.cast_list[entry.who.0.min(g.cast_list.len() - 1)].noun, g.cast_list[entry.who.1.min(g.cast_list.len() - 1)].noun);
-                ui_text(&date_label(entry.when), x + 10.0, ry + 9.0, 11.0, WHITE);
-                ui_text(&who, x + 56.0, ry + 9.0, 10.0, Color::new(0.85, 0.92, 1.0, 0.85));
+                let is_playing = playing == Some(idx);
+                let name_col = if is_playing { Color::from_rgba(255, 150, 196, 255) } else { WHITE };
+                let mut nx = x + 20.0;
+                if is_playing {
+                    for k in 0..3 {
+                        let bar = 2.0 + ((_fr.time * 6.0 + k as f32 * 1.7).sin() * 0.5 + 0.5) * 5.0;
+                        ui_rect(nx + k as f32 * 2.0, ry + 9.0 - bar, 1.0, bar, name_col);
+                    }
+                    nx += 8.0;
+                }
+                ui_text_fit(&shown_name(entry), nx, ry + 9.0, 10.0, x + 132.0 - nx, name_col);
+                ui_text_fit(&date_label(entry.when), x + 136.0, ry + 9.0, 9.0, 40.0, Color::new(1.0, 1.0, 1.0, 0.55));
+                ui_text_fit(&who, x + 178.0, ry + 9.0, 9.0, w - 178.0 - 60.0 - ui_measure(&mins, 10.0), Color::new(0.85, 0.92, 1.0, 0.85));
                 ui_text(&mins, x + w - 52.0 - ui_measure(&mins, 10.0), ry + 9.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.7));
                 for k in 0..3u8 {
                     let col = if k < entry.stars { Color::from_rgba(255, 214, 90, 255) } else { Color::new(1.0, 1.0, 1.0, 0.18) };
                     ui_star(x + w - 42.0 + k as f32 * 11.0, ry + 1.0, 8.0, col);
                 }
             }
-            let line = format!("{} jams, {} stars", n, total);
+            let picked_n = g.venue.jam.picked.len();
+            let line = if get_time() - g.venue.jam.delete_armed < 3.0 {
+                if picked_n > 0 { format!("delete again: tear out {} jam{}", picked_n, if picked_n == 1 { "" } else { "s" }) } else { "delete again: tear out this jam".to_string() }
+            } else if picked_n > 0 {
+                format!("{} picked", picked_n)
+            } else {
+                format!("{} jams, {} stars", n, total)
+            };
             ui_text(&line, x + w - 8.0 - ui_measure(&line, 9.0), y + 26.0, 9.0, Color::new(1.0, 1.0, 1.0, 0.55));
         }
         let help = if g.shop_owner == 1 {
@@ -90,8 +113,9 @@ pub(crate) fn draw_shop(g: &mut Game, _fr: &mut Frame) {
         } else if g.shop_tab == 0 {
             "W/S tabs - A/D browse - E buy - esc: close"
         } else {
-            "W/S tabs - A/D choose - E play - esc: close"
+            if g.playback.map(|(p, _, _)| g.diary.len().saturating_sub(1).saturating_sub(p) == g.diary_row).unwrap_or(false) { "A/D choose  E stop  space pick  R rename  del delete  esc close" } else { "A/D choose  E play  space pick  R rename  del delete  esc close" }
         };
-        ui_text(help, x + (w - ui_measure(help, 10.0)) / 2.0, y + h - 6.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.6));
+        let help_size = fit_size(help, 10.0, w - 12.0);
+        ui_text(help, x + (w - ui_measure(help, help_size)) / 2.0, y + h - 6.0, help_size, Color::new(1.0, 1.0, 1.0, 0.6));
     }
 }
