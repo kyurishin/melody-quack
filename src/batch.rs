@@ -3,6 +3,8 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 
+const LIT_MAX: f32 = 0.88;
+
 #[derive(Clone)]
 pub(crate) struct Light {
     pub(crate) dusk: f32,
@@ -36,9 +38,9 @@ impl Light {
             haze += vec2(g * 0.08 * tint.x, g * 0.04 * tint.y);
         }
         Color::new(
-            (c.r * (amb.r + add.x) + haze.x).min(1.0),
-            (c.g * (amb.g + add.y) + haze.y).min(1.0),
-            (c.b * (amb.b + add.z)).min(1.0),
+            (c.r * (amb.r + add.x) + haze.x).min(LIT_MAX),
+            (c.g * (amb.g + add.y) + haze.y).min(LIT_MAX),
+            (c.b * (amb.b + add.z)).min(LIT_MAX),
             c.a,
         )
     }
@@ -89,7 +91,7 @@ impl Batch {
             let dist = (p - self.eye).length();
             let fog = smoothstep((dist - 9.0) / 16.0) * 0.75;
             let lit = self.light.apply(p, color);
-            let col = Color::new((lit.r * 1.04).min(1.0), (lit.g * 1.02).min(1.0), lit.b * 0.96, color.a);
+            let col = Color::new((lit.r * 1.04).min(LIT_MAX), (lit.g * 1.02).min(LIT_MAX), lit.b * 0.96, color.a);
             let col = mix(col, Color::new(f.r, f.g, f.b, col.a), fog);
             self.vertices.push(Vertex::new(p.x, p.y, p.z, 0.0, 0.0, col));
         }
@@ -119,6 +121,7 @@ impl Batch {
         let fog_color = self.light.fog();
         let lit_center = if self.unlit { color } else { self.light.apply(world_center, color) };
         let smooth = !self.unlit && size.max_element() > 0.9;
+        let cap = if self.unlit { 1.0 } else { LIT_MAX };
 
         for (normal, corners) in faces {
             let n = rot(normal);
@@ -130,7 +133,7 @@ impl Batch {
             let paint = |lit: Color, fog: f32| {
                 let mut col = Color::new(lit.r * shade, lit.g * shade, lit.b * shade, color.a);
                 if n.y > 0.5 {
-                    col = Color::new((col.r * 1.04).min(1.0), (col.g * 1.02).min(1.0), col.b * 0.96, col.a);
+                    col = Color::new((col.r * 1.04).min(cap), (col.g * 1.02).min(cap), col.b * 0.96, col.a);
                 }
                 mix(col, Color::new(fog_color.r, fog_color.g, fog_color.b, col.a), fog)
             };

@@ -56,7 +56,9 @@ pub(crate) fn draw_camp(b: &mut Batch, camp: &Camp, time: f32) {
                 _ => Color::from_rgba(255, 235, 140, 255),
             };
             let w = 0.16 - k as f32 * 0.02;
+            b.unlit = true;
             b.cube(c + off + vec3(0.0, 0.1 + h / 2.0, 0.0), vec3(w, h, w), col);
+            b.unlit = false;
         }
     }
 }
