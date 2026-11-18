@@ -159,7 +159,7 @@ pub fn body(ask: &Ask) -> serde_json::Value {
     }
     serde_json::json!({
         "model": MODEL,
-        "max_tokens": 1024,
+        "max_tokens": 2048,
         "system": system(&ask.friend),
         "output_config": {
             "effort": "low",
@@ -186,7 +186,7 @@ pub fn read_reply(json: &serde_json::Value) -> Option<(String, String)> {
     }
     let text = json.get("content")?.as_array()?.iter().find(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))?.get("text")?.as_str()?;
     let reply: serde_json::Value = serde_json::from_str(text).ok()?;
-    let say = clip(reply.get("say")?.as_str()?, 240).to_lowercase();
+    let say = clip(reply.get("say")?.as_str()?, 600).to_lowercase();
     let action = reply.get("action").and_then(|a| a.as_str()).filter(|a| ACTIONS.contains(a)).unwrap_or("none");
     if say.is_empty() {
         return None;

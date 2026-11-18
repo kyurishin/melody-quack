@@ -401,21 +401,23 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
         return;
     }
     let noun = friend(g).1;
-    let w = 200f32.min(low_w() - 12.0);
-    let mut lines: Vec<(Color, String)> = Vec::new();
-    for (otter, text) in p.log.iter().rev().take(3).rev() {
+    let w = 240f32.min(low_w() - 12.0);
+    let mut lines: Vec<(Color, String, f32)> = Vec::new();
+    for (k, (otter, text)) in p.log.iter().rev().take(2).rev().enumerate() {
         let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
         for (i, l) in ui_wrap(&format!("{who}: {text}"), 8.0, w - 14.0).into_iter().enumerate() {
-            let _ = i;
-            lines.push((col, l));
+            lines.push((col, l, if i == 0 && k > 0 { 3.0 } else { 0.0 }));
         }
     }
     if p.waiting > 0.0 {
         let dots = ".".repeat(1 + ((fr.time * 3.0) as usize % 3));
-        lines.push((ui::skin::GOLD, format!("{noun}: {dots}")));
+        lines.push((ui::skin::GOLD, format!("{noun}: {dots}"), 3.0));
     }
-    let lines: Vec<(Color, String)> = lines.into_iter().rev().take(7).rev().collect();
-    let h = 8.0 + lines.len() as f32 * 9.5;
+    if lines.len() > 10 {
+        lines.drain(..lines.len() - 10);
+        lines[0].2 = 0.0;
+    }
+    let h = 8.0 + lines.iter().enumerate().map(|(i, l)| 9.5 + if i > 0 { l.2 } else { 0.0 }).sum::<f32>();
     let x = 6.0;
     let bottom = if fr.show_grid { fr.grid_y - 31.0 } else { fr.bar_y - 26.0 };
     let y = (bottom - h).max(44.0);
@@ -423,8 +425,13 @@ pub(crate) fn draw_card(g: &Game, fr: &Frame) {
     let panel = Color::new(ui::skin::PANEL.r, ui::skin::PANEL.g, ui::skin::PANEL.b, 0.9 * fade);
     let edge = Color::new(ui::skin::EDGE.r, ui::skin::EDGE.g, ui::skin::EDGE.b, fade);
     ui_round_frame(x, y, w, h, 6.0, panel, edge);
-    for (i, (c, l)) in lines.iter().enumerate() {
-        ui_text(l, x + 7.0, y + 11.0 + i as f32 * 9.5, 8.0, Color::new(c.r, c.g, c.b, fade));
+    let mut ly = y + 11.0;
+    for (i, (c, l, lead)) in lines.iter().enumerate() {
+        if i > 0 {
+            ly += *lead;
+        }
+        ui_text(l, x + 7.0, ly, 8.0, Color::new(c.r, c.g, c.b, fade));
+        ly += 9.5;
     }
 }
 
