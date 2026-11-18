@@ -4,6 +4,13 @@ use crate::*;
 use macroquad::prelude::*;
 
 pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
+    if g.inside && steps::visits::visiting(g) {
+        let here = home::local(g.players[0].pos);
+        if is_key_pressed(KeyCode::E) && here.y > g.house.d() as f32 - 1.1 && (here.x - g.house.door().x).abs() < 0.9 {
+            fr.go_out = true;
+        }
+        return;
+    }
     if g.inside && !g.picking {
         for who in 0..(if g.two_player { 2 } else { 1 }) {
             if g.seat[who].is_some() && !g.players[who].seated {

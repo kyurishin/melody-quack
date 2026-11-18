@@ -52,7 +52,8 @@ pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
         let beat_on = g.looper.beat || !g.now_playing.is_empty();
         let pov = if g.dj[0] ^ g.dj[1] { if g.dj[0] { pov_for(0) } else { pov_for(1) } } else { None };
         let hide = if g.dj[0] ^ g.dj[1] { if g.dj[0] { Some(0) } else { Some(1) } } else { None };
-        render_home(&g.full_view, 0.0, low_w(), low_h(), &view, &g.house, fr.ghost, pov, hide, beat_on);
+        let visitors = steps::visits::shown_bodies(g);
+        render_home(&g.full_view, 0.0, low_w(), low_h(), &view, &g.house, fr.ghost, pov, hide, beat_on, &visitors);
     } else if g.two_player {
         render_view(&g.full_view, 0.0, fr.half, low_h(), g.players[0].pos, g.players[0].cam, &view, true);
         render_view(&g.full_view, fr.half, fr.half, low_h(), g.players[1].pos, g.players[1].cam, &view, true);

@@ -164,7 +164,7 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
         }
     }
     g.bag_clear_armed = (g.bag_clear_armed - fr.dt).max(0.0);
-    fr.bag_busy = g.show_inventory && g.inside && !g.shop_open;
+    fr.bag_busy = g.show_inventory && g.inside && !g.shop_open && !steps::visits::visiting(g);
     if fr.bag_busy && g.holding.is_none() {
         let owner = g.bag_owner;
         let (up, down, act, clear) = if owner == 0 {

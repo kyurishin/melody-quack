@@ -258,6 +258,10 @@ pub(crate) fn doors(g: &mut Game, fr: &mut Frame) {
         g.audio.play_ch(3, &g.chop, 0.3);
         g.toasts.push(("home sweet home".to_string(), 2.5));
     }
+    if fr.go_out && g.inside && steps::visits::visiting(g) {
+        steps::visits::go_home(g, "back home again");
+        return;
+    }
     if fr.go_out && g.inside {
         if g.holding.is_some() {
             g.players[g.holding_by].place_at(home::world(vec2(3.5, 4.0)));

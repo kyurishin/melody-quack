@@ -227,6 +227,7 @@ fn here(g: &Game) -> u32 {
 }
 
 fn online(g: &mut Game, dt: f32) {
+    steps::visits::tick(g, dt);
     let st = net::state();
     g.venue.net_retry -= dt;
     if (st == 0 || st == -1) && g.venue.net_retry <= 0.0 {
@@ -326,6 +327,9 @@ fn online(g: &mut Game, dt: f32) {
     }
     while let Some(line) = net::recv() {
         let parts: Vec<&str> = line.split(' ').collect();
+        if steps::visits::on_message(g, &parts) {
+            continue;
+        }
         let finding = |g: &Game, code: &str| g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false);
         match parts.first().copied().unwrap_or("") {
             "otterline" if parts.len() >= 3 => {
@@ -1924,6 +1928,11 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
             fresh = true;
         }
     }
+    if g.venue.overlay == Overlay::None && !g.venue.visits.knocks.is_empty() && !g.paused && !g.picking && !g.venue.chat_open && !g.venue.pc_open {
+        g.venue.overlay = Overlay::Knock;
+        g.venue.opened_at = get_time();
+        fresh = true;
+    }
     if g.venue.at == Venue::None && g.venue.overlay == Overlay::None && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) && steps::partner::can_talk(g) {
         open_talk(g);
         fresh = true;
@@ -1964,6 +1973,8 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Account => account_panel(g, fr, fresh),
         Overlay::Bar => bar_panel(g, fr, fresh),
         Overlay::Talk => talk_box(g, fr, fresh),
+        Overlay::Homes => homes_panel(g, fr, fresh),
+        Overlay::Knock => knock_panel(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -4448,6 +4459,135 @@ fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
         return;
     }
     if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+pub(crate) fn open_homes(g: &mut Game) {
+    g.venue.overlay = Overlay::Homes;
+    g.venue.opened_at = get_time();
+    g.venue.visits.status.clear();
+    while get_char_pressed().is_some() {}
+}
+
+fn homes_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let w = 300f32.min(low_w() - 12.0);
+    let h = 168.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
+    ui_text_as(ui::Face::Display, "friends' homes", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
+    let code = steps::visits::my_code(g);
+    ui_text("your home code - share it so friends can knock:", x + 10.0, y + 32.0, 8.0, ui::skin::MUTED);
+    ui_round_frame(x + 10.0, y + 37.0, 110.0, 20.0, 5.0, ui::skin::TAB, ui::skin::EDGE_STRONG);
+    ui_text_as(ui::Face::Data, &code, x + 17.0, y + 51.0, 10.0, ui::skin::GOLD);
+    if button(fr, "copy", x + 126.0, y + 39.0, 44.0, 16.0, false) && !fresh {
+        net::copy(&code);
+        g.venue.visits.status = "copied! send it to a friend".to_string();
+        fr.click = false;
+    }
+    ui_text("when someone knocks, you choose: let them in or not now.", x + 10.0, y + 70.0, 8.0, ui::skin::MUTED);
+    ui_rect(x + 10.0, y + 78.0, w - 20.0, 1.0, Color::new(1.0, 1.0, 1.0, 0.12));
+    ui_text("visit a friend - type their home code:", x + 10.0, y + 92.0, 8.0, ui::skin::MUTED);
+    let (fx, fy, fw, fh) = (x + 10.0, y + 97.0, w - 80.0, 18.0);
+    ui_round_frame(fx, fy, fw, fh, 4.0, ui::skin::CREAM, ui::skin::EDGE_STRONG);
+    let caret = if (fr.time * 2.0).fract() < 0.6 { "|" } else { "" };
+    let draft = g.venue.visits.draft.clone();
+    if draft.is_empty() {
+        ui_text_raw(&format!("{caret}ACD-EFG-HJK"), fx + 6.0, fy + 12.5, 9.0, Color::from_rgba(170, 150, 175, 255));
+    } else {
+        ui_text_raw(&format!("{draft}{caret}"), fx + 6.0, fy + 12.5, 9.0, ui::skin::INK);
+    }
+    let knock_now = button(fr, "knock", x + w - 64.0, fy + 1.0, 54.0, 16.0, false) && !fresh;
+    if let Some(a) = &g.venue.visits.away {
+        let line = format!("you're at {}'s home.", a.host_name);
+        ui_text(&line, x + 10.0, y + 131.0, 8.0, ui::skin::CREAM);
+        if button(fr, "go home", x + w - 74.0, y + 121.0, 64.0, 16.0, false) && !fresh {
+            steps::visits::go_home(g, "home sweet home");
+            g.venue.overlay = Overlay::None;
+            fr.click = false;
+            return;
+        }
+    } else {
+        let guests: Vec<String> = g.venue.visits.peers.iter().map(|p| p.name.clone()).collect();
+        let line = if guests.is_empty() { "nobody is visiting you right now.".to_string() } else { format!("visiting you: {}", guests.join(", ")) };
+        ui_text(&line, x + 10.0, y + 131.0, 8.0, ui::skin::CREAM);
+    }
+    let status = g.venue.visits.status.clone();
+    if !status.is_empty() {
+        ui_text_fit(&status, x + 10.0, y + 150.0, 8.0, w - 20.0, ui::skin::GOLD);
+    }
+    ui_text("enter: knock   esc: close", x + w - 10.0 - ui_measure("enter: knock   esc: close", 7.0), y + h - 6.0, 7.0, ui::skin::MUTED);
+    if fresh {
+        return;
+    }
+    if fr.click && hit(fr, fx, fy, fw, fh) && radio::touch_ui() {
+        if let Some(text) = radio::ask_text("your friend's home code", &g.venue.visits.draft) {
+            g.venue.visits.draft = text;
+        }
+        fr.click = false;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.15;
+    while let Some(ch) = get_char_pressed() {
+        if settled && (ch.is_ascii_alphanumeric() || ch == '-') && g.venue.visits.draft.len() < 11 && !shortcut_held() {
+            g.venue.visits.draft.push(ch.to_ascii_uppercase());
+            let raw: String = g.venue.visits.draft.chars().filter(|c| *c != '-').collect();
+            let mut out = String::new();
+            for (i, c) in raw.chars().take(9).enumerate() {
+                if i == 3 || i == 6 {
+                    out.push('-');
+                }
+                out.push(c);
+            }
+            g.venue.visits.draft = out;
+        }
+    }
+    paste_into(&mut g.venue.visits.draft, 11, |c| c.is_ascii_alphanumeric() || c == '-');
+    g.venue.visits.draft = g.venue.visits.draft.to_uppercase();
+    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
+        g.venue.visits.draft.pop();
+        if g.venue.visits.draft.ends_with('-') {
+            g.venue.visits.draft.pop();
+        }
+    }
+    if knock_now || (settled && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter))) {
+        steps::visits::knock(g);
+        fr.click = false;
+    }
+    if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
+        g.venue.overlay = Overlay::None;
+        fr.click = false;
+    }
+}
+
+fn knock_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
+    let Some((id, ch, name)) = g.venue.visits.knocks.first().cloned() else {
+        g.venue.overlay = Overlay::None;
+        return;
+    };
+    let w = 240f32.min(low_w() - 12.0);
+    let h = 70.0;
+    let x = ((low_w() - w) / 2.0).round();
+    let y = ((low_h() - h) / 2.0).round();
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::PINK);
+    ui_text_as(ui::Face::Display, "knock knock!", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
+    let animal = g.cast_list[ch].name;
+    ui_text_fit(&format!("{name} the {animal} would like to visit your home."), x + 10.0, y + 31.0, 8.0, w - 20.0, ui::skin::CREAM);
+    let yes = button(fr, "let them in (Y)", x + 10.0, y + h - 26.0, (w - 26.0) / 2.0, 18.0, true) && !fresh;
+    let no = button(fr, "not now (N)", x + 16.0 + (w - 26.0) / 2.0, y + h - 26.0, (w - 26.0) / 2.0, 18.0, false) && !fresh;
+    if fresh {
+        return;
+    }
+    let settled = get_time() - g.venue.opened_at > 0.3;
+    let yes = yes || (settled && is_key_pressed(KeyCode::Y));
+    let no = no || (settled && (is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape)));
+    if yes || no {
+        steps::visits::answer(g, id, yes);
+        g.toasts.push((if yes { format!("you let {name} in") } else { format!("you told {name} not now") }, 3.0));
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }

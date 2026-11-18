@@ -36,6 +36,7 @@ pub(crate) struct Progress {
     pub(crate) cook_lesson: bool,
     pub(crate) gather_lesson: bool,
     pub(crate) room: u8,
+    pub(crate) home_code: String,
     pub(crate) dex: Vec<u32>,
     pub(crate) mush: [u32; 3],
     pub(crate) shroomdex: Vec<u32>,
@@ -74,6 +75,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("acorns {}\n", p.acorns);
     out += &format!("lessons {} {} {}\n", p.fish_lesson as u8, p.cook_lesson as u8, p.gather_lesson as u8);
     out += &format!("room {}\n", p.room);
+    if !p.home_code.is_empty() {
+        out += &format!("homecode {}\n", p.home_code);
+    }
     out += &format!("dex {}\n", list(p.dex.iter().map(|n| n.to_string()).collect()));
     out += &format!("mush {} {} {}\n", p.mush[0], p.mush[1], p.mush[2]);
     out += &format!("shroomdex {}\n", list(p.shroomdex.iter().map(|n| n.to_string()).collect()));
@@ -147,6 +151,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         cook_lesson: false,
         gather_lesson: false,
         room: 0,
+        home_code: String::new(),
         dex: vec![0; fish::COUNT],
         mush: [0; 3],
         shroomdex: vec![0; mushroom::COUNT],
@@ -211,6 +216,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                     p.gather_lesson = nums[2] > 0.0;
                 }
             },
+            "homecode" => p.home_code = rest.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(11).collect(),
             "room" if nums.len() == 1 => p.room = (nums[0].max(0.0) as u8).min(home::MAX_SIZE),
             "dex" => {
                 for (k, v) in rest.split(',').enumerate().take(fish::COUNT) {

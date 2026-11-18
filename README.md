@@ -170,6 +170,15 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 
 **Daily quests:** three a day (fish, mushrooms, cooking, watering, sticks, notes, emojis, stars, dancing), in your bag with their acorn rewards.
 
+### Friends' homes
+
+Invite friends round, or visit theirs. Pause and press **friends' homes (O)**:
+
+- **Your home code** (like `ACD-EFG-HJK`) is yours to keep: it never changes, and **copy** puts it on the clipboard to send to a friend.
+- **Visit a friend:** type their code and press **knock**. They get a "knock knock!" with **let them in (Y)** or **not now (N)**.
+- **Inside:** you walk around their home exactly as they've decorated it, and you see each other move. Guests can look but not move or use the furniture, and your own house and save stay untouched. Walk out of their front door (or press **go home** in the panel) to head back.
+- **As the host,** you see your guests when you're inside, the panel says who's visiting, and if you go offline everyone is sent home.
+
 ### Real time, seasons and weather
 
 The world follows your clock: morning, day, sunset, dusk and night with stars and a moon. Seasons follow the date (blossom, green, orange, snow). In the browser the weather comes live from [Open-Meteo](https://open-meteo.com) for your location (or Hamburg if you say no), with real sunrise and sunset; the desktop version makes up weather to suit the season.

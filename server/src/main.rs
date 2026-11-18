@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 mod accounts;
 mod otter;
+mod homes;
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -220,6 +221,7 @@ struct Hub {
     accounts: accounts::Accounts,
     casts: HashMap<String, Cast>,
     otter: otter::Otter,
+    homes: homes::Homes,
 }
 
 impl Hub {
@@ -249,6 +251,7 @@ impl Hub {
             accounts: accounts::Accounts::default(),
             casts: HashMap::new(),
             otter: otter::Otter::default(),
+            homes: homes::Homes::default(),
         }
     }
 
@@ -353,6 +356,15 @@ impl Hub {
         self.dj_list(id);
     }
 
+    fn home_leave(&mut self, id: u32) {
+        if self.homes.visits.contains_key(&id) {
+            for other in self.homes.group(id) {
+                self.say(other, format!("hgone {id}"));
+            }
+            self.homes.visits.remove(&id);
+        }
+    }
+
     fn sign_out(&mut self, ids: Vec<u32>) {
         for other in ids {
             self.off_air(other);
@@ -394,6 +406,14 @@ impl Hub {
     }
 
     fn drop_client(&mut self, id: u32, now: i64) {
+        self.home_leave(id);
+        for guest in self.homes.guests_of(id) {
+            self.homes.visits.remove(&guest);
+            self.say(guest, "hostgone".to_string());
+        }
+        self.homes.hosts.retain(|_, h| *h != id);
+        self.homes.knocks.remove(&id);
+        self.homes.faces.remove(&id);
         self.leave(id, now);
         self.clients.remove(&id);
     }
@@ -421,7 +441,7 @@ impl Hub {
     }
 
     fn handle(&mut self, id: u32, line: &str, now: i64) {
-        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ") || (line.starts_with("otter ") && line.len() <= otter::MAX_LINE);
+        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ") || (line.starts_with("otter ") && line.len() <= otter::MAX_LINE) || (line.starts_with("letin ") && line.len() <= homes::MAX_HOUSE);
         if (line.len() > MAX_LINE && !bulky) || line.len() > MAX_BULK || !self.clients.contains_key(&id) {
             return;
         }
@@ -890,6 +910,71 @@ impl Hub {
                     }
                 }
             }
+            "homecode" => {
+                let code = rest.trim().to_string();
+                if homes::valid_home(&code) && self.homes.hosts.get(&code).map(|h| *h == id).unwrap_or(true) {
+                    self.homes.hosts.retain(|_, h| *h != id);
+                    self.homes.hosts.insert(code, id);
+                }
+            }
+            "knock" => {
+                let p: Vec<&str> = rest.split_whitespace().collect();
+                if p.len() < 3 {
+                    return;
+                }
+                let (code, ch, name) = (p[0].to_uppercase(), p[1].parse::<usize>().unwrap_or(0).min(63), homes::clean_name(p[2]));
+                match self.homes.hosts.get(&code).copied() {
+                    Some(host) if host != id && self.clients.contains_key(&host) => {
+                        self.homes.knocks.insert(id, (code, ch, name.clone()));
+                        self.homes.faces.insert(id, (ch, name.clone()));
+                        self.say(host, format!("knock {id} {ch} {name}"));
+                        self.say(id, "knocking".to_string());
+                    }
+                    _ => self.say(id, "nobody".to_string()),
+                }
+            }
+            "letin" => {
+                let p: Vec<&str> = rest.splitn(4, ' ').collect();
+                if p.len() < 4 {
+                    return;
+                }
+                let Ok(guest) = p[0].parse::<u32>() else { return };
+                let mine = self.homes.code_of(id);
+                if mine.is_none() || self.homes.knocks.get(&guest).map(|k| Some(&k.0) != mine.as_ref()).unwrap_or(true) {
+                    return;
+                }
+                let (ch, name) = (p[1].parse::<usize>().unwrap_or(0).min(63), homes::clean_name(p[2]));
+                let house: String = p[3].chars().filter(|c| !c.is_whitespace()).collect();
+                self.homes.knocks.remove(&guest);
+                self.home_leave(guest);
+                self.homes.visits.insert(guest, mine.unwrap());
+                self.homes.faces.insert(id, (ch, name.clone()));
+                self.say(guest, format!("welcome {id} {ch} {name} {house}"));
+            }
+            "turnaway" => {
+                let Ok(guest) = rest.trim().parse::<u32>() else { return };
+                let mine = self.homes.code_of(id);
+                if mine.is_some() && self.homes.knocks.get(&guest).map(|k| Some(&k.0) == mine.as_ref()).unwrap_or(false) {
+                    self.homes.knocks.remove(&guest);
+                    self.say(guest, "turnedaway".to_string());
+                }
+            }
+            "hat" => {
+                let n: Vec<f32> = rest.split_whitespace().filter_map(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).collect();
+                if n.len() < 5 {
+                    return;
+                }
+                let group = self.homes.group(id);
+                if group.is_empty() {
+                    return;
+                }
+                let (ch, name) = self.homes.faces.get(&id).cloned().unwrap_or((0, "friend".to_string()));
+                let line = format!("hpeer {id} {ch} {name} {:.2} {:.2} {:.2} {:.2} {}", n[0].clamp(-2.0, 40.0), n[1].clamp(-2.0, 40.0), n[2].clamp(-1.0, 1.0), n[3].clamp(-1.0, 1.0), n[4].clamp(0.0, 9.0) as u8);
+                for other in group {
+                    self.say(other, line.clone());
+                }
+            }
+            "homeleave" => self.home_leave(id),
             "otter" => {
                 let Some(ask) = otter::parse_ask(rest) else {
                     return;
@@ -1199,6 +1284,39 @@ mod tests {
         assert_eq!(got.to_text().unwrap(), "otterline fish off to the dock!");
         h.handle(me, r#"otter {"text":"otter again"}"#, 100);
         assert_eq!(rx.recv().await.unwrap().to_text().unwrap(), "otterno busy");
+    }
+
+    #[test]
+    fn friends_knock_get_let_in_and_see_each_other_at_home() {
+        let mut h = hub();
+        let (host, guest, other) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(host, "homecode ABC-DEF-GHJ", 0);
+        h.handle(guest, "knock XYZ-XYZ-XYZ 3 mina", 0);
+        assert_eq!(said(&mut h, guest), vec!["nobody".to_string()]);
+        h.handle(guest, "knock abc-def-ghj 3 mina", 0);
+        assert_eq!(said(&mut h, host), vec![format!("knock {guest} 3 mina")]);
+        assert_eq!(said(&mut h, guest), vec!["knocking".to_string()]);
+        h.handle(other, &format!("letin {guest} 1 sneaky 0,0,0,1;"), 0);
+        assert!(said(&mut h, guest).is_empty());
+        h.handle(host, &format!("letin {guest} 1 ky 2,1,3,1;5:1:2:0"), 0);
+        assert_eq!(said(&mut h, guest), vec![format!("welcome {host} 1 ky 2,1,3,1;5:1:2:0")]);
+        h.handle(guest, "hat 2.5 3 0 1 1", 0);
+        assert_eq!(said(&mut h, host), vec![format!("hpeer {guest} 3 mina 2.50 3.00 0.00 1.00 1")]);
+        h.handle(host, "hat 1 1 1 0 0", 0);
+        assert_eq!(said(&mut h, guest), vec![format!("hpeer {host} 1 ky 1.00 1.00 1.00 0.00 0")]);
+        h.handle(other, "knock ABC-DEF-GHJ 2 rex", 0);
+        said(&mut h, other);
+        said(&mut h, host);
+        h.handle(host, &format!("turnaway {other}"), 0);
+        assert_eq!(said(&mut h, other), vec!["turnedaway".to_string()]);
+        h.handle(guest, "homeleave", 0);
+        assert_eq!(said(&mut h, host), vec![format!("hgone {guest}")]);
+        h.handle(guest, "knock ABC-DEF-GHJ 3 mina", 0);
+        said(&mut h, host);
+        h.handle(host, &format!("letin {guest} 1 ky 0,0,0,1;"), 0);
+        said(&mut h, guest);
+        h.drop_client(host, 0);
+        assert_eq!(said(&mut h, guest), vec!["hostgone".to_string()]);
     }
 
     #[test]

@@ -310,8 +310,8 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             ]
         };
         let w = 230f32.min(low_w() - 10.0);
-        let row_h = 24.0;
-        let h = 40.0 + row_h * 5.0 + 98.0;
+        let row_h = if 40.0 + 24.0 * 5.0 + 122.0 > low_h() - 6.0 { 20.0 } else { 24.0 };
+        let h = 40.0 + row_h * 5.0 + 122.0;
         let x = ((low_w() - w) / 2.0).round();
         let y = if radio::touch_ui() && low_h() > low_w() { (low_h() * 0.16).round() } else { ((low_h() - h) / 2.0).round() };
         let label_w = 70.0;
@@ -470,6 +470,27 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             g.venue.key_draft.clear();
             g.venue.acct_key = false;
             while get_char_pressed().is_some() {}
+            g.back_to_pause = true;
+            fr.click = false;
+        }
+        let homes_y = acc_y + btn_h + 4.0;
+        let homes_w = w - 20.0;
+        let on_homes = fr.ux > dex_x && fr.ux < dex_x + homes_w && fr.uy > homes_y && fr.uy < homes_y + btn_h;
+        let guests = g.venue.visits.peers.len();
+        let homes_label = if steps::visits::visiting(g) {
+            "friends' homes: you're visiting".to_string()
+        } else if guests > 0 {
+            format!("friends' homes: {guests} visiting")
+        } else {
+            "friends' homes".to_string()
+        } + if radio::touch_ui() { "" } else { " (O)" };
+        ui_rect(dex_x, homes_y, homes_w, btn_h, if on_homes { Color::new(1.0, 1.0, 1.0, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.12) });
+        let hs = fit_size(&homes_label, 10.0, homes_w - 6.0);
+        ui_text(&homes_label, dex_x + (homes_w - ui_measure(&homes_label, hs)) / 2.0, homes_y + 14.0, hs, WHITE);
+        if !fr.just_paused && ((fr.click && on_homes && g.mix_drag.is_none()) || is_key_pressed(KeyCode::O)) {
+            g.paused = false;
+            g.restart_confirm = 0.0;
+            steps::venues::open_homes(g);
             g.back_to_pause = true;
             fr.click = false;
         }

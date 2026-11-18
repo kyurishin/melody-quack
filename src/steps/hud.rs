@@ -225,7 +225,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         ui_text(msg, (low_w() - w) / 2.0 + 6.0, 38.0, 12.0, Color::new(0.8, 0.95, 1.0, a));
     }
 
-    fr.inside_hint = if g.inside {
+    fr.inside_hint = if g.inside && steps::visits::visiting(g) {
+        steps::visits::hud_line(g)
+    } else if g.inside {
         let ahead = ahead_local(&g.players[0]);
         let here = home::local(g.players[0].pos);
         Some(if g.shop_open || g.dj[0] {
@@ -357,6 +359,11 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
     if !g.inside && !g.players[0].seated && !g.fishing.active {
         if let Some(h) = venues::outdoor_hint(g.players[0].pos) {
             fr.hint = h.to_string();
+        }
+    }
+    if fr.hint.is_empty() && g.inside && !steps::visits::visiting(g) {
+        if let Some(line) = steps::visits::hud_line(g) {
+            fr.hint = line;
         }
     }
     if !fr.hint.is_empty() && !g.picking {

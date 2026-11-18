@@ -271,6 +271,7 @@ impl Piece {
     }
 }
 
+#[derive(Clone)]
 pub struct Home {
     pub pieces: Vec<Piece>,
     pub wall: u8,
@@ -281,6 +282,34 @@ pub struct Home {
 }
 
 impl Home {
+    pub fn to_text(&self) -> String {
+        let mut out = format!("{},{},{},{}", self.size, self.wall, self.floor, self.record_on as u8);
+        for p in self.pieces.iter().take(400) {
+            out += &format!(";{}:{}:{}:{}:{}", p.item.index(), p.x, p.z, p.rot, p.state);
+        }
+        out
+    }
+
+    pub fn from_text(text: &str) -> Option<Home> {
+        let mut parts = text.split(';');
+        let head: Vec<u8> = parts.next()?.split(',').filter_map(|v| v.parse().ok()).collect();
+        if head.len() < 4 {
+            return None;
+        }
+        let mut home = Home::new();
+        home.size = head[0].min(ROOM_SIZES.len() as u8 - 1);
+        home.wall = head[1].min(WALLS.len() as u8 - 1);
+        home.floor = head[2].min(FLOORS.len() as u8 - 1);
+        home.record_on = head[3] > 0;
+        for p in parts.take(400) {
+            let n: Vec<i32> = p.split(':').filter_map(|v| v.parse().ok()).collect();
+            if n.len() == 5 && (n[0] as usize) < ITEMS.len() && (0..64).contains(&n[1]) && (0..64).contains(&n[2]) {
+                home.pieces.push(Piece { item: Item::from_index(n[0] as u8), x: n[1], z: n[2], rot: (n[3].rem_euclid(4)) as u8, state: n[4].clamp(0, 255) as u8, day: 0 });
+            }
+        }
+        Some(home)
+    }
+
     pub fn new() -> Home {
         Home { pieces: Vec::new(), wall: 0, floor: 0, owned_styles: 1 | (1 << 4), record_on: true, size: 0 }
     }

@@ -963,6 +963,36 @@
       document.addEventListener("dblclick", function (e) { e.preventDefault(); }, { passive: false });
     })();
   </script>
+  <script>
+    (function () {
+      var Orig = window.AudioContext || window.webkitAudioContext;
+      if (!Orig) return;
+      var all = (window.mqAudioContexts = []);
+      var phone = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      function Wrapped(options) {
+        var opts = options || {};
+        if (phone && !opts.latencyHint) opts.latencyHint = "balanced";
+        var ctx;
+        try { ctx = new Orig(opts); } catch (e) { ctx = new Orig(); }
+        all.push(ctx);
+        return ctx;
+      }
+      Wrapped.prototype = Orig.prototype;
+      window.AudioContext = Wrapped;
+      if (window.webkitAudioContext) window.webkitAudioContext = Wrapped;
+      function wake() {
+        try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+        all.forEach(function (ctx) {
+          if (ctx.state !== "running" && ctx.resume) ctx.resume().catch(function () {});
+        });
+      }
+      ["pointerdown", "touchstart", "touchend", "keydown", "click"].forEach(function (t) {
+        document.addEventListener(t, wake, { capture: true, passive: true });
+      });
+      document.addEventListener("visibilitychange", function () { if (!document.hidden) wake(); });
+      window.addEventListener("pageshow", wake);
+    })();
+  </script>
   <script src="mq_js_bundle.js"></script>
   <script>
     (function () {

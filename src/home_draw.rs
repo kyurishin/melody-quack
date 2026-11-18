@@ -577,7 +577,7 @@ pub(crate) fn booth_pov(home: &home::Home, side: f32) -> Option<(Vec3, Vec3)> {
     Some((eye, target))
 }
 
-pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: f32, view: &View, home: &home::Home, ghost: Option<(home::Piece, bool)>, pov: Option<(Vec3, Vec3)>, hide: Option<usize>, beat_on: bool) {
+pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: f32, view: &View, home: &home::Home, ghost: Option<(home::Piece, bool)>, pov: Option<(Vec3, Vec3)>, hide: Option<usize>, beat_on: bool, visitors: &[&Player]) {
     set_camera(&Camera2D {
         render_target: Some(target.clone()),
         zoom: vec2(2.0 / target.texture.width(), -2.0 / height),
@@ -652,6 +652,9 @@ pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: 
         if hide == Some(k) || pov.map(|(e, _)| vec2(e.x, e.z).distance(p.pos) < 1.0).unwrap_or(false) {
             continue;
         }
+        p.draw(&mut b, view.world, view.time, view.dance);
+    }
+    for p in visitors {
         p.draw(&mut b, view.world, view.time, view.dance);
     }
     for &(p, life) in &view.extras.hearts {
