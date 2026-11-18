@@ -329,7 +329,7 @@ Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the
 
 - **Desktop:** `cargo run --release`. On Linux you need the ALSA, X11 and OpenGL development packages (`libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev` on Debian/Ubuntu) and a C compiler (for the MP3 encoder).
 - **Web:** `cargo build --release --target wasm32-unknown-unknown`, then copy the `.wasm` into `web/` next to `index.html`. Pushing to `main` builds and deploys GitHub Pages (`.github/workflows/pages.yml`).
-- **Packages:** `.github/workflows/packages.yml` builds the macOS .dmg (`packaging/macos/make-dmg.sh`), the Linux tarball and AppImage (`packaging/linux/make-linux.sh`) and the Arch package (`packaging/arch/PKGBUILD`) on every push. Starting it by hand puts them in a draft release; pushing a `v*` tag (after raising `version` in `Cargo.toml`) publishes a public release, which the apps' update check looks for.
+- **Packages:** `.github/workflows/packages.yml` builds the macOS .dmg (`packaging/macos/make-dmg.sh`), the Linux tarball and AppImage (`packaging/linux/make-linux.sh`) and the Arch package (`packaging/arch/PKGBUILD`) on every push. Starting it by hand puts them in a draft release; pushing a `v*` tag, or starting it by hand with **release** ticked, publishes a public release named after `version` in `Cargo.toml` (raise it first), which the apps' update check looks for.
 - **Server:** `cd server && cargo test` and `cargo build --release`; `server/Dockerfile` builds an image.
 - **Tests:** `cargo test` (game), `cd server && cargo test` (server), `python3 -m unittest discover -s tests -v` (source checks).
 
