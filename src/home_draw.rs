@@ -363,6 +363,39 @@ pub(crate) fn draw_home(b: &mut Batch, home: &home::Home, time: f32, ghost: Opti
             }
         }
     }
+    if home.wall == 3 {
+        let mortar = tinted(wall, -0.16);
+        let lit = tinted(wall, 0.05);
+        let row_h = 0.16;
+        let brick = 0.44;
+        let rows = ((wall_h - 0.26) / row_h) as i32;
+        for k in 0..rows {
+            let y = home::FLOOR_Y + 0.24 + k as f32 * row_h;
+            b.cube(vec3(ox + w / 2.0, y, oz + 0.005), vec3(w, 0.014, 0.02), mortar);
+            b.cube(vec3(ox + 0.005, y, oz + d / 2.0), vec3(0.02, 0.014, d), mortar);
+            b.cube(vec3(ox + w - 0.005, y, oz + d / 2.0), vec3(0.02, 0.014, d), mortar);
+            let shift = if k % 2 == 0 { 0.0 } else { brick / 2.0 };
+            let mid = y + row_h / 2.0;
+            let mut x = shift;
+            while x < w {
+                if x > 0.02 {
+                    b.cube(vec3(ox + x, mid, oz + 0.005), vec3(0.014, row_h, 0.02), mortar);
+                }
+                if hash(k, (x * 10.0) as i32, 31) > 0.82 {
+                    b.cube(vec3(ox + x + brick / 2.0, mid, oz + 0.004), vec3(brick - 0.03, row_h - 0.03, 0.018), lit);
+                }
+                x += brick;
+            }
+            let mut z = shift;
+            while z < d {
+                if z > 0.02 {
+                    b.cube(vec3(ox + 0.005, mid, oz + z), vec3(0.02, row_h, 0.014), mortar);
+                    b.cube(vec3(ox + w - 0.005, mid, oz + z), vec3(0.02, row_h, 0.014), mortar);
+                }
+                z += brick;
+            }
+        }
+    }
     if home.floor == home::CONCRETE_FLOOR {
         let seam = tinted(plank_b, -0.2);
         let mut x = 2.0_f32;

@@ -31,7 +31,7 @@ vec3 bright(vec2 p) {
     vec3 c = texture2D(Texture, p).rgb;
     float l = max(max(c.r, c.g), c.b);
     float s = l - min(min(c.r, c.g), c.b);
-    return c * smoothstep(0.9 - 0.04 * night, 1.0, l) * smoothstep(0.3, 0.75, s + 0.2 * night);
+    return c * smoothstep(0.94 - 0.03 * night, 1.0, l) * smoothstep(0.3, 0.75, s + 0.2 * night);
 }
 
 void main() {

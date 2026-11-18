@@ -82,15 +82,16 @@ impl Batch {
         if self.vertices.len() > 3000 {
             self.flush();
         }
-        let dist = (center - self.eye).length();
-        let fog = smoothstep((dist - 9.0) / 16.0) * 0.75;
-        let lit = self.light.apply(center, color);
-        let col = Color::new((lit.r * 1.04).min(1.0), (lit.g * 1.02).min(1.0), lit.b * 0.96, color.a);
         let f = self.light.fog();
-        let col = mix(col, Color::new(f.r, f.g, f.b, col.a), fog);
         let base = self.vertices.len() as u16;
         for (dx, dz) in [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)] {
-            self.vertices.push(Vertex::new(center.x + dx, center.y, center.z + dz, 0.0, 0.0, col));
+            let p = center + vec3(dx, 0.0, dz);
+            let dist = (p - self.eye).length();
+            let fog = smoothstep((dist - 9.0) / 16.0) * 0.75;
+            let lit = self.light.apply(p, color);
+            let col = Color::new((lit.r * 1.04).min(1.0), (lit.g * 1.02).min(1.0), lit.b * 0.96, color.a);
+            let col = mix(col, Color::new(f.r, f.g, f.b, col.a), fog);
+            self.vertices.push(Vertex::new(p.x, p.y, p.z, 0.0, 0.0, col));
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
@@ -117,6 +118,7 @@ impl Batch {
         let fog = smoothstep((dist - 9.0) / 16.0) * 0.75;
         let fog_color = self.light.fog();
         let lit_center = if self.unlit { color } else { self.light.apply(world_center, color) };
+        let smooth = !self.unlit && size.max_element() > 0.9;
 
         for (normal, corners) in faces {
             let n = rot(normal);
@@ -125,14 +127,23 @@ impl Batch {
             } else {
                 0.58 + 0.32 * n.dot(light).max(0.0)
             };
-            let mut col = Color::new(lit_center.r * shade, lit_center.g * shade, lit_center.b * shade, color.a);
-            if n.y > 0.5 {
-                col = Color::new((col.r * 1.04).min(1.0), (col.g * 1.02).min(1.0), col.b * 0.96, col.a);
-            }
-            let col = mix(col, Color::new(fog_color.r, fog_color.g, fog_color.b, col.a), fog);
+            let paint = |lit: Color, fog: f32| {
+                let mut col = Color::new(lit.r * shade, lit.g * shade, lit.b * shade, color.a);
+                if n.y > 0.5 {
+                    col = Color::new((col.r * 1.04).min(1.0), (col.g * 1.02).min(1.0), col.b * 0.96, col.a);
+                }
+                mix(col, Color::new(fog_color.r, fog_color.g, fog_color.b, col.a), fog)
+            };
+            let flat = paint(lit_center, fog);
             let base = self.vertices.len() as u16;
             for k in corners {
                 let p = origin + rot(local + k * h);
+                let col = if smooth {
+                    let at = p + n * 0.02;
+                    paint(self.light.apply(at, color), smoothstep(((at - self.eye).length() - 9.0) / 16.0) * 0.75)
+                } else {
+                    flat
+                };
                 self.vertices.push(Vertex::new(p.x, p.y, p.z, 0.0, 0.0, col));
             }
             self.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
