@@ -8,6 +8,16 @@ pub struct Homes {
     pub knocks: HashMap<u32, (String, usize, String)>,
     pub visits: HashMap<u32, String>,
     pub faces: HashMap<u32, (usize, String)>,
+    pub watch: HashMap<u32, Vec<String>>,
+    pub me: HashMap<u32, (usize, String)>,
+    pub spoke: HashMap<u32, i64>,
+}
+
+pub const MAX_FRIENDS: usize = 50;
+pub const SAY_GAP_MS: i64 = 600;
+
+pub fn clean_text(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control()).take(160).collect::<String>().trim().to_string()
 }
 
 pub fn valid_home(code: &str) -> bool {
@@ -45,6 +55,39 @@ mod sound_tests {
 }
 
 impl Homes {
+    pub fn status(&self, code: &str) -> String {
+        match self.hosts.get(code) {
+            Some(id) => {
+                let st = if self.visits.contains_key(id) { 2 } else { 1 };
+                let (ch, name) = self.me.get(id).cloned().unwrap_or((0, String::new()));
+                format!("fstat {code} {st} {ch} {}", if name.is_empty() { "-".to_string() } else { name })
+            }
+            None => format!("fstat {code} 0 0 -"),
+        }
+    }
+
+    pub fn watchers(&self, code: &str) -> Vec<u32> {
+        self.watch.iter().filter(|(_, list)| list.iter().any(|c| c == code)).map(|(id, _)| *id).collect()
+    }
+
+    pub fn mutual(&self, a: u32, b: u32) -> bool {
+        let (Some(ca), Some(cb)) = (self.code_of(a), self.code_of(b)) else { return false };
+        self.watch.get(&a).map(|l| l.contains(&cb)).unwrap_or(false) && self.watch.get(&b).map(|l| l.contains(&ca)).unwrap_or(false)
+    }
+
+    pub fn may_speak(&mut self, id: u32, now: i64) -> bool {
+        let last = self.spoke.get(&id).copied().unwrap_or(i64::MIN / 2);
+        if now - last < SAY_GAP_MS {
+            return false;
+        }
+        self.spoke.insert(id, now);
+        true
+    }
+
+    pub fn name_of(&self, id: u32) -> (usize, String) {
+        self.me.get(&id).or_else(|| self.faces.get(&id)).cloned().unwrap_or((0, "friend".to_string()))
+    }
+
     pub fn code_of(&self, id: u32) -> Option<String> {
         self.hosts.iter().find(|(_, h)| **h == id).map(|(c, _)| c.clone())
     }

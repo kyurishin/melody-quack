@@ -4,6 +4,7 @@ use crate::*;
 use macroquad::prelude::*;
 
 pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
+    steps::chat::make_portraits(g);
     let cat = &g.players[0];
     fr.ahead = cat.ahead();
     fr.ring = if g.fish_card > 0.0 { 1.0 } else { ((g.fishing.cue_at - g.looper.position) / FISH_CUE_GAP).clamp(0.0, 1.0) };

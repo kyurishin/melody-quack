@@ -37,6 +37,7 @@ pub(crate) struct Progress {
     pub(crate) gather_lesson: bool,
     pub(crate) room: u8,
     pub(crate) home_code: String,
+    pub(crate) friends: String,
     pub(crate) dex: Vec<u32>,
     pub(crate) mush: [u32; 3],
     pub(crate) shroomdex: Vec<u32>,
@@ -75,6 +76,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("acorns {}\n", p.acorns);
     out += &format!("lessons {} {} {}\n", p.fish_lesson as u8, p.cook_lesson as u8, p.gather_lesson as u8);
     out += &format!("room {}\n", p.room);
+    if !p.friends.is_empty() {
+        out += &format!("friends {}\n", p.friends);
+    }
     if !p.home_code.is_empty() {
         out += &format!("homecode {}\n", p.home_code);
     }
@@ -155,6 +159,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         gather_lesson: false,
         room: 0,
         home_code: String::new(),
+        friends: String::new(),
         dex: vec![0; fish::COUNT],
         mush: [0; 3],
         shroomdex: vec![0; mushroom::COUNT],
@@ -219,6 +224,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                     p.gather_lesson = nums[2] > 0.0;
                 }
             },
+            "friends" => p.friends = rest.trim().chars().filter(|c| !c.is_control() && *c != ' ').take(2000).collect(),
             "homecode" => p.home_code = rest.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(11).collect(),
             "room" if nums.len() == 1 => p.room = (nums[0].max(0.0) as u8).min(home::MAX_SIZE),
             "dex" => {

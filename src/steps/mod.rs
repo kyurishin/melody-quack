@@ -21,6 +21,7 @@ pub(crate) mod hud;
 pub(crate) mod topbar;
 pub(crate) mod partner;
 pub(crate) mod visits;
+pub(crate) mod chat;
 pub(crate) mod popups;
 pub(crate) mod shop;
 pub(crate) mod overlays;

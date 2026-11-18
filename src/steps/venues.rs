@@ -18,7 +18,7 @@ fn cream() -> Color {
     Color::from_rgba(255, 247, 224, 255)
 }
 
-fn hit(fr: &Frame, x: f32, y: f32, w: f32, h: f32) -> bool {
+pub(crate) fn hit(fr: &Frame, x: f32, y: f32, w: f32, h: f32) -> bool {
     fr.ux >= x && fr.ux < x + w && fr.uy >= y && fr.uy < y + h
 }
 
@@ -36,7 +36,7 @@ thread_local! {
     static RETRO: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-fn button(fr: &Frame, label: &str, x: f32, y: f32, w: f32, h: f32, on: bool) -> bool {
+pub(crate) fn button(fr: &Frame, label: &str, x: f32, y: f32, w: f32, h: f32, on: bool) -> bool {
     let over = hit(fr, x, y, w, h);
     if !RETRO.with(|r| r.get()) {
         let pressed = over && is_mouse_button_down(MouseButton::Left);
@@ -228,6 +228,7 @@ fn here(g: &Game) -> u32 {
 
 fn online(g: &mut Game, dt: f32) {
     steps::visits::tick(g, dt);
+    steps::chat::tick(g);
     let st = net::state();
     g.venue.net_retry -= dt;
     if (st == 0 || st == -1) && g.venue.net_retry <= 0.0 {
@@ -327,7 +328,7 @@ fn online(g: &mut Game, dt: f32) {
     }
     while let Some(line) = net::recv() {
         let parts: Vec<&str> = line.split(' ').collect();
-        if steps::visits::on_message(g, &parts) {
+        if steps::visits::on_message(g, &parts) || steps::chat::on_message(g, &parts) {
             continue;
         }
         let finding = |g: &Game, code: &str| g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false);
@@ -2594,11 +2595,11 @@ fn modifier_held() -> bool {
     [KeyCode::LeftControl, KeyCode::RightControl, KeyCode::LeftSuper, KeyCode::RightSuper].iter().any(|k| is_key_down(*k))
 }
 
-fn shortcut_held() -> bool {
+pub(crate) fn shortcut_held() -> bool {
     modifier_held() && (is_key_pressed(KeyCode::V) || is_key_pressed(KeyCode::C))
 }
 
-fn paste_into(target: &mut String, max: usize, keep: impl Fn(char) -> bool) {
+pub(crate) fn paste_into(target: &mut String, max: usize, keep: impl Fn(char) -> bool) {
     if let Some(text) = net::pasted() {
         for ch in text.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }) {
             if !ch.is_control() && keep(ch) && target.chars().count() < max {
@@ -2631,7 +2632,7 @@ thread_local! {
     static HELD: std::cell::RefCell<std::collections::HashMap<KeyCode, f64>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-fn held_repeat(k: KeyCode) -> bool {
+pub(crate) fn held_repeat(k: KeyCode) -> bool {
     let now = get_time();
     HELD.with(|h| {
         let mut h = h.borrow_mut();
@@ -4379,160 +4380,7 @@ pub(crate) fn open_talk(g: &mut Game) {
 }
 
 fn talk_box(g: &mut Game, fr: &mut Frame, fresh: bool) {
-    let (name, noun) = {
-        let ch = &g.cast_list[g.players[1].character];
-        (ch.name, ch.noun)
-    };
-    let w = 380f32.min(low_w() - 12.0);
-    let notice = !g.venue.partner.noticed;
-    const ROW: f32 = 12.0;
-    const GAP: f32 = 4.0;
-    let mut lines: Vec<(Color, String, f32)> = Vec::new();
-    for (k, (otter, text)) in g.venue.partner.log.iter().enumerate() {
-        let (who, col) = if *otter { (noun, ui::skin::GOLD) } else { ("you", ui::skin::CREAM) };
-        for (i, l) in ui::with_face(ui::Face::Notice, || ui_wrap(&format!("{who}: {text}"), 8.0, w - 32.0)).into_iter().enumerate() {
-            let lead = if i == 0 && k > 0 { GAP } else { 0.0 };
-            lines.push((col, l, lead));
-        }
-    }
-    let rows = if low_h() > 300.0 { 16 } else { 11 };
-    let area_h = rows as f32 * ROW;
-    let total = lines.len();
-    let fits_from = |end: usize| {
-        let mut used = 0.0;
-        let mut start = end;
-        while start > 0 {
-            let add = ROW + if start < end { lines[start].2 } else { 0.0 };
-            if used + add > area_h {
-                break;
-            }
-            used += add;
-            start -= 1;
-        }
-        start
-    };
-    let max_scroll = {
-        let mut m = 0;
-        while m < total && fits_from(total - m) > 0 {
-            m += 1;
-        }
-        m
-    };
-    if !fresh {
-        let wheel = mouse_wheel().1;
-        let p = &mut g.venue.partner;
-        if wheel > 0.0 || is_key_pressed(KeyCode::Up) {
-            p.scroll += 1;
-        }
-        if (wheel < 0.0 || is_key_pressed(KeyCode::Down)) && p.scroll > 0 {
-            p.scroll -= 1;
-        }
-        if is_key_pressed(KeyCode::PageUp) {
-            p.scroll += rows - 1;
-        }
-        if is_key_pressed(KeyCode::PageDown) {
-            p.scroll = p.scroll.saturating_sub(rows - 1);
-        }
-    }
-    g.venue.partner.scroll = g.venue.partner.scroll.min(max_scroll);
-    let scroll = g.venue.partner.scroll;
-    let end = total - scroll;
-    let start = fits_from(end);
-    let shown: Vec<(Color, String, f32)> = lines[start..end].to_vec();
-    let tips = if notice {
-        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") and it answers. it can cook, fish, collect, sit with you and hum. what you say to it goes to claude, anthropic's ai, to write its replies. keep personal details to yourself."), 8.0, w - 20.0)
-    } else {
-        ui_wrap(&format!("call your {noun} (or any animal, or \"buddy\") to talk.   enter: send   esc: close"), 8.0, w - 20.0)
-    };
-    let used: f32 = shown.iter().enumerate().map(|(i, l)| ROW + if i > 0 { l.2 } else { 0.0 }).sum();
-    let log_h = if max_scroll > 0 { area_h } else { used.max(ROW) };
-    let h = 30.0 + log_h + 22.0 + tips.len() as f32 * 10.0 + 6.0;
-    let x = ((low_w() - w) / 2.0).round();
-    let y = (low_h() - h - 8.0).round().max(4.0);
-    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.5));
-    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
-    ui_text_as(ui::Face::Display, "talk", x + 10.0, y + 16.0, 11.0, ui::skin::GOLD);
-    let sub_line = format!("with your {name}");
-    ui_text(&sub_line, x + 14.0 + ui_measure_as(ui::Face::Display, "talk", 11.0), y + 15.0, 8.0, ui::skin::MUTED);
-    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
-    let log_top = y + 23.0;
-    let mut ly = log_top + 9.5;
-    for (i, (c, l, lead)) in shown.iter().enumerate() {
-        if i > 0 {
-            ly += *lead;
-        }
-        ui_text_as(ui::Face::Notice, l, x + 10.0, ly, 8.0, *c);
-        ly += ROW;
-    }
-    let ty = log_top + 7.0 + log_h;
-    if max_scroll > 0 {
-        let (bx, by, bh) = (x + w - 11.0, log_top, log_h);
-        ui_round(bx, by, 4.0, bh, 2.0, Color::new(1.0, 1.0, 1.0, 0.1));
-        let thumb = (bh * (end - start) as f32 / total as f32).max(8.0);
-        let top = by + (bh - thumb) * (1.0 - scroll as f32 / max_scroll as f32);
-        let over = fr.ux > bx - 4.0 && fr.ux < bx + 8.0 && fr.uy > by && fr.uy < by + bh;
-        if !fresh && is_mouse_button_pressed(MouseButton::Left) && over {
-            g.venue.partner.drag = true;
-            fr.click = false;
-        }
-        if g.venue.partner.drag {
-            if is_mouse_button_down(MouseButton::Left) {
-                let frac = ((fr.uy - by - thumb / 2.0) / (bh - thumb).max(1.0)).clamp(0.0, 1.0);
-                g.venue.partner.scroll = ((1.0 - frac) * max_scroll as f32).round() as usize;
-            } else {
-                g.venue.partner.drag = false;
-            }
-        }
-        ui_round(bx, top, 4.0, thumb, 2.0, if g.venue.partner.drag || over { ui::skin::PINK_EDGE } else { ui::skin::PINK });
-    }
-    let (fx, fy, fw, fh) = (x + 8.0, ty - 2.0, w - 16.0, 16.0);
-    ui_round_frame(fx, fy, fw, fh, 4.0, ui::skin::CREAM, ui::skin::EDGE_STRONG);
-    let caret = if (fr.time * 2.0).fract() < 0.6 { "|" } else { "" };
-    let draft = &g.venue.partner.draft;
-    let mut view: String = draft.clone();
-    while view.len() > 1 && ui_measure(&view, 8.0) > fw - 12.0 {
-        view.remove(0);
-    }
-    if draft.is_empty() {
-        ui_text_raw(&format!("{caret}say something..."), fx + 5.0, fy + 11.0, 8.0, Color::from_rgba(150, 130, 160, 255));
-    } else {
-        ui_text_raw(&format!("{view}{caret}"), fx + 5.0, fy + 11.0, 8.0, ui::skin::INK);
-    }
-    let mut tyy = fy + fh + 10.0;
-    for t in &tips {
-        ui_text(t, x + 10.0, tyy, 8.0, ui::skin::MUTED);
-        tyy += 10.0;
-    }
-    if fresh {
-        return;
-    }
-    if fr.click && hit(fr, fx, fy, fw, fh) && radio::touch_ui() {
-        if let Some(text) = radio::ask_text(&format!("say something to your {noun}"), &g.venue.partner.draft) {
-            g.venue.partner.draft = text.chars().filter(|c| !c.is_control()).take(160).collect();
-        }
-        fr.click = false;
-    }
-    let settled = get_time() - g.venue.opened_at > 0.15;
-    while let Some(ch) = get_char_pressed() {
-        if settled && !ch.is_control() && g.venue.partner.draft.chars().count() < 160 && !shortcut_held() {
-            g.venue.partner.draft.push(ch);
-        }
-    }
-    paste_into(&mut g.venue.partner.draft, 160, |c| !c.is_control());
-    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
-        g.venue.partner.draft.pop();
-    }
-    let send = settled && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter));
-    if send {
-        let text = std::mem::take(&mut g.venue.partner.draft);
-        steps::partner::send(g, &text);
-        g.venue.overlay = Overlay::None;
-        return;
-    }
-    if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
-        g.venue.overlay = Overlay::None;
-        fr.click = false;
-    }
+    steps::chat::panel(g, fr, fresh);
 }
 
 pub(crate) fn open_homes(g: &mut Game) {

@@ -362,6 +362,18 @@ impl Hub {
                 self.say(other, format!("hgone {id}"));
             }
             self.homes.visits.remove(&id);
+            self.tell_friends(id);
+        }
+    }
+
+    fn tell_friends(&mut self, id: u32) {
+        if let Some(code) = self.homes.code_of(id) {
+            let line = self.homes.status(&code);
+            for w in self.homes.watchers(&code) {
+                if w != id {
+                    self.say(w, line.clone());
+                }
+            }
         }
     }
 
@@ -407,6 +419,7 @@ impl Hub {
 
     fn drop_client(&mut self, id: u32, now: i64) {
         self.home_leave(id);
+        let code = self.homes.code_of(id);
         for guest in self.homes.guests_of(id) {
             self.homes.visits.remove(&guest);
             self.say(guest, "hostgone".to_string());
@@ -414,6 +427,15 @@ impl Hub {
         self.homes.hosts.retain(|_, h| *h != id);
         self.homes.knocks.remove(&id);
         self.homes.faces.remove(&id);
+        self.homes.watch.remove(&id);
+        self.homes.me.remove(&id);
+        self.homes.spoke.remove(&id);
+        if let Some(code) = code {
+            let line = self.homes.status(&code);
+            for w in self.homes.watchers(&code) {
+                self.say(w, line.clone());
+            }
+        }
         self.leave(id, now);
         self.clients.remove(&id);
     }
@@ -915,6 +937,59 @@ impl Hub {
                 if homes::valid_home(&code) && self.homes.hosts.get(&code).map(|h| *h == id).unwrap_or(true) {
                     self.homes.hosts.retain(|_, h| *h != id);
                     self.homes.hosts.insert(code, id);
+                    self.tell_friends(id);
+                }
+            }
+            "fme" => {
+                let p: Vec<&str> = rest.split_whitespace().collect();
+                if p.len() >= 2 {
+                    let ch = p[0].parse::<usize>().unwrap_or(0).min(63);
+                    self.homes.me.insert(id, (ch, homes::clean_name(p[1])));
+                    self.tell_friends(id);
+                }
+            }
+            "fwatch" => {
+                let mut list: Vec<String> = rest.split(',').map(|c| c.trim().to_uppercase()).filter(|c| homes::valid_home(c)).collect();
+                list.dedup();
+                list.truncate(homes::MAX_FRIENDS);
+                let lines: Vec<String> = list.iter().map(|c| self.homes.status(c)).collect();
+                self.homes.watch.insert(id, list);
+                for l in lines {
+                    self.say(id, l);
+                }
+            }
+            "dm" => {
+                let (code, text) = rest.split_once(' ').unwrap_or((rest, ""));
+                let code = code.trim().to_uppercase();
+                let text = homes::clean_text(text);
+                if text.is_empty() || !homes::valid_home(&code) {
+                    return;
+                }
+                let Some(to) = self.homes.hosts.get(&code).copied() else {
+                    self.say(id, format!("dmno {code} offline"));
+                    return;
+                };
+                if !self.homes.mutual(id, to) {
+                    self.say(id, format!("dmno {code} notfriend"));
+                    return;
+                }
+                if !self.homes.may_speak(id, now) {
+                    self.say(id, format!("dmno {code} slow"));
+                    return;
+                }
+                let mine = self.homes.code_of(id).unwrap_or_default();
+                let (ch, name) = self.homes.name_of(id);
+                self.say(to, format!("dmfrom {mine} {ch} {name} {text}"));
+            }
+            "hsay" => {
+                let text = homes::clean_text(rest);
+                let group = self.homes.group(id);
+                if text.is_empty() || group.is_empty() || !self.homes.may_speak(id, now) {
+                    return;
+                }
+                let (ch, name) = self.homes.name_of(id);
+                for other in group {
+                    self.say(other, format!("hsaid {id} {ch} {name} {text}"));
                 }
             }
             "knock" => {
@@ -950,6 +1025,7 @@ impl Hub {
                 self.homes.visits.insert(guest, mine.unwrap());
                 self.homes.faces.insert(id, (ch, name.clone()));
                 self.say(guest, format!("welcome {id} {ch} {name} {house}"));
+                self.tell_friends(guest);
             }
             "turnaway" => {
                 let Ok(guest) = rest.trim().parse::<u32>() else { return };
@@ -1297,6 +1373,51 @@ mod tests {
         assert_eq!(got.to_text().unwrap(), "otterline fish off to the dock!");
         h.handle(me, r#"otter {"text":"otter again"}"#, 100);
         assert_eq!(rx.recv().await.unwrap().to_text().unwrap(), "otterno busy");
+    }
+
+    #[test]
+    fn friends_see_each_other_online_and_only_mutual_friends_can_message() {
+        let mut h = hub();
+        let (a, b, c) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(a, "homecode AAA-AAA-AAA", 0);
+        h.handle(a, "fme 2 ky", 0);
+        h.handle(b, "fwatch AAA-AAA-AAA,CCC-CCC-CCC,junk", 0);
+        assert_eq!(said(&mut h, b), vec!["fstat AAA-AAA-AAA 1 2 ky".to_string(), "fstat CCC-CCC-CCC 0 0 -".to_string()]);
+        h.handle(b, "homecode BBB-BBB-BBB", 0);
+        h.handle(b, "fme 5 mina", 0);
+        h.handle(b, "dm AAA-AAA-AAA hello", 0);
+        assert_eq!(said(&mut h, b), vec!["dmno AAA-AAA-AAA notfriend".to_string()]);
+        assert!(said(&mut h, a).is_empty());
+        h.handle(a, "fwatch BBB-BBB-BBB", 0);
+        assert_eq!(said(&mut h, a), vec!["fstat BBB-BBB-BBB 1 5 mina".to_string()]);
+        h.handle(b, "dm aaa-aaa-aaa hello there", 1000);
+        assert_eq!(said(&mut h, a), vec!["dmfrom BBB-BBB-BBB 5 mina hello there".to_string()]);
+        h.handle(b, "dm AAA-AAA-AAA again", 1100);
+        assert_eq!(said(&mut h, b), vec!["dmno AAA-AAA-AAA slow".to_string()]);
+        h.handle(c, "homecode CCC-CCC-CCC", 0);
+        assert_eq!(said(&mut h, b), vec!["fstat CCC-CCC-CCC 1 0 -".to_string()]);
+        h.drop_client(a, 2000);
+        assert_eq!(said(&mut h, b), vec!["fstat AAA-AAA-AAA 0 0 -".to_string()]);
+        h.handle(b, "dm AAA-AAA-AAA still there?", 3000);
+        assert_eq!(said(&mut h, b), vec!["dmno AAA-AAA-AAA offline".to_string()]);
+    }
+
+    #[test]
+    fn people_in_a_home_can_talk_to_each_other() {
+        let mut h = hub();
+        let (host, guest, outsider) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(host, "homecode ABC-DEF-GHJ", 0);
+        h.handle(host, "fme 1 ky", 0);
+        h.handle(guest, "knock ABC-DEF-GHJ 3 mina", 0);
+        h.handle(host, &format!("letin {guest} 1 ky 0,0,0,1;"), 0);
+        said(&mut h, host);
+        said(&mut h, guest);
+        h.handle(guest, "hsay hi everyone", 0);
+        assert_eq!(said(&mut h, host), vec![format!("hsaid {guest} 3 mina hi everyone")]);
+        h.handle(host, "hsay welcome!", 0);
+        assert_eq!(said(&mut h, guest), vec![format!("hsaid {host} 1 ky welcome!")]);
+        h.handle(outsider, "hsay can anyone hear me", 0);
+        assert!(said(&mut h, host).is_empty() && said(&mut h, guest).is_empty());
     }
 
     #[test]

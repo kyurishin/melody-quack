@@ -28,7 +28,6 @@ pub(crate) struct Partner {
     pub(crate) hum_t: f32,
     pub(crate) hum_wait: f32,
     pub(crate) scroll: usize,
-    pub(crate) drag: bool,
 }
 
 pub(crate) const LOG_KEEP: usize = 300;
@@ -115,6 +114,13 @@ pub(crate) fn can_talk(g: &Game) -> bool {
 }
 
 fn push(g: &mut Game, otter: bool, text: String) {
+    let (who, ch) = if otter {
+        let c = g.players[1].character;
+        (g.cast_list[c].noun.to_string(), c)
+    } else {
+        (if g.venue.name.is_empty() { "you".to_string() } else { g.venue.name.clone() }, g.players[0].character)
+    };
+    steps::chat::room_line(g, who, ch, text.clone(), !otter);
     let p = &mut g.venue.partner;
     p.log.push((otter, text));
     if p.log.len() > LOG_KEEP {

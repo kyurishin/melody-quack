@@ -117,6 +117,7 @@ pub(crate) struct Kitchen {
 #[derive(Default)]
 pub(crate) struct VenueState {
     pub(crate) jam: crate::diary::JamDesk,
+    pub(crate) chat: crate::steps::chat::Chat,
     pub(crate) kitchen: Kitchen,
     pub(crate) partner: steps::partner::Partner,
     pub(crate) update_asked: bool,

@@ -41,6 +41,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             gather_lesson: g.gather_lesson,
             room: steps::visits::own_house(g).size,
             home_code: g.venue.visits.code.clone(),
+            friends: steps::chat::friends_text(g),
             dex: g.dex_counts.clone(),
             mush: g.inv.mush,
             shroomdex: g.shroom_counts.clone(),
