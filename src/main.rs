@@ -39,6 +39,7 @@ mod world_draw;
 mod home_draw;
 mod reading;
 mod render;
+mod glow;
 mod diary;
 mod gathering;
 mod camp;
@@ -134,7 +135,7 @@ fn window_conf() -> Conf {
         window_title: "Melody Quack".to_owned(),
         window_width: (VIEW_W * 3) as i32,
         window_height: (VIEW_H * 3) as i32,
-        high_dpi: cfg!(target_arch = "wasm32"),
+        high_dpi: true,
         icon: Some(miniquad::conf::Icon {
             small: icon_pixels(include_bytes!("../assets/icon16.png")),
             medium: icon_pixels(include_bytes!("../assets/icon32.png")),

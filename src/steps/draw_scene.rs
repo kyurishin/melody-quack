@@ -23,16 +23,12 @@ pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
     };
 
     fr.dance = if g.looper.beat || fr.dog_jamming { g.looper.beat_pulse() } else { 0.0 };
-    if low_w() as u32 != g.view_w || low_h() as u32 != g.view_h {
-        g.view_w = low_w() as u32;
-        g.view_h = low_h() as u32;
-        g.full_view = make_view(g.view_w, g.view_h);
-    }
+    fit_full_view(g);
     fr.half = (low_w() / 2.0).floor();
     set_camera(&Camera2D {
         render_target: Some(g.full_view.clone()),
-        zoom: vec2(2.0 / g.view_w as f32, -2.0 / g.view_h as f32),
-        target: vec2(g.view_w as f32 / 2.0, g.view_h as f32 / 2.0),
+        zoom: vec2(2.0 / low_w(), -2.0 / low_h()),
+        target: vec2(low_w() / 2.0, low_h() / 2.0),
         ..Default::default()
     });
     clear_background(FOG);
@@ -77,19 +73,8 @@ pub(crate) fn draw_scene(g: &mut Game, fr: &mut Frame) {
         );
     }
 
-    set_default_camera();
-    clear_background(BLACK);
-    draw_texture_ex(
-        &g.full_view.texture,
-        0.0,
-        0.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(vec2(screen_width(), screen_height())),
-            flip_y: true,
-            ..Default::default()
-        },
-    );
+    crate::glow::set_night(if g.inside { 0.35 + 0.65 * g.dusk } else { g.dusk });
+    crate::glow::present(&g.full_view);
     if g.two_player && !g.inside {
         ui_rect(fr.half - 0.5, 0.0, 1.0, low_h(), Color::new(0.1, 0.08, 0.2, 0.9));
     }

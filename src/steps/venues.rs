@@ -2001,16 +2001,12 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
 }
 
 fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) -> Mat4 {
-    if low_w() as u32 != g.view_w || low_h() as u32 != g.view_h {
-        g.view_w = low_w() as u32;
-        g.view_h = low_h() as u32;
-        g.full_view = make_view(g.view_w, g.view_h);
-    }
+    fit_full_view(g);
     let (width, height) = (low_w(), low_h());
     set_camera(&Camera2D {
         render_target: Some(g.full_view.clone()),
-        zoom: vec2(2.0 / g.full_view.texture.width(), -2.0 / height),
-        target: vec2(g.full_view.texture.width() / 2.0, height / 2.0),
+        zoom: vec2(2.0 / width, -2.0 / height),
+        target: vec2(width / 2.0, height / 2.0),
         ..Default::default()
     });
     clear_background(back);
@@ -2027,7 +2023,7 @@ fn begin_room(g: &mut Game, center: Vec3, scale: f32, back: Color) -> Mat4 {
         fovy,
         aspect: Some(aspect),
         render_target: Some(g.full_view.clone()),
-        viewport: Some((0, 0, width as i32, height as i32)),
+        viewport: { let k = view_k(&g.full_view, height); Some((0, 0, (width * k) as i32, (height * k) as i32)) },
         ..Default::default()
     });
     Mat4::perspective_rh_gl(fovy, aspect, 0.01, 10000.0) * Mat4::look_at_rh(eye, look_at, Vec3::Y)
@@ -2045,15 +2041,8 @@ fn name_tag(view: Mat4, at: Vec3, text: &str, colour: Color) {
 }
 
 fn blit(g: &Game) {
-    set_default_camera();
-    clear_background(BLACK);
-    draw_texture_ex(
-        &g.full_view.texture,
-        0.0,
-        0.0,
-        WHITE,
-        DrawTextureParams { dest_size: Some(vec2(screen_width(), screen_height())), flip_y: true, ..Default::default() },
-    );
+    crate::glow::set_night(0.8);
+    crate::glow::present(&g.full_view);
 }
 
 fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f32, f32, f32, f32)], frozen: bool) {

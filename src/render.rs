@@ -59,8 +59,8 @@ pub(crate) const LANTERNS: [(f32, f32); 4] = [(2.5, 16.2), (6.4, 15.7), (10.4, 1
 pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: f32, focus_pos: Vec2, cam: Vec2, view: &View, split: bool) {
     set_camera(&Camera2D {
         render_target: Some(target.clone()),
-        zoom: vec2(2.0 / target.texture.width(), -2.0 / height),
-        target: vec2(target.texture.width() / 2.0, height / 2.0),
+        zoom: vec2(2.0 / (target.texture.width() / view_k(target, height)), -2.0 / height),
+        target: vec2(target.texture.width() / view_k(target, height) / 2.0, height / 2.0),
         ..Default::default()
     });
     let d = view.dusk;
@@ -135,7 +135,10 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
         },
         aspect: Some(width / height),
         render_target: Some(target.clone()),
-        viewport: Some((left as i32, 0, width as i32, height as i32)),
+        viewport: {
+            let k = view_k(target, height);
+            Some(((left * k) as i32, 0, (width * k) as i32, (height * k) as i32))
+        },
         ..Default::default()
     };
     set_camera(&world_cam);
@@ -298,6 +301,27 @@ pub(crate) fn render_view(target: &RenderTarget, left: f32, width: f32, height: 
     draw_cottage(&mut b, d, true, focus_pos);
     venues::draw_exteriors(&mut b, d, true, focus_pos, view.time);
     b.flush();
+}
+
+pub(crate) fn view_scale() -> f32 {
+    let px = screen_height() * screen_dpi_scale();
+    (px.min(1440.0) / low_h()).max(1.0)
+}
+
+pub(crate) fn view_k(target: &RenderTarget, low_height: f32) -> f32 {
+    target.texture.height() / low_height.max(1.0)
+}
+
+pub(crate) fn fit_full_view(g: &mut Game) {
+    let k = view_scale();
+    let (w, h) = ((low_w() * k).round() as u32, (low_h() * k).round() as u32);
+    if w != g.view_w || h != g.view_h {
+        g.view_w = w;
+        g.view_h = h;
+        let target = render_target_ex(w, h, RenderTargetParams { sample_count: 1, depth: true });
+        target.texture.set_filter(FilterMode::Linear);
+        g.full_view = target;
+    }
 }
 
 pub(crate) fn make_view(w: u32, h: u32) -> RenderTarget {

@@ -580,8 +580,8 @@ pub(crate) fn booth_pov(home: &home::Home, side: f32) -> Option<(Vec3, Vec3)> {
 pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: f32, view: &View, home: &home::Home, ghost: Option<(home::Piece, bool)>, pov: Option<(Vec3, Vec3)>, hide: Option<usize>, beat_on: bool, visitors: &[&Player]) {
     set_camera(&Camera2D {
         render_target: Some(target.clone()),
-        zoom: vec2(2.0 / target.texture.width(), -2.0 / height),
-        target: vec2(target.texture.width() / 2.0, height / 2.0),
+        zoom: vec2(2.0 / (target.texture.width() / view_k(target, height)), -2.0 / height),
+        target: vec2(target.texture.width() / view_k(target, height) / 2.0, height / 2.0),
         ..Default::default()
     });
     draw_rectangle(left, 0.0, width, height, Color::from_rgba(38, 30, 52, 255));
@@ -603,7 +603,10 @@ pub(crate) fn render_home(target: &RenderTarget, left: f32, width: f32, height: 
         fovy,
         aspect: Some(aspect),
         render_target: Some(target.clone()),
-        viewport: Some((left as i32, 0, width as i32, height as i32)),
+        viewport: {
+            let k = view_k(target, height);
+            Some(((left * k) as i32, 0, (width * k) as i32, (height * k) as i32))
+        },
         ..Default::default()
     });
     let flicker = 0.95 + 0.05 * (view.time * 7.0).sin();
