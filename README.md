@@ -77,7 +77,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 
 **The screen:** along the top, the logo, then the tabs **Music** (music mode on or off), **Chat** (talk to your companion), **Items** (your bag), **H** (help) and **Settings** (the pause menu). On the right, the radio pill: play/pause turns the beat on or off, the label shows the quantise setting (click to change it) or the song that's on, and the slider is the master volume. Under it, the time and weather, the campfire's fuel, wood, stone and fish, dishes discovered and your acorns. At the bottom, the loop grid (notes in their pitch rows, the current step lit) and the six note cards. On narrow screens the tabs shrink to icons.
 
-**The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
+**The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice: new name and login)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
 
 ## Characters and your companion
 
@@ -239,7 +239,7 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from the admin.
 
 - **One device at a time:** each DJ key and the admin key are signed in on one device at a time. Signing in somewhere new signs the older device out (and ends its set if it was live there); it shows "signed in on another device", and **use key** signs in there again.
-- **Signing in:** any time from the pause menu: Esc, **account (A)**, then type the key into "dj or admin key" and press enter or "use key". The panel says who you signed in as. On a fresh game you can also press "become a dj" on the name screen. DJs show as "dj name" in purple.
+- **Signing in:** any time from the pause menu: Esc, **account (A)**, then type the key into "dj or admin key" and press enter or "use key". The panel says who you signed in as. On the name screen you can also press **login** and type the key. DJs show as "dj name" in purple.
 - **Asking to play:** in the chapel, E at the booth opens the decks; ask to play the rave that's on. The request goes to the admin's post, and every yes is good for one set and earns the DJ 1 euro of credit, shown at the decks.
 - **Playing:**
   - **in-game decks:** beat and melody on or off, the sound, the tempo, and six pads; everyone in the room hears the same mix.
@@ -269,7 +269,7 @@ The game never moves money: credit is a number the admin settles by hand.
 
 - **Your name** is asked once, before anything else. Friends see it above your head; a second player on the same keyboard shows as "name +1".
 - **Saving** happens by itself every few seconds and when you close the game (desktop: `~/.melody-quack/save.txt`, browser: local storage).
-- **Restart** (pause menu, R twice) erases the game on this device and starts again from the name screen, keeping only your DJ key and sign-in.
+- **Restart** (pause menu, R twice) is for a new player on the same game: your world, house, furniture, acorns, fish, mushrooms, dishes and quests all stay, while your name and DJ or admin key are cleared (and the key is signed out). The name screen asks for a name, and **login** takes a DJ key or the admin key. **N twice** is the way to start a fresh world.
 - **Sign in** (name screen, or pause menu A) with Google, Steam or Apple to keep your game on the server: it survives a lost computer and moves between computers. On the name screen a saved game loads straight away; in the middle of a game it asks first whether to load the saved game or keep this one. While signed in, the game is saved to your account about every 30 seconds. (Which sign-ins appear depends on the server; Proton Mail has no sign-in for other apps.)
 
 ## Radio and the Serato bridge

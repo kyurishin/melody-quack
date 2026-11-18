@@ -1356,7 +1356,7 @@ fn tour_layout(g: &Game, y: f32) -> Option<(&'static str, Vec<String>, f32, f32,
         2 => ("the pc bang - 2/5", "follow the gold arrow to the pc bang and walk in through the door"),
         3 => ("a secret - 3/5", "tonight's code is hidden in this computer. try rave.exe or the terminal"),
         4 => ("the chapel - 4/5", "you have a code. follow the arrow to st. bassilica and give it at the door"),
-        _ => ("you're in - 5/5", "press enter and say hello to everyone. 1-6 sings along. want to play here one day? esc, restart, become a dj."),
+        _ => ("you're in - 5/5", "press enter and say hello to everyone. 1-6 sings along. want to play here one day? esc, restart, login."),
     };
     if g.venue.pc_open && g.venue.pc_app != 0 {
         return None;
@@ -1637,7 +1637,7 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
             }
             ry += 30.0;
         } else {
-            ui_text("they type the key after 'become a dj'.", x + 12.0, ry + 8.0, 8.0, grey);
+            ui_text("they type the key after 'login'.", x + 12.0, ry + 8.0, 8.0, grey);
             ry += 12.0;
         }
         if !g.venue.dj_note.is_empty() {
@@ -1809,7 +1809,7 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     if caret && !on_key {
         ui_rect(x + 9.0 + ui_measure(&g.venue.name_draft, 14.0), y + 5.0, 2.0, h - 10.0, ink());
     }
-    let toggle = if dj { "just play, no dj key" } else { "become a dj" };
+    let toggle = if dj { "just play, no key" } else { "login" };
     let tw = ui_measure(toggle, 9.0) + 22.0;
     let (tx, ty) = ((cx - tw / 2.0).round(), y + h + 8.0);
     ui_rect(tx + 2.0, ty + 2.0, tw, 15.0, BLACK);
@@ -1823,9 +1823,9 @@ fn name_screen(g: &mut Game, fr: &mut Frame) {
     }
     let mut bottom = ty + 15.0;
     if dj {
-        let lines = ["5 euros a month. you get 1 euro back as credit", "every time the admin lets you play the arena.", "members get a dj key. type it in here:"];
+        let lines = ["djs and the admin: type your key here.", "no key yet? djs are members (5 euros a month,", "1 euro back each time the admin lets you play)."];
         for (i, l) in lines.iter().enumerate() {
-            ui_text(l, cx - ui_measure(l, 9.0) / 2.0, ty + 28.0 + i as f32 * 11.0, 9.0, if i == 2 { cream() } else { soft });
+            ui_text(l, cx - ui_measure(l, 9.0) / 2.0, ty + 28.0 + i as f32 * 11.0, 9.0, if i == 0 { cream() } else { soft });
         }
         ui_rect(x + 3.0, ky + 3.0, w, h, BLACK);
         ui_rect(x, ky, w, h, if on_key { purple } else { ink() });
@@ -4646,4 +4646,40 @@ fn update_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }
+}
+
+pub(crate) fn new_player(g: &mut Game) {
+    if net::state() == 2 && (!g.venue.dj_key.is_empty() || g.venue.admin) {
+        net::send("dj -");
+    }
+    if visiting_now(g) {
+        steps::visits::go_home(g, "back home");
+    }
+    if g.venue.at != Venue::None {
+        leave(g);
+    }
+    g.venue.overlay = Overlay::None;
+    g.venue.name.clear();
+    g.venue.name_draft.clear();
+    g.venue.dj_key.clear();
+    g.venue.key_draft.clear();
+    g.venue.key_sent = false;
+    g.venue.key_refused = false;
+    g.venue.elsewhere = false;
+    g.venue.dj_name = None;
+    g.venue.admin = false;
+    g.venue.dj_page = false;
+    g.venue.field = 0;
+    g.venue.partner.log.clear();
+    g.venue.partner.draft.clear();
+    g.venue.welcome = false;
+    g.save_clock = 99.0;
+    let mut fr = Frame::default();
+    steps::saving::autosave(g, &mut fr);
+    g.toasts.push(("new player: choose a name, and log in if you have a key".to_string(), 4.0));
+    while get_char_pressed().is_some() {}
+}
+
+fn visiting_now(g: &Game) -> bool {
+    steps::visits::visiting(g)
 }
