@@ -43,8 +43,13 @@ fn button(fr: &Frame, label: &str, x: f32, y: f32, w: f32, h: f32, on: bool) -> 
         let fill = if on { ui::skin::PINK } else if over { Color::new(0.36, 0.28, 0.6, 1.0) } else { ui::skin::TAB };
         ui_round(x, y + 1.5, w, h, 5.0, Color::new(0.05, 0.03, 0.12, 0.55));
         ui_round_frame(x, y + if pressed { 1.0 } else { 0.0 }, w, h, 5.0, fill, if on { ui::skin::PINK_EDGE } else { ui::skin::EDGE });
-        let tw = ui_measure_as(ui::Face::Label, label, 9.0);
-        ui_text_as(ui::Face::Label, label, x + (w - tw) / 2.0, y + h / 2.0 + 3.5 + if pressed { 1.0 } else { 0.0 }, 9.0, if on { ui::skin::INK } else { ui::skin::CREAM });
+        let mut size = 9.0;
+        while size > 5.0 && ui_measure_as(ui::Face::Label, label, size) > w - 6.0 {
+            size -= 0.5;
+        }
+        let face = if ui_measure_as(ui::Face::Label, label, size) > w - 4.0 { ui::Face::Body } else { ui::Face::Label };
+        let tw = ui_measure_as(face, label, size);
+        ui_text_as(face, label, x + (w - tw) / 2.0, y + h / 2.0 + 3.5 + if pressed { 1.0 } else { 0.0 }, size, if on { ui::skin::INK } else { ui::skin::CREAM });
         return over && fr.click;
     }
     bevel(x, y, w, h, !(on || (over && is_mouse_button_down(MouseButton::Left))));
@@ -1104,12 +1109,12 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let x = ((low_w() - w) / 2.0).round();
     let y = ((low_h() - h) / 2.0).round();
     let purple = Color::from_rgba(176, 92, 255, 255);
-    ui_rect(x + 3.0, y + 3.0, w, h, ink());
-    ui_rect(x, y, w, h, Color::from_rgba(52, 40, 102, 255));
-    ui_rect(x + 10.0, y + 10.0, 6.0, 6.0, purple);
-    ui_text("the decks", x + 21.0, y + 17.0, 12.0, cream());
+    ui_round(x + 2.0, y + 3.0, w, h, 8.0, Color::new(0.05, 0.03, 0.12, 0.55));
+    ui_round_frame(x, y, w, h, 8.0, ui::skin::PANEL_SOLID, ui::skin::EDGE);
+    ui_circle(x + 13.0, y + 13.0, 3.0, purple);
+    ui_text_as(ui::Face::Display, "the decks", x + 21.0, y + 17.5, 11.0, ui::skin::GOLD);
     let code = g.venue.now.as_ref().map(|r| r.code.clone()).unwrap_or_default();
-    let mut close = false;
+
     let say = |lines: &[&str]| {
         for (i, l) in lines.iter().enumerate() {
             ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
@@ -1119,6 +1124,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         source_list(g, fr, fresh, x, y, w, h);
         return;
     }
+    let close = button(fr, "x", x + w - 21.0, y + 5.0, 15.0, 14.0, false);
     if net::state() != 2 && !g.venue.practice {
         say(&["you're offline, so nobody else can hear the decks.", "you can still practise: the in-game decks,", "only you hear them."]);
         if button(fr, "practise on the decks", x + 10.0, y + 76.0, 120.0, 16.0, false) && !fresh {
@@ -1283,9 +1289,6 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
         if button(fr, "ask to play this rave", x + 10.0, y + 64.0, 120.0, 16.0, false) {
             net::send("ask");
         }
-    }
-    if button(fr, "close", x + w - 60.0, y + h - 34.0, 50.0, 16.0, false) {
-        close = true;
     }
     for (k, (text, _)) in g.toasts.iter().rev().take(1).enumerate() {
         ui_text(text, x + 10.0, y + h - 6.0 - k as f32 * 10.0, 8.0, Color::from_rgba(255, 214, 110, 255));
@@ -4107,7 +4110,7 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             let line = match i {
                 0 | 1 | 2 => format!("the goose slides you a {name}. honk. (-{price} acorns)"),
                 3 => format!("two scoops of vanilla ice cream. bliss. (-{price} acorns)"),
-                _ => format!("a warm franzbrötchen, straight from hamburg. (-{price} acorns)"),
+                _ => format!("a warm franzbroetchen, straight from hamburg. (-{price} acorns)"),
             };
             g.venue.bar_note = (line.clone(), get_time());
             g.toasts.push((line, 3.5));

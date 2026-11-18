@@ -25,7 +25,7 @@ pub(crate) const MENU: [(&str, &str, u32); 5] = [
     ("club-mate", "the dj's fuel", 4),
     ("sparkling water", "stay fresh for the next set", 2),
     ("vanilla ice cream", "two scoops in a cup", 5),
-    ("franzbrötchen", "warm, buttery, cinnamon", 6),
+    ("franzbroetchen", "warm, buttery, cinnamon", 6),
 ];
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -1273,7 +1273,7 @@ fn sign(b: &mut Batch, left: f32, top: f32, z: f32, px: f32, time: f32, fade: f3
     }
 }
 
-pub(crate) const LOOKS: [&str; 4] = ["gothic chapel", "jungle sunset", "san francisco view", "kinky party"];
+pub(crate) const LOOKS: [&str; 4] = ["gothic chapel", "jungle sunset", "san francisco", "kinky party"];
 
 pub(crate) fn lancet(b: &mut Batch, x: f32, base: f32, z: f32, w: f32, h: f32, col: Color, depth: f32) {
     b.cube(vec3(x, base + h * 0.5, z), vec3(w, h, depth), col);
