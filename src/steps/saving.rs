@@ -7,14 +7,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
     g.save_clock += get_frame_time();
     fr.quitting = is_quit_requested();
     if g.restart_now {
-        let mut fresh = String::from("melody-quack-save 1\nfresh 1\n");
-        if !g.venue.dj_key.is_empty() {
-            fresh += &format!("djkey {}\n", g.venue.dj_key);
-        }
-        if !g.venue.session.is_empty() {
-            fresh += &format!("account {}\n", g.venue.session);
-        }
-        store::write(&fresh);
+        store::write("melody-quack-save 1\nfresh 1\n");
         return;
     }
     if (g.save_clock > 5.0 || fr.quitting) && !g.first_pick {

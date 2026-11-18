@@ -4648,19 +4648,11 @@ fn update_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
 }
 
-pub(crate) fn new_player(g: &mut Game) {
-    if net::state() == 2 && (!g.venue.dj_key.is_empty() || g.venue.admin) {
+pub(crate) fn log_out(g: &mut Game) {
+    if net::state() == 2 {
         net::send("dj -");
     }
-    if visiting_now(g) {
-        steps::visits::go_home(g, "back home");
-    }
-    if g.venue.at != Venue::None {
-        leave(g);
-    }
-    g.venue.overlay = Overlay::None;
-    g.venue.name.clear();
-    g.venue.name_draft.clear();
+    let was = if g.venue.admin { "the admin".to_string() } else { g.venue.dj_name.clone().map(|n| format!("dj {n}")).unwrap_or_else(|| "your key".to_string()) };
     g.venue.dj_key.clear();
     g.venue.key_draft.clear();
     g.venue.key_sent = false;
@@ -4669,17 +4661,8 @@ pub(crate) fn new_player(g: &mut Game) {
     g.venue.dj_name = None;
     g.venue.admin = false;
     g.venue.dj_page = false;
-    g.venue.field = 0;
-    g.venue.partner.log.clear();
-    g.venue.partner.draft.clear();
-    g.venue.welcome = false;
     g.save_clock = 99.0;
     let mut fr = Frame::default();
     steps::saving::autosave(g, &mut fr);
-    g.toasts.push(("new player: choose a name, and log in if you have a key".to_string(), 4.0));
-    while get_char_pressed().is_some() {}
-}
-
-fn visiting_now(g: &Game) -> bool {
-    steps::visits::visiting(g)
+    g.toasts.push((format!("logged out of {was}"), 3.0));
 }
