@@ -4,7 +4,7 @@
 
 A cosy pixel game about animal friends making music. Your animal's voice is your instrument: jam by the campfire, fish on the beat, cook percussion, decorate your home, and at night find the secret code to the rave at St. Bassilica, where friends dance together online and DJs play live sets, from the in-game decks or straight from Serato.
 
-Written in Rust with [macroquad](https://macroquad.rs). The world is chunky low-res 3D (about 360×270) with sharp full-resolution text on top. Every block, flame and meow is generated in code: no models, textures or sound files besides the icon.
+Written in Rust with [macroquad](https://macroquad.rs). The world is chunky low-res 3D (about 360×270), with rounded purple panels and crisp pixel-font text on top. Every block, flame and meow is generated in code: no models, textures or sound files besides the icon and the fonts. Your companion animal can chat with you, written live by Claude.
 
 **Play now:** https://kyurishin.github.io/melody-quack/  
 Like it? [Buy me a cuppa](https://paypal.me/kyurishin).
@@ -20,6 +20,7 @@ Like it? [Buy me a cuppa](https://paypal.me/kyurishin).
 - [DJs](#djs)
 - [Your name, saving and accounts](#your-name-saving-and-accounts)
 - [Radio and the Serato bridge](#radio-and-the-serato-bridge)
+- [Embedding the game on another website](#embedding-the-game-on-another-website)
 - [Running the server](#running-the-server)
 - [Building](#building)
 - [How it's made](#how-its-made)
@@ -42,7 +43,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 
 ## Controls
 
-**One rule for every menu:** Esc closes whatever is open, and only pauses (or leaves the PC bang and the chapel) when nothing is. Clicking outside a panel closes it too. **E** does things, **M** is always your bag, and **Enter** is for typing (chat, codes, the terminal, your name). Typing never sets off game keys. Every panel's hint says how to close it, and **H** lists every key in the game.
+**One rule for every menu:** Esc closes whatever is open, and only pauses (or leaves the PC bang and the chapel) when nothing is. Clicking outside a panel closes it too. **E** does things, **M** is always your bag, and **Enter** is for typing (talking to your companion, chat, codes, the terminal, your name). Typing never sets off game keys. Every panel's hint says how to close it, and **H** lists every key in the game.
 
 | Key | Player 1 | Player 2 |
 | --- | --- | --- |
@@ -52,6 +53,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | build tool outdoors; turn or move furniture indoors | X | U |
 | bag, quests, stored furniture | M | Backspace |
 | pixel emoji | Z | . |
+| talk to your companion | Enter | |
 | close what's open, or pause | Esc | |
 | help | H | |
 
@@ -69,7 +71,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | P | one or two players (split screen outdoors) |
 | N twice | fresh world |
 
-**Talking with your partner:** press Enter (or the **Chat** tab) to open the talk box. Call your partner by its animal (for example "otter", "dog" or "labrador"), by any other animal in the game, or just "buddy" or "partner", and it answers in a little card at the bottom left, written by Claude Haiku 5.5 through the game server. It can also do what you ask: **cook** at the campfire, go **fishing** off the dock, **collect** sticks, stones or acorns (three trips), come and **sit** with you, or **hum** a tune; now and then it hums on its own. Each player gets 60 messages a day (with a short pause between them) and the server stops at 5000 a day, so the bill stays small. What you type to it goes to Anthropic to write the reply; your name is not sent. The server needs the Claude API key as a Fly secret named `ANTHROPIC_API_KEY` (or `ai`); without it the partner just says it can't talk right now.
+**The screen:** along the top, the logo, then the tabs **Music** (music mode on or off), **Chat** (talk to your companion), **Items** (your bag), **H** (help) and **Settings** (the pause menu). On the right, the radio pill: play/pause turns the beat on or off, the label shows the quantise setting (click to change it) or the song that's on, and the slider is the master volume. Under it, the time and weather, the campfire's fuel, wood, stone and fish, dishes discovered and your acorns. At the bottom, the loop grid (notes in their pitch rows, the current step lit) and the six note cards. On narrow screens the tabs shrink to icons.
 
 **The pause menu** (Esc, or click the game) has a mixer (you, your friend, beat & pot, world, master) and buttons, each with its key: **fishdex (F)**, **restart (R twice)**, **dj set (J)**, **karaoke (K, only at localhost:4747)**, **companion (C)** and **account (A)**.
 
@@ -92,6 +94,20 @@ Press V (or start a new game) to choose who you are and who your friend is. W/S 
 | sea otter | smashes a shell on his belly, so every note is a tuned clack |
 
 **Your companion** is a little AI bandmate. It fetches sticks for the fire, wood and stones for building and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
+
+### Talking with your companion
+
+Press **Enter** or the **Chat** tab to open the talk box. Call your companion by its animal ("otter", "dog", "labrador"...), by any other animal in the game, or just "buddy", "partner" or "pal", and it answers. Its replies are written by Claude Haiku 5.5 through the game server, in a cheerful voice with a touch of old storybook fantasy. The talk box keeps the whole conversation (scroll with the wheel, the arrow keys, Page Up/Down or the scroll bar), and the latest exchange also shows in a little card at the bottom left while you play.
+
+It can also do what you ask:
+
+- **cook** something at the campfire from the fish and mushrooms in your bag (the fire has to be lit)
+- go **fishing** off the end of the dock and bring back a catch
+- **collect** sticks, stones or acorns (three trips)
+- come and **sit** with you, or **follow** you around
+- **hum** a tune from its songbook; now and then it hums on its own too
+
+Inside the house it remembers what you asked and does it when you go outside. Each player gets 60 messages a day, with a short pause between them, and the server stops at 5000 a day, so the bill stays small. What you type to it goes to Anthropic to write the reply; your name is not sent, so keep personal details to yourself. Offline, or when the server has no Claude key, it says it can't talk right now.
 
 Want to play alone? Pause and press **C** (or click the companion button): your friend goes to rest, disappears, and you fetch your own sticks. Playing by the fire on your own still earns stars. C again brings it back; the choice is saved. **P** turns the friend into a second player instead (see [Two players](#two-players)).
 
@@ -217,7 +233,7 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
   - **a stream link:** paste any https stream under "real audio".
 - **The look of the room:** while live, "look" changes the chapel for everyone: gothic chapel, jungle at sunset, a terrace over San Francisco, or a red room in black, red, neon and chains.
 - **Practice:** offline, anyone can practise on the decks; only you hear it.
-- **The DJ lounge:** in the chapel, DJs and the admin get a **lounge** button on the right of the screen. It leads to a cosy backstage room with sofas, lamps and the goose's bar, where other DJs hang out too and the room chat carries on. E at the bar buys a cola (3 acorns), club-mate (4), sparkling water (2), vanilla ice cream (5) or a franzbroetchen (6). The **club** button, Esc or the lounge door takes you back to the dance floor.
+- **The DJ lounge:** in the chapel, DJs and the admin get a **lounge** button on the right of the screen. It leads to a cosy backstage room with sofas, lamps and the goose's bar, where other DJs hang out too and the room chat carries on. The wall TV above the sofa plays the same pixel channels as the TV at home. E in front of the sofa or the armchair sits you down (a seat someone is already in is skipped); any move key stands you up, and everyone sees who's sitting. E at the bar buys a cola (3 acorns), club-mate (4), sparkling water (2), vanilla ice cream (5) or a franzbroetchen (6), and each one gives you its own effect for 30 seconds that everyone in the room sees: fizzy bubbles, green sparks, blue ripples, falling snow or a warm golden glow. The **club** button, Esc or the lounge door takes you back to the dance floor.
 
 ![The jungle at sunset](web/shots/jungle.webp)
 
@@ -267,7 +283,7 @@ The `allow` list lets the game play sound, go full screen, use the microphone fo
 
 ## Running the server
 
-Online play needs the small server in `server/`: rooms, chat, the timed rave, DJs, live audio, sign-in and cloud saves. The live one runs on Fly.io as `willow-coral-204` (`wss://willow-coral-204.fly.dev`); `server/SETUP.md` explains setting up and updating it, and `server/fly.toml` is ready to use. Builds connect to it by default: the packages and web workflows use the repository variable `MQ_SERVER` if it is set, otherwise that address. On one computer you can point the game elsewhere with `MELODY_QUACK_SERVER` or `~/.melody-quack/server.txt`.
+Online play needs the small server in `server/`: rooms, chat, the timed rave, DJs, live audio, sign-in, cloud saves and your companion's chat. The live one runs on Fly.io as `willow-coral-204` (`wss://willow-coral-204.fly.dev`); `server/SETUP.md` explains setting up and updating it, and `server/fly.toml` is ready to use. Builds connect to it by default: the packages and web workflows use the repository variable `MQ_SERVER` if it is set, otherwise that address. On one computer you can point the game elsewhere with `MELODY_QUACK_SERVER` or `~/.melody-quack/server.txt`.
 
 ```
 cd server
@@ -287,6 +303,8 @@ cargo run --release -- --port 7777 --djs djs.txt --admin '<admin key>' --admin-n
 | `--google-id`, `--google-secret` | `MQ_GOOGLE_ID`, `MQ_GOOGLE_SECRET` | Google sign-in (an OAuth "web application" client with redirect `https://your.server/auth/google`) |
 | `--apple-id`, `--apple-team`, `--apple-key-id`, `--apple-key` | `MQ_APPLE_*` | Apple sign-in (Apple Developer Program: a Services ID with return URL `https://your.server/auth/apple` and a `.p8` key) |
 | `--every`, `--rave`, `--rave-in` | | when the secret rave starts: every N minutes (default 240, on the hour UTC), at a unix time, or in N seconds |
+| | `ANTHROPIC_API_KEY` (or `ai`) | the Claude API key for your companion's chat; without it the companion can't talk |
+| | `MQ_CLAUDE_URL` | a different Claude endpoint (for tests) |
 
 Steam sign-in needs no keys, only `--public-url`. Keep keys and passwords in the host's secrets, never in this repository. The server also answers plain web requests on the same port: `/login/...` and `/auth/...` for sign-in, and `/live/<code>.mp3` for a room's live audio.
 
@@ -302,11 +320,12 @@ Notes for contributors are in `HANDOFF.md`. The game's MP3 encoder is LAME (LGPL
 
 ## How it's made
 
-- The world renders into a roughly 360×270 texture with depth and scales up with nearest-neighbour filtering; text and menus are drawn afterwards at full resolution so they stay sharp.
+- The world renders into a roughly 360×270 texture with depth and scales up with nearest-neighbour filtering; menus are drawn afterwards at full resolution, with rounded panels built from triangles and pixel fonts snapped to their pixel grid so they stay crisp. A line that would run off the window shrinks until it fits.
+- Six pixel fonts each have a job: 04b19 for titles, 04b09 for buttons and tabs, 04b03 for reading text, 04b11 for numbers, 04b20 for small headings and 04b21 for little pixel icons. The terminal keeps the built-in font so its columns line up.
 - Everything is built from coloured boxes every frame: the animals, the cottage, the fire, the chapel, the crowd, even the fishing line.
 - Faces are shaded from a fixed light, with distance fog, an evening tint and flickering campfire light; trees and walls between the camera and you turn see-through.
 - Every meow, woof, drum, sizzle, splash and crackle is synthesised at startup and mixed by a tiny built-in mixer (desktop) or Web Audio (browser).
 - Mic sync finds onsets in the low end, autocorrelates them for the tempo and phase-locks the loop.
-- The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, and streams DJs' audio.
+- The online server is a small Rust program (tokio, websockets) that relays rooms and chat, runs the timed rave, streams DJs' audio, and asks Claude Haiku 5.5 for your companion's replies (a short game-state summary plus the last few lines, answered as structured JSON: what to say and which action to take).
 
 Fonts: 04b03, 04b09, 04b11, 04b19, 04b20 and 04b21 by Yuji Oshimoto (www.04.jp.org), free pixel fonts.
