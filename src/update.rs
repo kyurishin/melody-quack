@@ -1,12 +1,15 @@
 pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) const RELEASES: &str = "https://github.com/kyurishin/melody-quack/releases/latest";
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) fn parse(v: &str) -> Option<(u32, u32, u32)> {
     let v = v.trim().trim_start_matches(['v', 'V']);
     let mut it = v.split(['.', '-', '+']).map(|p| p.parse::<u32>().ok());
     Some((it.next()??, it.next().flatten().unwrap_or(0), it.next().flatten().unwrap_or(0)))
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) fn newer(tag: &str, current: &str) -> bool {
     match (parse(tag), parse(current)) {
         (Some(a), Some(b)) => a > b,
