@@ -150,7 +150,7 @@ pub(crate) fn send(g: &mut Game, text: &str) {
     }
     let hist = history.iter().map(|(o, t)| format!("[{},{}]", esc(if *o { "otter" } else { "you" }), esc(t))).collect::<Vec<_>>().join(",");
     let who = "player".to_string();
-    let line = format!("otter {{\"friend\":{},\"who\":{},\"ctx\":{},\"history\":[{}],\"text\":{}}}", esc(noun), esc(&who), esc(&context(g)), hist, esc(&text));
+    let line = format!("otter {{\"friend\":{},\"who\":{},\"ctx\":{},\"history\":[{}],\"text\":{}}}", esc(g.cast_list[g.players[1].character].name), esc(&who), esc(&context(g)), hist, esc(&text));
     net::send(&line);
     g.venue.partner.waiting = 25.0;
 }
