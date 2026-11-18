@@ -20,6 +20,11 @@ const ROOM_CAP: u32 = 100;
 
 const LEAD_MS: i64 = 30 * 60 * 1000;
 const MAX_NEWS: usize = 10;
+const MAX_PER_IP: u32 = 20;
+const KEY_TRIES: u32 = 10;
+const KEY_WINDOW_MS: i64 = 15 * 60 * 1000;
+const MSG_BURST: f64 = 240.0;
+const MSG_PER_S: f64 = 120.0;
 const NEWS_KEEP_MS: i64 = 14 * 24 * 60 * 60 * 1000;
 const WINDOW_MS: i64 = 10 * 1000;
 const HEAD_START_MS: i64 = 5 * 60 * 1000;
@@ -198,6 +203,7 @@ struct Client {
     account: Option<String>,
     session: Option<String>,
     put_at: i64,
+    ip: String,
 }
 
 struct Hub {
@@ -211,6 +217,8 @@ struct Hub {
     djs: Vec<(String, String)>,
     djs_path: Option<String>,
     news: Vec<(i64, String)>,
+    per_ip: HashMap<String, u32>,
+    key_fails: HashMap<String, (u32, i64)>,
     news_path: Option<String>,
     admin_key: Option<String>,
     admin_name: String,
@@ -243,6 +251,8 @@ impl Hub {
             djs: Vec::new(),
             djs_path: None,
             news: Vec::new(),
+            per_ip: HashMap::new(),
+            key_fails: HashMap::new(),
             news_path: None,
             admin_key: None,
             admin_name: "admin".to_string(),
@@ -261,10 +271,48 @@ impl Hub {
         }
     }
 
+    fn admit(&mut self, ip: &str) -> bool {
+        let n = self.per_ip.entry(ip.to_string()).or_insert(0);
+        if *n >= MAX_PER_IP {
+            return false;
+        }
+        *n += 1;
+        true
+    }
+
+    fn release(&mut self, ip: &str) {
+        if let Some(n) = self.per_ip.get_mut(ip) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                self.per_ip.remove(ip);
+            }
+        }
+    }
+
+    fn key_locked(&mut self, id: u32, now: i64) -> bool {
+        let ip = self.clients.get(&id).map(|c| c.ip.clone()).unwrap_or_default();
+        match self.key_fails.get(&ip) {
+            Some((n, since)) if now - since < KEY_WINDOW_MS => *n >= KEY_TRIES,
+            _ => false,
+        }
+    }
+
+    fn key_failed(&mut self, id: u32, now: i64) {
+        let ip = self.clients.get(&id).map(|c| c.ip.clone()).unwrap_or_default();
+        let entry = self.key_fails.entry(ip).or_insert((0, now));
+        if now - entry.1 >= KEY_WINDOW_MS {
+            *entry = (0, now);
+        }
+        entry.0 += 1;
+        if self.key_fails.len() > 10_000 {
+            self.key_fails.retain(|_, (_, since)| now - *since < KEY_WINDOW_MS);
+        }
+    }
+
     fn connect(&mut self, tx: Option<mpsc::UnboundedSender<Message>>) -> u32 {
         self.next += 1;
         let token = next_rand(&mut self.rng);
-        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false, name: String::new(), spoke: -10_000, account: None, session: None, put_at: -100_000 });
+        self.clients.insert(self.next, Client { tx, token, room: None, players: 1, who: String::new(), last: [String::new(), String::new()], dj: None, admin: false, name: String::new(), spoke: -10_000, account: None, session: None, put_at: -100_000, ip: String::new() });
         self.next
     }
 
@@ -522,6 +570,10 @@ impl Hub {
                 if key == "-" {
                     return;
                 }
+                if self.key_locked(id, now) {
+                    self.say(id, "dj no".to_string());
+                    return;
+                }
                 if self.admin_key.as_deref() == Some(key) {
                     let twins: Vec<u32> = self.clients.iter().filter(|(k, c)| **k != id && c.admin).map(|(k, _)| *k).collect();
                     self.sign_out(twins);
@@ -544,7 +596,10 @@ impl Hub {
                             self.say(id, format!("granted {code}"));
                         }
                     }
-                    None => self.say(id, "dj no".to_string()),
+                    None => {
+                        self.key_failed(id, now);
+                        self.say(id, "dj no".to_string());
+                    }
                 }
             }
             "ask" => {
@@ -1265,10 +1320,34 @@ async fn client(stream: TcpStream, hub: Arc<Mutex<Hub>>) -> Result<(), Box<dyn s
         accounts::http(stream, hub).await;
         return Ok(());
     }
-    let ws = tokio_tungstenite::accept_async(stream).await?;
+    let seen = stream.peek(&mut peek).await.unwrap_or(0);
+    let head = String::from_utf8_lossy(&peek[..seen]).to_ascii_lowercase();
+    let ip = head
+        .lines()
+        .find_map(|l| l.strip_prefix("fly-client-ip:").map(|v| v.trim().to_string()))
+        .filter(|v| !v.is_empty() && v.len() < 64)
+        .or_else(|| stream.peer_addr().ok().map(|a| a.ip().to_string()))
+        .unwrap_or_default();
+    if !hub.lock().unwrap().admit(&ip) {
+        return Ok(());
+    }
+    let ws = match tokio_tungstenite::accept_async(stream).await {
+        Ok(ws) => ws,
+        Err(e) => {
+            hub.lock().unwrap().release(&ip);
+            return Err(e.into());
+        }
+    };
     let (mut sink, mut source) = ws.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
-    let id = hub.lock().unwrap().connect(Some(tx));
+    let id = {
+        let mut h = hub.lock().unwrap();
+        let id = h.connect(Some(tx));
+        if let Some(c) = h.clients.get_mut(&id) {
+            c.ip = ip.clone();
+        }
+        id
+    };
     let writer = tokio::spawn(async move {
         while let Some(m) = rx.recv().await {
             if sink.send(m).await.is_err() {
@@ -1276,14 +1355,33 @@ async fn client(stream: TcpStream, hub: Arc<Mutex<Hub>>) -> Result<(), Box<dyn s
             }
         }
     });
+    let mut tokens = MSG_BURST;
+    let mut last = Instant::now();
+    let mut dropped = 0u32;
     while let Some(Ok(msg)) = source.next().await {
+        let now = Instant::now();
+        tokens = (tokens + now.duration_since(last).as_secs_f64() * MSG_PER_S).min(MSG_BURST);
+        last = now;
+        if tokens < 1.0 {
+            dropped += 1;
+            if dropped > 2000 {
+                break;
+            }
+            continue;
+        }
+        tokens -= 1.0;
+        dropped = dropped.saturating_sub(1);
         match msg {
             Message::Text(t) => hub.lock().unwrap().handle(id, &t, unix_ms()),
             Message::Close(_) => break,
             _ => {}
         }
     }
-    hub.lock().unwrap().drop_client(id, unix_ms());
+    {
+        let mut h = hub.lock().unwrap();
+        h.drop_client(id, unix_ms());
+        h.release(&ip);
+    }
     writer.abort();
     Ok(())
 }
@@ -1477,6 +1575,39 @@ mod tests {
         h.handle(adm, "unannounce 10", 30);
         assert_eq!(said(&mut h, fan), vec!["newsgone 10".to_string()]);
         assert!(h.news.is_empty());
+    }
+
+    #[test]
+    fn too_many_wrong_keys_lock_out_that_address_for_a_while() {
+        let mut h = hub();
+        h.admin_key = Some("right-key".to_string());
+        let id = h.connect(None);
+        h.clients.get_mut(&id).unwrap().ip = "1.2.3.4".to_string();
+        for k in 0..KEY_TRIES {
+            h.handle(id, &format!("dj wrong{k}"), 1000);
+        }
+        said(&mut h, id);
+        h.handle(id, "dj right-key", 2000);
+        assert_eq!(said(&mut h, id), vec!["dj no".to_string()]);
+        assert!(!h.clients[&id].admin);
+        h.handle(id, "dj right-key", 2000 + KEY_WINDOW_MS);
+        assert!(h.clients[&id].admin);
+        let other = h.connect(None);
+        h.clients.get_mut(&other).unwrap().ip = "5.6.7.8".to_string();
+        h.handle(other, "dj right-key", 3000);
+        assert!(h.clients[&other].admin);
+    }
+
+    #[test]
+    fn one_address_can_only_open_so_many_connections() {
+        let mut h = hub();
+        for _ in 0..MAX_PER_IP {
+            assert!(h.admit("9.9.9.9"));
+        }
+        assert!(!h.admit("9.9.9.9"));
+        assert!(h.admit("8.8.8.8"));
+        h.release("9.9.9.9");
+        assert!(h.admit("9.9.9.9"));
     }
 
     #[test]
