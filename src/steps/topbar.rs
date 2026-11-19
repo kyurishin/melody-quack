@@ -63,7 +63,15 @@ pub(crate) fn layout(g: &Game) -> Bar {
     let lw = low_w();
     let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Quests, Tab::Help, Tab::Settings];
     let tab_w = |t: Tab, words: bool| if words { 21.0 + ui_measure_as(Face::Label, tab_name(t), TAB_SIZE) } else { 18.0 };
-    let label_w = if g.now_playing.is_empty() { ui_measure_as(Face::Label, &radio_label(g, 0.0, 999.0), 8.5).max(30.0) } else { 70.0 };
+    let dj = radio::flag(0);
+    let label_w = if g.now_playing.is_empty() {
+        ui_measure_as(Face::Label, &radio_label(g, 0.0, 999.0), 8.5).max(30.0)
+    } else if dj {
+        let name = g.now_playing.strip_prefix("LIVE ").unwrap_or(&g.now_playing);
+        ui_measure_as(Face::Accent, name, 8.5).clamp(70.0, (lw * 0.42).max(70.0))
+    } else {
+        70.0
+    } + if dj { 9.0 } else { 0.0 };
     let logo_w = |text: bool| if text { 24.0 + ui_measure_as(Face::Display, LOGO, 10.5) } else { 20.0 };
     let radio_w = |slider: bool| 4.0 + 14.0 + 5.0 + label_w + if slider { 6.0 + 40.0 + 4.0 + 10.0 } else { 0.0 } + 5.0;
     let mut pick = (true, true, true);
@@ -286,8 +294,16 @@ pub(crate) fn draw(g: &mut Game, fr: &mut Frame) {
     } else {
         ui_tri(vec2(px + 4.8, cy - 3.5), vec2(px + 10.0, cy), vec2(px + 4.8, cy + 3.5), skin::INK);
     }
-    let label = radio_label(g, fr.time, bar.label.1);
-    ui_text_as(if g.now_playing.is_empty() { Face::Label } else { Face::Accent }, &label, bar.label.0, cy + 3.0, 8.5, if g.now_playing.is_empty() { skin::CREAM } else { skin::GOLD });
+    let dj = radio::flag(0);
+    let (lx, lw) = if dj {
+        let on = radio::online();
+        ui_circle(bar.label.0 + 3.0, cy, 2.6, if on { Color::from_rgba(120, 230, 140, 255) } else { Color::from_rgba(255, 90, 110, 255) });
+        (bar.label.0 + 9.0, bar.label.1 - 9.0)
+    } else {
+        (bar.label.0, bar.label.1)
+    };
+    let label = radio_label(g, fr.time, lw);
+    ui_text_as(if g.now_playing.is_empty() { Face::Label } else { Face::Accent }, &label, lx, cy + 3.0, 8.5, if g.now_playing.is_empty() { skin::CREAM } else { skin::GOLD });
     if let Some((sx, sw)) = bar.slider {
         let v = g.mix[4];
         ui_round(sx, cy - 1.2, sw, 2.4, 1.2, Color::new(1.0, 1.0, 1.0, 0.25));
@@ -345,30 +361,31 @@ fn stats(g: &Game, fr: &mut Frame) {
     }
     x -= 3.0 + res_w;
     pill(x, y, &res);
-    x -= 3.0 + fire_w;
-    {
-        let fx = x;
-        ui_round_frame(fx, y, fire_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
-        let lit = g.camp.lit;
-        let flame = if lit { Color::from_rgba(255, 140, 50, 255) } else { Color::from_rgba(140, 120, 130, 255) };
-        ui_tri(vec2(fx + 6.5, y + 2.5), vec2(fx + 10.0, y + 10.5), vec2(fx + 3.0, y + 10.5), flame);
-        ui_circle(fx + 6.5, y + 9.0, 3.2, flame);
-        if lit {
-            ui_circle(fx + 6.5, y + 9.6, 1.6, Color::from_rgba(255, 220, 110, 255));
-        }
-        let fill = (g.camp.fuel / 180.0).clamp(0.0, 1.0);
-        ui_round(fx + 13.0, y + 5.5, 26.0, 3.0, 1.5, Color::new(0.0, 0.0, 0.0, 0.35));
-        if fill > 0.0 {
-            ui_round(fx + 13.0, y + 5.5, 26.0 * fill, 3.0, 1.5, flame);
-        }
-    }
+    let row2_left = x;
+    let y3 = y + 17.0;
     let sk = sky();
     let temp = sk.temp.map(|t| format!("  {:.0}C", t)).unwrap_or_default();
     let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
     let tw = ui_measure(&line, 9.0) + 20.0;
-    let left_room = x - 3.0 - 34.0;
-    let (tx, ty) = if tw <= left_room { (x - 3.0 - tw, y) } else { (low_w() - 4.0 - tw, y + 17.0) };
-    DROP.with(|d| d.set(if tw <= left_room { 0.0 } else { 17.0 }));
+    let fx = low_w() - 4.0 - fire_w;
+    let tx = fx - 3.0 - tw;
+    DROP.with(|d| d.set(17.0));
+    {
+        ui_round_frame(fx, y3, fire_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
+        let lit = g.camp.lit;
+        let flame = if lit { Color::from_rgba(255, 140, 50, 255) } else { Color::from_rgba(140, 120, 130, 255) };
+        ui_tri(vec2(fx + 6.5, y3 + 2.5), vec2(fx + 10.0, y3 + 10.5), vec2(fx + 3.0, y3 + 10.5), flame);
+        ui_circle(fx + 6.5, y3 + 9.0, 3.2, flame);
+        if lit {
+            ui_circle(fx + 6.5, y3 + 9.6, 1.6, Color::from_rgba(255, 220, 110, 255));
+        }
+        let fill = (g.camp.fuel / 180.0).clamp(0.0, 1.0);
+        ui_round(fx + 13.0, y3 + 5.5, 26.0, 3.0, 1.5, Color::new(0.0, 0.0, 0.0, 0.35));
+        if fill > 0.0 {
+            ui_round(fx + 13.0, y3 + 5.5, 26.0 * fill, 3.0, 1.5, flame);
+        }
+    }
+    let ty = y3;
     ui_round_frame(tx, ty, tw, 14.0, 5.0, skin::PANEL, skin::EDGE);
     let night = sk.hour < 6.0 || sk.hour >= 19.0;
     if night {
@@ -382,7 +399,7 @@ fn stats(g: &Game, fr: &mut Frame) {
         ui_circle(tx + 8.0, ty + 7.0, 2.8, skin::GOLD);
     }
     ui_text(&line, tx + 15.0, ty + 10.5, 9.0, skin::CREAM);
-    fr.ix = tx;
+    fr.ix = row2_left.min(tx);
 }
 
 pub(crate) fn drop(g: &Game) -> f32 {

@@ -45,6 +45,10 @@ pub fn now_playing() -> String {
     if live.is_empty() { String::new() } else { format!("LIVE {live}") }
 }
 
+pub fn online() -> bool {
+    feed().is_some()
+}
+
 pub fn bpm() -> f32 {
     0.0
 }

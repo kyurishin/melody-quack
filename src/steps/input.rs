@@ -10,7 +10,7 @@ pub(crate) fn begin_frame(g: &mut Game, fr: &mut Frame) {
     fr.click = is_mouse_button_pressed(MouseButton::Left);
     if fr.click && !g.first_click_done {
         g.first_click_done = true;
-        if cfg!(target_arch = "wasm32") {
+        if cfg!(target_arch = "wasm32") && !radio::touch_ui() {
             fr.click = false;
         }
     }

@@ -1097,6 +1097,9 @@
           importObject.env.store_remove = function (kp, kl) {
             try { localStorage.removeItem(text(kp, kl)); } catch (e) {}
           };
+          importObject.env.radio_online = function () {
+            return window.melodyRadioOnline ? 1 : 0;
+          };
           importObject.env.radio_text_len = function () {
             var t = window.melodyNowPlaying || "";
             return t ? bytesOf(t).length : -1;
@@ -1469,6 +1472,15 @@
     })();
   </script>
   <script>load("melody-quack.wasm");</script>
+  <script>
+    (function () {
+      var c = document.getElementById("glcanvas");
+      if (!c || !window.ResizeObserver) return;
+      new ResizeObserver(function () {
+        if (typeof resize === "function" && window.wasm_exports && wasm_exports.resize) resize(c, wasm_exports.resize);
+      }).observe(c);
+    })();
+  </script>
   <script src="sets.js"></script>
   <script>
     (function () {
@@ -1691,6 +1703,8 @@
           link.hidden = false;
         }
         var stream = new EventSource("https://ntfy.sh/" + encodeURIComponent(live.topic) + "/sse?since=30m");
+        stream.onopen = function () { window.melodyRadioOnline = true; };
+        stream.onerror = function () { window.melodyRadioOnline = false; };
         stream.onmessage = function (event) {
           var data;
           try { data = JSON.parse(event.data); } catch (e) { return; }
@@ -1703,13 +1717,13 @@
         if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || !window.fetch) return;
         var seen = "";
         function poll() {
-          fetch("/now", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+          fetch("/now", { cache: "no-store" }).then(function (r) { window.melodyRadioOnline = r.ok; return r.ok ? r.json() : null; }).then(function (data) {
             var key = data ? JSON.stringify(data.decks || []) + data.track + JSON.stringify(data.heard || null) + JSON.stringify(data.next || []) + JSON.stringify(data.sync || null) + (data.lyrics || []).length : "";
             if (data && typeof data.track === "string" && key !== seen) {
               seen = key;
               takeLive(JSON.stringify(data));
             }
-          }).catch(function () {}).then(function () { setTimeout(poll, 2000); });
+          }).catch(function () { window.melodyRadioOnline = false; }).then(function () { setTimeout(poll, 2000); });
         }
         poll();
       }

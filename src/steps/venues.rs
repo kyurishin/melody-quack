@@ -18,6 +18,8 @@ fn cream() -> Color {
     Color::from_rgba(255, 247, 224, 255)
 }
 
+const ADMIN_GREEN: Color = Color::new(0.22, 1.0, 0.08, 1.0);
+
 pub(crate) fn hit(fr: &Frame, x: f32, y: f32, w: f32, h: f32) -> bool {
     fr.ux >= x && fr.ux < x + w && fr.uy >= y && fr.uy < y + h
 }
@@ -1486,6 +1488,8 @@ fn mail_rect(g: &Game) -> (f32, f32, f32, f32) {
         (6.0, (low_h() - 44.0).round(), 22.0, 15.0)
     } else if g.two_player && g.venue.at == Venue::None {
         (6.0, 40.0, 22.0, 15.0)
+    } else if g.venue.at == Venue::None && steps::topbar::shown(g) {
+        (4.0, 24.0, 20.0, 18.0)
     } else if g.venue.at == Venue::None {
         (6.0, 24.0, 22.0, 17.0)
     } else {
@@ -1500,9 +1504,9 @@ pub(crate) fn typing(g: &Game) -> bool {
 fn bell_rect(g: &Game) -> (f32, f32, f32, f32) {
     let (x, y, w, h) = mail_rect(g);
     if radio::touch_ui() {
-        (x + w + 5.0, y, w, h)
+        (x, y - h - 4.0, w, h)
     } else {
-        (x, y + h + 5.0, w, h)
+        (x, y + h + 3.0, w, h)
     }
 }
 
@@ -2984,6 +2988,15 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
         chars = g.venue.term_hist.get(g.venue.term_hist_at).cloned().unwrap_or_default().chars().collect();
         cur = chars.len();
     }
+    if radio::touch_ui() && fr.click && hit(fr, x, y + h - 30.0, w, 30.0) {
+        let current: String = chars.iter().collect();
+        if let Some(text) = radio::ask_text(if pw { "password" } else { "type a command" }, &current) {
+            chars = text.chars().filter(|c| !c.is_control()).take(max).collect();
+            cur = chars.len();
+            run_now = true;
+        }
+        fr.click = false;
+    }
     if copy_now && !has_sel {
         let last = g.venue.term.iter().rev().find(|l| !l.contains("@pc7:~$") && !l.trim().is_empty()).cloned();
         if let Some(l) = last {
@@ -3213,6 +3226,11 @@ fn terminal_inner(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, 
         if let Some(u) = under {
             ui_text(&u, cx + 1.0, y + h - 4.0, 9.0, Color::from_rgba(8, 8, 14, 255));
         }
+    }    if radio::touch_ui() {
+        let tip = "tap here to type";
+        let tw = ui_measure(tip, 8.0) + 10.0;
+        ui_rect(x + w - tw - 10.0, y + h - 13.0, tw, 11.0, Color::from_rgba(198, 255, 61, 60));
+        ui_text(tip, x + w - tw - 5.0, y + h - 4.5, 8.0, green);
     }
 }
 
@@ -3260,7 +3278,9 @@ fn flyer_view(g: &mut Game, fr: &mut Frame, i: usize, fresh: bool) {
 }
 
 fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
-    let (w, h) = (250.0, 128.0);
+    let touch = radio::touch_ui();
+    let chip_rows = if touch { g.venue.known.len().min(3) as f32 } else { 0.0 };
+    let (w, h) = (250.0f32.min(low_w() - 8.0), if touch { 104.0 + chip_rows * 26.0 + 26.0 } else { 128.0 });
     let x = ((low_w() - w) / 2.0).round();
     let y = ((low_h() - h) / 2.0).round();
     ui_rect(x + 3.0, y + 3.0, w, h, ink());
@@ -3288,7 +3308,20 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect(tx + 2.0, y + 60.0, 146.0, 18.0, cream());
     ui_text(if shown.is_empty() { "type the code" } else { &shown }, tx + 8.0, y + 74.0, 14.0, if shown.is_empty() { Color::from_rgba(170, 160, 150, 255) } else { ink() });
     let mut submit: Option<String> = None;
-    if !g.venue.known.is_empty() {
+    if !g.venue.known.is_empty() && touch {
+        ui_text("codes you've seen (tap one)", x + 12.0, y + 98.0, 9.0, Color::new(1.0, 0.97, 0.88, 0.7));
+        for (k, c) in g.venue.known.clone().iter().take(3).enumerate() {
+            let (cx, cy, cw, ch) = (x + 12.0, y + 104.0 + k as f32 * 26.0, w - 24.0, 22.0);
+            let over = hit(fr, cx - 4.0, cy - 2.0, cw + 8.0, ch + 4.0);
+            let pressed = over && is_mouse_button_down(MouseButton::Left);
+            ui_rect(cx, cy, cw, ch, if pressed { Color::from_rgba(255, 214, 110, 255) } else { ink() });
+            ui_text(c, cx + (cw - ui_measure(c, 13.0)) / 2.0, cy + 16.0, 13.0, if pressed { ink() } else { cream() });
+            if over && fr.click {
+                submit = Some(c.clone());
+                fr.click = false;
+            }
+        }
+    } else if !g.venue.known.is_empty() {
         ui_text("codes you've seen (click one)", x + 12.0, y + 100.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.6));
         let mut cx = x + 12.0;
         for c in g.venue.known.clone().iter().take(3) {
@@ -3328,8 +3361,10 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if is_key_pressed(KeyCode::Enter) {
         submit = Some(g.venue.door_code.clone());
     }
-    let close_hit = button(fr, "close", x + w - 52.0, y + h - 22.0, 44.0, 14.0, false);
-    ui_text("enter: go in   esc: close", x + 12.0, y + h - 6.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
+    let close_hit = if touch { button(fr, "close", x + w - 62.0, y + h - 24.0, 54.0, 18.0, false) } else { button(fr, "close", x + w - 52.0, y + h - 22.0, 44.0, 14.0, false) };
+    if !touch {
+        ui_text("enter: go in   esc: close", x + 12.0, y + h - 6.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
+    }
     if is_key_pressed(KeyCode::Escape) || close_hit || (fr.click && !hit(fr, x, y, w, h)) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
@@ -3725,7 +3760,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let is_dj = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.dj).unwrap_or(false);
         let is_admin = g.venue.friends.iter().find(|f| f.id == peer.id).map(|f| f.admin).unwrap_or(false);
         let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
-        let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) };
+        let colour = if is_admin { ADMIN_GREEN } else if is_dj { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(61, 242, 255, 255) };
         tags.push((vec3(CH_ORIGIN.x + peer.pos.x, if peer.emote.is_some() { 2.3 } else { 1.75 }, CH_ORIGIN.y + peer.pos.y), name, colour));
     }
     if net::state() == 2 {
@@ -3736,7 +3771,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         } else {
             g.venue.name.clone()
         };
-        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.dj_name.is_some() && !g.venue.admin { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
+        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.admin { ADMIN_GREEN } else if g.venue.dj_name.is_some() { Color::from_rgba(196, 130, 255, 255) } else { Color::from_rgba(255, 214, 110, 255) }));
         if g.two_player {
             tags.push((vec3(g.players[1].pos.x, 1.75, g.players[1].pos.y), format!("{} +1", g.venue.name), Color::from_rgba(255, 214, 110, 255)));
         }
@@ -3872,7 +3907,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             }
             let (colour, shown) = match kind {
                 3 => (Color::from_rgba(255, 140, 120, 255), String::new()),
-                2 => (Color::from_rgba(255, 214, 110, 255), format!("* {name}")),
+                2 => (ADMIN_GREEN, format!("* {name}")),
                 1 => (Color::from_rgba(196, 130, 255, 255), format!("dj {name}")),
                 _ => (Color::from_rgba(61, 242, 255, 255), name.clone()),
             };
@@ -4212,7 +4247,7 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
         let name = f.map(|f| f.name.clone()).unwrap_or_default();
         let (is_dj, is_admin) = f.map(|f| (f.dj, f.admin)).unwrap_or((false, false));
         let name = if peer.slot == 1 { format!("{name} +1") } else if is_admin { format!("* {name}") } else if is_dj { format!("dj {name}") } else { name };
-        let colour = if is_admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) };
+        let colour = if is_admin { ADMIN_GREEN } else { Color::from_rgba(196, 130, 255, 255) };
         tags.push((vec3(LG_ORIGIN.x + peer.pos.x, if peer.emote.is_some() { 2.3 } else { 1.75 }, LG_ORIGIN.y + peer.pos.y), name, colour));
     }
     for p in g.shown_players().iter() {
@@ -4223,7 +4258,7 @@ fn draw_lounge(g: &mut Game, time: f32, pulse: f32) -> (Mat4, Vec<(Vec3, String,
     }
     if net::state() == 2 {
         let mine = if g.venue.admin && !g.venue.admin_name.is_empty() { format!("* {}", g.venue.admin_name) } else { format!("dj {}", g.venue.name) };
-        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.admin { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(196, 130, 255, 255) }));
+        tags.push((vec3(g.players[0].pos.x, if g.players[0].emote.is_some() { 2.3 } else { 1.75 }, g.players[0].pos.y), mine, if g.venue.admin { ADMIN_GREEN } else { Color::from_rgba(196, 130, 255, 255) }));
     }
     b.flush();
     (view, tags)

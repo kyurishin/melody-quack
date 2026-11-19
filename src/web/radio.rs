@@ -10,6 +10,7 @@ unsafe extern "C" {
     fn live_overlay(y: f32);
     fn radio_next_get(out: *mut u8);
     fn radio_bpm() -> f32;
+    fn radio_online() -> i32;
     fn touch_mode() -> i32;
     fn ui_report(text: *const u8, len: u32);
     fn ask_text_open(prompt: *const u8, prompt_len: u32, current: *const u8, current_len: u32) -> i32;
@@ -58,6 +59,10 @@ pub fn decks() -> Vec<(String, String)> {
         .lines()
         .filter_map(|line| line.split_once('\t').map(|(d, t)| (d.to_string(), t.to_string())))
         .collect()
+}
+
+pub fn online() -> bool {
+    unsafe { radio_online() != 0 }
 }
 
 pub fn bpm() -> f32 {

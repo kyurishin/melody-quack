@@ -58,7 +58,7 @@ impl Face {
     fn grid(self) -> f32 {
         match self {
             Face::Display => 7.0,
-            Face::Notice => 11.0,
+            Face::Notice => 1.0,
             Face::Gothic => 21.0,
             _ => 8.0,
         }
@@ -69,7 +69,7 @@ impl Face {
             Face::Display => 1.25,
             Face::Data => 0.85,
             Face::Accent => 0.62,
-            Face::Notice => 1.22,
+            Face::Notice => 1.15,
             _ => 1.0,
         }
     }
@@ -89,7 +89,7 @@ pub(crate) fn load_ui_font() {
         include_bytes!("../assets/fonts/04B_11.ttf"),
         include_bytes!("../assets/fonts/04B_20.ttf"),
         include_bytes!("../assets/fonts/04B_21.ttf"),
-        include_bytes!("../assets/fonts/PixelifySans-Regular.ttf"),
+        include_bytes!("../assets/fonts/GeistPixel-Regular.ttf"),
         include_bytes!("../assets/fonts/Jacquard12-Regular.ttf"),
     ];
     let fonts: Vec<Option<Font>> = files
@@ -233,7 +233,8 @@ pub(crate) fn ui_text_raw(text: &str, x: f32, y: f32, size: f32, color: Color) {
 }
 
 fn spaced(text: &str, face: Face) -> std::borrow::Cow<'_, str> {
-    if face == Face::Notice && text.contains(' ') { std::borrow::Cow::Owned(text.replace(' ', "  ")) } else { std::borrow::Cow::Borrowed(text) }
+    let _ = face;
+    std::borrow::Cow::Borrowed(text)
 }
 
 fn text_at(text: &str, x: f32, y: f32, size: f32, color: Color, with_shadow: bool) {

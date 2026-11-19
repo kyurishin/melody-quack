@@ -492,6 +492,7 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             g.venue.chat.adding = false;
         } else {
             g.venue.overlay = venues::Overlay::None;
+            g.venue.partner.shown = 0.0;
             fr.click = false;
         }
     }
