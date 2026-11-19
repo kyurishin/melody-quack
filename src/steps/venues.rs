@@ -1576,7 +1576,7 @@ pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
 }
 
 fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
-    let (w, h) = (268.0f32.min(low_w() - 12.0), if g.venue.admin { 166.0 } else { 150.0 });
+    let (w, h) = (268.0f32.min(low_w() - 12.0), if g.venue.admin { 186.0 } else { 150.0 });
     let x = ((low_w() - w) / 2.0).round();
     let y = ((low_h() - h) / 2.0).round();
     ui_rect(x + 3.0, y + 3.0, w, h, ink());
@@ -1621,31 +1621,32 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
     }
     let admin = g.venue.admin;
+    let (frame_y, frame_h) = (y, h);
     if admin {
         let n = g.venue.requests.len();
         let label = if n > 0 { format!("requests ({n})") } else { "requests".to_string() };
-        if button(fr, "post", x + w - 168.0, y + 8.0, 36.0, 14.0, g.venue.admin_tab == 0) {
-            g.venue.admin_tab = 0;
+        let tabs: [(&str, u8); 4] = [("post", 0), ("news", 3), (label.as_str(), 1), ("djs", 2)];
+        let tw = ((w - 24.0 - 3.0 * 4.0) / 4.0).floor();
+        for (k, (name, tab)) in tabs.iter().enumerate() {
+            if button(fr, name, x + 12.0 + k as f32 * (tw + 4.0), y + 8.0, tw, 15.0, g.venue.admin_tab == *tab) && !fresh {
+                g.venue.admin_tab = *tab;
+                if *tab == 2 {
+                    g.venue.made_key = None;
+                    g.venue.dj_note.clear();
+                }
+                while get_char_pressed().is_some() {}
+                fr.click = false;
+            }
         }
-        if button(fr, &label, x + w - 128.0, y + 8.0, 80.0, 14.0, g.venue.admin_tab == 1) {
-            g.venue.admin_tab = 1;
-        }
-        if button(fr, "news", x + w - 206.0, y + 8.0, 34.0, 14.0, g.venue.admin_tab == 3) {
-            g.venue.admin_tab = 3;
-            while get_char_pressed().is_some() {}
-        }
-        if button(fr, "djs", x + w - 44.0, y + 8.0, 34.0, 14.0, g.venue.admin_tab == 2) {
-            g.venue.admin_tab = 2;
-            g.venue.made_key = None;
-            g.venue.dj_note.clear();
-            while get_char_pressed().is_some() {}
-        }
+        ui_rect(x + 12.0, y + 27.0, w - 24.0, 1.0, Color::from_rgba(220, 208, 236, 255));
     }
+    let y = if admin { y + 20.0 } else { y };
+    let h = if admin { h - 20.0 } else { h };
     if admin && g.venue.admin_tab == 3 {
         lines.clear();
         let grey = Color::from_rgba(110, 100, 130, 255);
-        ui_text("news for everyone", x + 12.0, y + 40.0, 12.0, ink());
-        ui_text("it shows up in everyone's notifications, now and when they next connect.", x + 12.0, y + 52.0, 7.0, grey);
+        ui_text("news for everyone", x + 12.0, y + 22.0, 12.0, ink());
+        ui_text("it shows up in everyone's notifications, now and when they next connect.", x + 12.0, y + 34.0, 7.0, grey);
         if !fresh {
             while let Some(ch) = get_char_pressed() {
                 if !ch.is_control() && g.venue.news_draft.chars().count() < 160 && !shortcut_held() {
@@ -1657,7 +1658,7 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
                 g.venue.news_draft.pop();
             }
         }
-        let (fx, fy, fw) = (x + 12.0, y + 58.0, w - 24.0);
+        let (fx, fy, fw) = (x + 12.0, y + 40.0, w - 24.0);
         ui_rect(fx, fy, fw, 15.0, Color::from_rgba(236, 228, 255, 255));
         let caret = if (fr.time * 2.0).fract() < 0.6 { "|" } else { "" };
         let mut view = g.venue.news_draft.clone();
@@ -1665,14 +1666,14 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
             view.remove(0);
         }
         ui_text(&if view.is_empty() { format!("{caret}new event: autumn jam this friday") } else { format!("{view}{caret}") }, fx + 4.0, fy + 11.0, 8.0, if view.is_empty() { grey } else { ink() });
-        let send = button(fr, "send to everyone", x + 12.0, y + 77.0, 96.0, 15.0, true) && !fresh;
+        let send = button(fr, "send to everyone", x + 12.0, y + 59.0, 96.0, 15.0, true) && !fresh;
         if (send || (!fresh && is_key_pressed(KeyCode::Enter))) && !g.venue.news_draft.trim().is_empty() {
             net::send(&format!("announce {}", g.venue.news_draft.trim()));
             g.venue.news_draft.clear();
             fr.click = false;
         }
         let posted: Vec<steps::notify::Note> = g.venue.notes.list.iter().filter(|n| n.kind == steps::notify::Kind::News).rev().cloned().collect();
-        let mut ry = y + 98.0;
+        let mut ry = y + 80.0;
         for n in posted.iter().take(((y + h - 8.0 - ry) / 14.0).max(0.0) as usize) {
             ui_text_fit(&n.text, x + 12.0, ry + 9.0, 8.0, w - 80.0, ink());
             if button(fr, "remove", x + w - 58.0, ry, 46.0, 12.0, false) && !fresh {
@@ -1806,7 +1807,7 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
             }
         }
     }
-    let mut ty = y + if admin { 30.0 } else { 16.0 };
+    let mut ty = y + 16.0;
     for (text, size, col) in lines {
         ty += size * 0.35;
         ui_text(&text, x + 12.0, ty, size, col);
@@ -1817,7 +1818,7 @@ fn mail(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if fresh {
         return;
     }
-    if is_key_pressed(KeyCode::Escape) || (is_key_pressed(KeyCode::E) && g.venue.admin_tab != 2 && g.venue.admin_tab != 3) || (fr.click && !hit(fr, x, y, w, h)) {
+    if is_key_pressed(KeyCode::Escape) || (is_key_pressed(KeyCode::E) && g.venue.admin_tab != 2 && g.venue.admin_tab != 3) || (fr.click && !hit(fr, x, frame_y, w, frame_h)) {
         g.venue.overlay = Overlay::None;
         fr.click = false;
     }
