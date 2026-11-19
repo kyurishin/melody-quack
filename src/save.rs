@@ -16,6 +16,7 @@ pub(crate) struct Progress {
     pub(crate) fuel: f32,
     pub(crate) lit: bool,
     pub(crate) pile: u32,
+    pub(crate) ring: u8,
     pub(crate) dishes: Vec<usize>,
     pub(crate) cook_progress: u32,
     pub(crate) characters: [usize; 2],
@@ -66,6 +67,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("tiles {}\n", list(p.tiles.iter().map(|(k, s)| format!("{k}:{s}")).collect()));
     out += &format!("inv {} {} {} {} {}\n", p.wood, p.stone, p.fish[0], p.fish[1], p.fish[2]);
     out += &format!("camp {:.1} {} {}\n", p.fuel, p.lit as u8, p.pile);
+    if p.ring > 0 {
+        out += &format!("ring {}\n", p.ring);
+    }
     out += &format!("dishes {}\n", list(p.dishes.iter().map(|d| d.to_string()).collect()));
     out += &format!("cook {}\n", p.cook_progress);
     out += &format!("chars {} {}\n", p.characters[0], p.characters[1]);
@@ -150,6 +154,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         fuel: 0.0,
         lit: false,
         pile: 0,
+        ring: 0,
         dishes: Vec::new(),
         cook_progress: 0,
         characters: [0, 4],
@@ -202,6 +207,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                 p.stone = nums[1] as u32;
                 p.fish = [nums[2] as u32, nums[3] as u32, nums[4] as u32];
             }
+            "ring" if nums.len() == 1 => p.ring = (nums[0].max(0.0) as u8).min(crate::camp::RING_MAX),
             "camp" if nums.len() == 3 => {
                 p.fuel = nums[0];
                 p.lit = nums[1] > 0.0;

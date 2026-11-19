@@ -241,7 +241,7 @@ pub(crate) fn tape_and_fresh_start(g: &mut Game, fr: &mut Frame) {
         g.world = World::new();
         venues::stamp(&mut g.world);
         g.inv = Inventory { wood: 2, stone: 0, fish: [0; 3], mush: [0; 3], acorns: 0 };
-        g.camp = Camp { fuel: 0.0, lit: false, pile: 0 };
+        g.camp = Camp { fuel: 0.0, lit: false, pile: 0, ring: 0, play: [false; 2], glow: [0.0; 6] };
         g.dishes.clear();
         g.cook_progress = 0;
         g.cooking = false;

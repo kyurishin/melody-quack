@@ -28,7 +28,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
                 let lift = glow * 3.0;
                 ui_rect(x + 1.0, fr.bar_y - lift, box_w - 2.0, 28.0, bg);
                 ui_text(labels[i], x + 4.0, fr.bar_y + 12.0 - lift, 12.0, fr.ink);
-                let name = if g.inside && g.dj[who] { &DJ_PADS[who][i][..DJ_PADS[who][i].len().min(4)] } else if g.cooking && g.players[who].seated && i < 4 { &PERC_NAMES[i][..3] } else if g.inside && g.seat[who] == Some(home::Item::Piano) { "piano" } else if g.inside && g.seat[who] == Some(home::Item::Drums) { "drum" } else { NOTE_NAMES[i] };
+                let name = if g.camp.play[who] && g.players[who].seated { if i < g.camp.ring as usize { "ston" } else { "-" } } else if g.inside && g.dj[who] { &DJ_PADS[who][i][..DJ_PADS[who][i].len().min(4)] } else if g.cooking && g.players[who].seated && i < 4 { &PERC_NAMES[i][..3] } else if g.inside && g.seat[who] == Some(home::Item::Piano) { "piano" } else if g.inside && g.seat[who] == Some(home::Item::Drums) { "drum" } else { NOTE_NAMES[i] };
                 ui_text(name, x + 4.0, fr.bar_y + 24.0 - lift, 12.0, fr.ink);
             }
         }
@@ -50,7 +50,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
                 ui_round(x + box_w - 13.0 + k as f32 * 3.0, fr.bar_y - lift + 22.0 - bh, 1.8, bh, 0.9, Color::new(1.0, 1.0, 1.0, 0.45 + glow * 0.4));
             }
             ui_text_as(ui::Face::Label, &format!("{} {}", i + 1, NOTE_NAMES[i]), x + 6.0, fr.bar_y + 12.5 - lift, 11.0, fr.ink);
-            let label = if g.inside && g.dj[0] {
+            let label = if g.camp.play[0] && g.players[0].seated {
+                if i < g.camp.ring as usize { "stone" } else { "-" }
+            } else if g.inside && g.dj[0] {
                 DJ_PADS[0][i]
             } else if g.cooking && i < 4 {
                 PERC_NAMES[i]
@@ -306,14 +308,16 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         if fr.dog_jamming && g.partner_soloing {
             format!("the {} knows {} tune{} - answer back!", g.cast_list[g.players[1].character].noun, g.songbook.len(), if g.songbook.len() == 1 { "" } else { "s" })
         } else if fr.dog_jamming || (g.two_player && g.players[1].seated) {
-            "playing together by the fire - E / O: cook, move to stand up".to_string()
+            if g.camp.ring > 0 { "playing together by the fire - E: cook, X: stones, move to stand up".to_string() } else { "playing together by the fire - E / O: cook, move to stand up".to_string() }
         } else if !g.companion && !g.two_player {
-            "playing by the fire - E: cook, move to stand up".to_string()
+            if g.camp.ring > 0 { "playing by the fire - E: cook, X: stones, move to stand up".to_string() } else { "playing by the fire - E: cook, move to stand up".to_string() }
         } else {
             format!("playing by the fire - E: cook, the {} is on the way", g.cast_list[g.players[1].character].noun)
         }
     } else if g.players[0].pos.distance(DOOR_OUT) < 0.9 && !g.players[0].seated {
         if g.two_player { "E / O: go inside".to_string() } else { "E: go inside".to_string() }
+    } else if g.camp.lit && near_fire(&g.players[0]) && !g.players[0].seated && !ring_full(&g.camp) && g.inv.stone > 0 {
+        format!("E: sit by the fire   X: add a stone to the ring ({}/{})", g.camp.ring, RING_MAX)
     } else if g.camp.lit && near_fire(&g.players[0]) && !g.players[0].seated {
         "E: sit by the fire".to_string()
     } else if at_dock_end(&g.players[0]) {

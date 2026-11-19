@@ -4,6 +4,31 @@ use crate::*;
 use macroquad::prelude::*;
 
 pub(crate) fn jam_and_fire(g: &mut Game, fr: &mut Frame) {
+    for k in g.camp.glow.iter_mut() {
+        *k = (*k - fr.dt * 2.5).max(0.0);
+    }
+    for who in 0..2 {
+        if g.camp.play[who] && (!g.players[who].seated || g.inside || g.camp.ring == 0 || g.cooking) {
+            g.camp.play[who] = false;
+        }
+    }
+    let free = !g.inside && !g.picking && !g.paused && !g.shop_open && !g.show_help && !g.show_inventory && g.venue.overlay == crate::venues::Overlay::None && g.venue.at == crate::venues::Venue::None && !steps::venues::typing(g);
+    for who in 0..(if g.two_player { 2 } else { 1 }) {
+        let key = if who == 0 { KeyCode::X } else { KeyCode::U };
+        if !free || !is_key_pressed(key) || !near_fire(&g.players[who]) {
+            continue;
+        }
+        if g.players[who].seated && g.camp.ring > 0 && !g.cooking {
+            g.camp.play[who] = !g.camp.play[who];
+            g.music_mode = true;
+            g.toasts.push((if g.camp.play[who] { "you tap the ring of stones - 1-6 play them".to_string() } else { "back to your own voice".to_string() }, 2.0));
+        } else if !g.players[who].seated && !ring_full(&g.camp) && g.inv.stone > 0 {
+            g.inv.stone -= 1;
+            steps::friend::set_ring_stone(g);
+        } else if !g.players[who].seated && !ring_full(&g.camp) {
+            g.toasts.push(("find a stone and bring it to the fire".to_string(), 2.0));
+        }
+    }
     fr.was_jam = g.jam;
     g.jam = !g.inside && (g.players[0].seated || (g.two_player && g.players[1].seated));
     if g.jam && !fr.was_jam {
@@ -15,7 +40,7 @@ pub(crate) fn jam_and_fire(g: &mut Game, fr: &mut Frame) {
     }
 
     if g.camp.lit {
-        g.camp.fuel -= fr.dt;
+        g.camp.fuel -= fr.dt * if ring_full(&g.camp) { 0.6 } else { 1.0 };
         g.camp.pile = (g.camp.fuel / STICK_FUEL).ceil().max(0.0) as u32;
         if g.camp.fuel <= 0.0 {
             g.camp.fuel = 0.0;

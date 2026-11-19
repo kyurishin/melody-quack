@@ -167,6 +167,12 @@ pub(crate) fn render_marimba(freq: f32) -> Vec<f32> {
     ring_tone(freq, &[(1.0, 1.0, 7.0), (4.0, 0.35, 25.0), (10.0, 0.12, 60.0)], 0.7, 0.002, 0.45)
 }
 
+pub(crate) fn render_stone(freq: f32) -> Vec<f32> {
+    let body = ring_tone(freq, &[(1.0, 1.0, 9.0), (2.32, 0.45, 18.0), (4.25, 0.22, 34.0), (6.8, 0.1, 55.0)], 0.6, 0.001, 0.5);
+    let knock = noise_burst(0.025, 160.0, 0.35, (freq * 7.0) as u32, 0.1);
+    add_into(body, knock)
+}
+
 pub(crate) fn render_piano(freq: f32) -> Vec<f32> {
     let body = ring_tone(freq, &[(1.0, 1.0, 1.6), (2.0, 0.55, 2.4), (3.0, 0.3, 3.4), (4.0, 0.16, 5.0), (5.0, 0.08, 7.0)], 1.8, 0.003, 0.42);
     let hammer = noise_burst(0.03, 120.0, 0.6, (freq * 10.0) as u32, 0.06);

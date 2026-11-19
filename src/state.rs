@@ -9,6 +9,7 @@ pub(crate) struct Game {
     pub(crate) cast_list: Vec<Character>,
     pub(crate) voices: Vec<Vec<audio::Sound>>,
     pub(crate) marimba: Vec<audio::Sound>,
+    pub(crate) stones: Vec<audio::Sound>,
     pub(crate) bells: Vec<audio::Sound>,
     pub(crate) piano: Vec<audio::Sound>,
     pub(crate) open_hat: audio::Sound,

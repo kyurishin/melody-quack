@@ -243,11 +243,36 @@ pub(crate) fn receive_delivery(g: &mut Game, fr: &mut Frame) {
             g.toasts.push((format!("the {} brought you 2 acorns", fr.friend), 2.5));
         }
         Some(Carry::Stone) => {
-            g.inv.stone += 1;
-            g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][4], 0.6);
             g.players[fr.delivered_by].voice_timer = 0.4;
-            g.toasts.push((format!("{} brought a stone", fr.bringer), 2.5));
+            if !ring_full(&g.camp) {
+                set_ring_stone(g);
+            } else {
+                g.inv.stone += 1;
+                g.audio.play_ch(fr.bringer_ch, &g.voices[fr.bringer_voice][4], 0.6);
+                g.toasts.push((format!("{} brought a stone", fr.bringer), 2.5));
+            }
         }
         None => {}
+    }
+}
+
+pub(crate) fn set_ring_stone(g: &mut Game) {
+    let i = g.camp.ring as usize;
+    g.camp.ring += 1;
+    g.camp.glow[i] = 1.0;
+    g.audio.play_ch(3, &g.stones[i], 0.8);
+    g.save_clock = 99.0;
+    let p = ring_spot(i);
+    for k in 0..10 {
+        let a = k as f32 / 10.0 * 2.0 * PI;
+        spawn(&mut g.particles, p + vec3(0.0, 0.15, 0.0), vec3(a.cos() * 0.8, 1.2, a.sin() * 0.8), 0.6, Color::from_rgba(210, 220, 240, 255), 0.03, 0.5);
+    }
+    if ring_full(&g.camp) {
+        g.toasts.push(("the stone ring is complete! rain can't reach the fire now, and it burns longer".to_string(), 4.0));
+        for n in [0usize, 2, 4, 5] {
+            g.audio.play_ch(3, &g.bells[n], 0.35);
+        }
+    } else {
+        g.toasts.push((format!("a stone joins the ring and rings a {} ({}/{})", NOTE_NAMES[i].trim(), g.camp.ring, RING_MAX), 3.0));
     }
 }

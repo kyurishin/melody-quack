@@ -150,6 +150,7 @@ async fn main() {
     let audio = audio::Audio::new();
     let cast_list = roster();
     let voices: Vec<Vec<audio::Sound>> = cast_list.iter().map(|c| NOTES.iter().map(|n| audio.load_ringing(render_voice(c.voice, *n))).collect()).collect();
+    let stones: Vec<audio::Sound> = NOTES.iter().map(|n| audio.load_ringing(render_stone(midi_to_freq(*n)))).collect();
     let marimba: Vec<audio::Sound> = NOTES.iter().map(|n| audio.load_ringing(render_marimba(midi_to_freq(*n - 12)))).collect();
     let bells: Vec<audio::Sound> = NOTES.iter().map(|n| audio.load_ringing(render_bell(midi_to_freq(*n)))).collect();
     let piano: Vec<audio::Sound> = NOTES.iter().map(|n| audio.load_ringing(render_piano(midi_to_freq(*n)))).collect();
@@ -169,7 +170,7 @@ async fn main() {
     audio.seal();
     let fixed = [&kick, &clap, &hat, &crackle, &lid, &chop, &sizzle, &plink, &splash];
     let dj_sounds = [&open_hat, &tom, &rim, &bass];
-    while !voices.iter().flatten().chain(marimba.iter()).chain(bells.iter()).chain(piano.iter()).chain(fixed).chain(dj_sounds).all(|s| audio.is_loaded(s)) {
+    while !voices.iter().flatten().chain(marimba.iter()).chain(stones.iter()).chain(bells.iter()).chain(piano.iter()).chain(fixed).chain(dj_sounds).all(|s| audio.is_loaded(s)) {
         next_frame().await;
     }
     let view_w = low_w() as u32;
@@ -186,7 +187,7 @@ async fn main() {
     let mut first_steps = 0u8;
     let pick_row = 0usize;
     let brain = DogBrain::new();
-    let mut camp = Camp { fuel: 0.0, lit: false, pile: 0 };
+    let mut camp = Camp { fuel: 0.0, lit: false, pile: 0, ring: 0, play: [false; 2], glow: [0.0; 6] };
     let mut inv = Inventory { wood: 2, stone: 0, fish: [0; 3], mush: [0; 3], acorns: 0 };
     let fishing = Fishing { active: false, caster: 0, cue_at: 0.0, hits: 0, tries: FISH_TRIES, hit_by: [false; 2], early: [false; 2], lesson: false, perfects: 0, dip: 0.0, jump: None, tight: 1.0 };
     let mut fish_lesson = false;
@@ -359,6 +360,7 @@ async fn main() {
         camp.fuel = saved.fuel;
         camp.lit = saved.lit;
         camp.pile = saved.pile;
+        camp.ring = saved.ring;
         dishes = saved.dishes;
         cook_progress = saved.cook_progress;
         for who in 0..2 {
@@ -417,6 +419,7 @@ async fn main() {
         cast_list,
         voices,
         marimba,
+        stones,
         bells,
         piano,
         open_hat,

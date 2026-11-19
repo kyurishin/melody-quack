@@ -20,6 +20,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             fuel: g.camp.fuel,
             lit: g.camp.lit,
             pile: g.camp.pile,
+            ring: g.camp.ring,
             dishes: g.dishes.clone(),
             cook_progress: g.cook_progress,
             characters: [g.players[0].character, g.players[1].character],

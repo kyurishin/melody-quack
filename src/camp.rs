@@ -21,6 +21,20 @@ pub(crate) struct Camp {
     pub(crate) fuel: f32,
     pub(crate) lit: bool,
     pub(crate) pile: u32,
+    pub(crate) ring: u8,
+    pub(crate) play: [bool; 2],
+    pub(crate) glow: [f32; 6],
+}
+
+pub(crate) const RING_MAX: u8 = 6;
+
+pub(crate) fn ring_full(camp: &Camp) -> bool {
+    camp.ring >= RING_MAX
+}
+
+pub(crate) fn ring_spot(i: usize) -> Vec3 {
+    let a = (i as f32 / RING_MAX as f32) * 2.0 * PI + 0.3;
+    fire_center() + vec3(a.cos() * 0.66, 0.0, a.sin() * 0.66)
 }
 
 pub(crate) fn draw_camp(b: &mut Batch, camp: &Camp, time: f32) {
@@ -31,6 +45,15 @@ pub(crate) fn draw_camp(b: &mut Batch, camp: &Camp, time: f32) {
     for k in 0..8 {
         let a = k as f32 / 8.0 * 2.0 * PI;
         b.cube(c + vec3(a.cos() * 0.36, 0.06, a.sin() * 0.36), vec3(0.16, 0.12, 0.16), tinted(stone, (k % 3) as f32 * 0.05));
+    }
+    for i in 0..camp.ring.min(RING_MAX) as usize {
+        let glow = camp.glow[i].clamp(0.0, 1.0);
+        let p = ring_spot(i);
+        let base = tinted(Color::from_rgba(150, 156, 176, 255), (i % 3) as f32 * 0.04 - 0.04);
+        let col = mix(base, Color::from_rgba(200, 255, 140, 255), glow);
+        b.unlit = glow > 0.05;
+        b.cube(p + vec3(0.0, 0.09 + glow * 0.04, 0.0), vec3(0.2, 0.18, 0.18), col);
+        b.unlit = false;
     }
     b.cube(c + vec3(0.0, 0.07, 0.0), vec3(0.5, 0.08, 0.1), log);
     b.cube(c + vec3(0.0, 0.07, 0.0), vec3(0.1, 0.08, 0.5), log);

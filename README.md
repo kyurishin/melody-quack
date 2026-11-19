@@ -129,6 +129,8 @@ New players get a short guide in banners: sing your first note, find the fire, m
 
 A few trees have a stick at their foot, marked with a sparkle. Pick it up (E) and carry it to the logs by the fire; the first stick lights it, and each burns for about 45 seconds. Your friend keeps fetching. Sit by the fire with E: the sky turns to dusk, the windows glow, and you jam. E again puts the pot on (see [Cooking](#cooking-percussion)). Ember (1, in spell mode) relights the fire, rain (3) puts it out.
 
+**The stone ring:** bring a stone to the fire (or stand by it and press X to use one from your bag) and it's set in a ring around the flames, each one tuned to a note: D, E, F#, A, B, C. Sitting by the fire, X switches your six notes to the stones, so 1-6 play the ring (X again goes back to your voice). Once all six are in, the ring is complete: rain can't put the fire out any more, and it burns a good deal longer.
+
 ### Stars and the diary
 
 Play together by the fire (both players, or you with your companion, or you alone with the companion resting) and keep the notes coming: 30 seconds earns one star, a minute two, three minutes three. Short pauses are fine. After 8 seconds of quiet, the game asks you to **name the jam**: type a name and press Enter to write it in the diary (with the date, who played, how long and the stars), or press **don't save** (or Esc twice) to let it go. Every jam is recorded note by note.

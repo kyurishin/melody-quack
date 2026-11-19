@@ -38,6 +38,23 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
                 g.players[1 - who].voice_timer = g.players[1 - who].voice_timer.max(0.15);
                 continue;
             }
+            if g.camp.play[who] && g.players[who].seated && !g.cooking {
+                if i < g.camp.ring as usize {
+                    g.audio.play_ch(who, &g.stones[i], 0.85);
+                    g.camp.glow[i] = 1.0;
+                    let p = ring_spot(i);
+                    for k in 0..4 {
+                        let a = k as f32 * 1.57 + fr.time;
+                        spawn(&mut g.particles, p + vec3(0.0, 0.2, 0.0), vec3(a.cos() * 0.4, 0.9, a.sin() * 0.4), 0.45, Color::from_rgba(210, 255, 150, 255), 0.02, 0.4);
+                    }
+                } else {
+                    g.audio.play_ch(3, &g.plink, 0.15);
+                }
+                quest_event(&mut g.quests, QuestKind::Sing, 1, &mut g.inv, &mut g.toasts);
+                g.players[who].key_glow[i] = 1.0;
+                g.players[who].voice_timer = 0.2;
+                continue;
+            }
             if g.cooking && g.players[who].seated && i < 4 {
                 let id = if who == 0 { 12 + i } else { 28 + i };
                 let play_now = g.looper.press(id);
@@ -83,7 +100,9 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
                     g.camp.lit = true;
                     g.toasts.push(("ember! the fire is lit".to_string(), 2.5));
                 }
-                if i == 2 && pos.distance(FIRE_SPOT) < 2.5 && g.camp.lit {
+                if i == 2 && pos.distance(FIRE_SPOT) < 2.5 && g.camp.lit && ring_full(&g.camp) {
+                    g.toasts.push(("the stone ring keeps the fire dry".to_string(), 2.5));
+                } else if i == 2 && pos.distance(FIRE_SPOT) < 2.5 && g.camp.lit {
                     g.camp.lit = false;
                     g.cooking = false;
                     g.toasts.push(("the rain put the fire out".to_string(), 2.5));
