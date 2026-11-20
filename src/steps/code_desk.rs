@@ -3,7 +3,7 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 use crate::strudel::{self, Program};
-use steps::venues::{button, held_repeat, hit, shortcut_held};
+use steps::venues::{button, held_repeat, hit};
 
 pub(crate) const MAX_CODE: usize = 8000;
 
@@ -24,6 +24,13 @@ pub(crate) struct CodeDesk {
     pub(crate) anchor: Option<usize>,
     pub(crate) drag: bool,
     pub(crate) copied: f64,
+    pub(crate) undo: Vec<(String, usize)>,
+    pub(crate) redo: Vec<(String, usize)>,
+    pub(crate) undo_kind: u8,
+    pub(crate) undo_at: f64,
+    pub(crate) clicks: (f64, u8, usize),
+    pub(crate) follow: usize,
+    pub(crate) bar: bool,
 }
 
 fn selection(d: &CodeDesk) -> Option<(usize, usize)> {
@@ -269,18 +276,134 @@ fn next_char(text: &str, i: usize) -> usize {
     text[i..].chars().next().map(|c| i + c.len_utf8()).unwrap_or(i)
 }
 
+fn line_start(text: &str, i: usize) -> usize {
+    text[..i].rfind('\n').map(|k| k + 1).unwrap_or(0)
+}
+
+fn line_end(text: &str, i: usize) -> usize {
+    text[i..].find('\n').map(|k| i + k).unwrap_or(text.len())
+}
+
+fn is_word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '#'
+}
+
+fn word_left(text: &str, i: usize) -> usize {
+    let mut k = i;
+    while k > 0 && text[..k].chars().last().map(|c| c == ' ').unwrap_or(false) {
+        k = prev_char(text, k);
+    }
+    let first = text[..k].chars().last();
+    match first {
+        Some(c) if is_word(c) => {
+            while k > 0 && text[..k].chars().last().map(is_word).unwrap_or(false) {
+                k = prev_char(text, k);
+            }
+        }
+        Some('\n') | None => {
+            if k == i && k > 0 {
+                k = prev_char(text, k);
+            }
+        }
+        Some(_) => {
+            while k > 0 && text[..k].chars().last().map(|c| !is_word(c) && c != ' ' && c != '\n').unwrap_or(false) {
+                k = prev_char(text, k);
+            }
+        }
+    }
+    k
+}
+
+fn word_right(text: &str, i: usize) -> usize {
+    let mut k = i;
+    while k < text.len() && text[k..].starts_with(' ') {
+        k += 1;
+    }
+    match text[k..].chars().next() {
+        Some(c) if is_word(c) => {
+            while k < text.len() && text[k..].chars().next().map(is_word).unwrap_or(false) {
+                k = next_char(text, k);
+            }
+        }
+        Some('\n') | None => {
+            if k == i && k < text.len() {
+                k = next_char(text, k);
+            }
+        }
+        Some(_) => {
+            while k < text.len() && text[k..].chars().next().map(|c| !is_word(c) && c != ' ' && c != '\n').unwrap_or(false) {
+                k = next_char(text, k);
+            }
+        }
+    }
+    k
+}
+
+fn word_at(text: &str, i: usize) -> (usize, usize) {
+    let i = i.min(text.len());
+    let (mut a, mut b) = (i, i);
+    while a > 0 && text[..a].chars().last().map(is_word).unwrap_or(false) {
+        a = prev_char(text, a);
+    }
+    while b < text.len() && text[b..].chars().next().map(is_word).unwrap_or(false) {
+        b = next_char(text, b);
+    }
+    if a == b {
+        b = next_char(text, b);
+    }
+    (a, b)
+}
+
+fn block(d: &CodeDesk) -> (usize, usize) {
+    let (a, b) = selection(d).unwrap_or((d.cursor, d.cursor));
+    let b = if b > a && b == line_start(&d.text, b) { b - 1 } else { b };
+    (line_start(&d.text, a), line_end(&d.text, b.max(a)))
+}
+
+fn remember(d: &mut CodeDesk, kind: u8) {
+    let now = get_time();
+    if kind == 0 || kind != d.undo_kind || now - d.undo_at > 1.0 {
+        d.undo.push((d.text.clone(), d.cursor));
+        if d.undo.len() > 200 {
+            d.undo.remove(0);
+        }
+    }
+    d.undo_kind = kind;
+    d.undo_at = now;
+    d.redo.clear();
+}
+
+fn set_block(d: &mut CodeDesk, bs: usize, be: usize, lines: Vec<String>) {
+    let joined = lines.join("\n");
+    d.text.replace_range(bs..be, &joined);
+    d.anchor = Some(bs);
+    d.cursor = bs + joined.len();
+}
+
+fn block_lines(d: &CodeDesk) -> (usize, usize, Vec<String>) {
+    let (bs, be) = block(d);
+    (bs, be, d.text[bs..be].split('\n').map(|l| l.to_string()).collect())
+}
+
 fn edit(g: &mut Game, settled: bool) {
     let d = &mut g.venue.code;
-    let ctrl = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl) || is_key_down(KeyCode::LeftSuper) || is_key_down(KeyCode::RightSuper);
+    let cmd = is_key_down(KeyCode::LeftSuper) || is_key_down(KeyCode::RightSuper);
+    let ctl = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl);
+    let alt = is_key_down(KeyCode::LeftAlt) || is_key_down(KeyCode::RightAlt);
+    let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+    let primary = cmd || ctl;
+    let hit_key = |k: KeyCode| is_key_pressed(k) || held_repeat(k);
     d.cursor = d.cursor.min(d.text.len());
     while let Some(ch) = get_char_pressed() {
-        if settled && !ch.is_control() && !shortcut_held() && d.text.len() < MAX_CODE {
+        if settled && !ch.is_control() && !primary && d.text.len() < MAX_CODE {
+            remember(d, 1);
             take_selection(d);
             d.text.insert(d.cursor, ch);
             d.cursor += ch.len_utf8();
         }
     }
     if let Some(text) = net::pasted() {
+        remember(d, 0);
         take_selection(d);
         let before = d.text.len();
         let clean: String = text.replace("\r\n", "\n").replace('\r', "\n").replace('\t', "  ").chars().filter(|c| *c == '\n' || !c.is_control()).collect();
@@ -302,77 +425,216 @@ fn edit(g: &mut Game, settled: bool) {
     if !settled {
         return;
     }
-    let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
-    if ctrl && is_key_pressed(KeyCode::A) {
+    if primary && is_key_pressed(KeyCode::Z) {
+        let (from, to) = if shift { (&mut d.redo, &mut d.undo) } else { (&mut d.undo, &mut d.redo) };
+        if let Some((t, c)) = from.pop() {
+            to.push((std::mem::replace(&mut d.text, t), d.cursor));
+            d.cursor = c.min(d.text.len());
+            d.anchor = None;
+            d.undo_kind = 0;
+        }
+        return;
+    }
+    if primary && is_key_pressed(KeyCode::Y) {
+        if let Some((t, c)) = d.redo.pop() {
+            d.undo.push((std::mem::replace(&mut d.text, t), d.cursor));
+            d.cursor = c.min(d.text.len());
+            d.anchor = None;
+            d.undo_kind = 0;
+        }
+        return;
+    }
+    if primary && is_key_pressed(KeyCode::A) {
         d.anchor = Some(0);
         d.cursor = d.text.len();
     }
-    if ctrl && (is_key_pressed(KeyCode::C) || is_key_pressed(KeyCode::X)) {
-        if let Some((a, b)) = selection(d) {
+    if primary && (is_key_pressed(KeyCode::C) || is_key_pressed(KeyCode::X)) {
+        let (a, b) = match selection(d) {
+            Some(r) => r,
+            None => {
+                let (bs, be) = block(d);
+                (bs, (be + 1).min(d.text.len()))
+            }
+        };
+        if b > a {
             net::copy(&d.text[a..b]);
             d.copied = get_time();
             if is_key_pressed(KeyCode::X) {
-                take_selection(d);
+                remember(d, 0);
+                d.text.replace_range(a..b, "");
+                d.cursor = a;
+                d.anchor = None;
             }
         }
     }
-    if (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) && !ctrl && !shift {
-        take_selection(d);
-        d.text.insert(d.cursor, '\n');
-        d.cursor += 1;
+    if primary && is_key_pressed(KeyCode::Slash) {
+        remember(d, 0);
+        let (bs, be, lines) = block_lines(d);
+        let all = lines.iter().filter(|l| !l.trim().is_empty()).all(|l| l.trim_start().starts_with("//"));
+        let indent = lines.iter().filter(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start().len()).min().unwrap_or(0);
+        let out = lines
+            .into_iter()
+            .map(|l| {
+                if l.trim().is_empty() {
+                    l
+                } else if all {
+                    let k = l.len() - l.trim_start().len();
+                    let rest = &l[k + 2..];
+                    format!("{}{}", &l[..k], rest.strip_prefix(' ').unwrap_or(rest))
+                } else {
+                    format!("{}// {}", &l[..indent], &l[indent..])
+                }
+            })
+            .collect();
+        set_block(d, bs, be, out);
     }
-    if is_key_pressed(KeyCode::Tab) {
-        take_selection(d);
+    let indent_keys = (primary && is_key_pressed(KeyCode::RightBracket)) || (is_key_pressed(KeyCode::Tab) && !shift && selection(d).is_some());
+    let outdent_keys = (primary && is_key_pressed(KeyCode::LeftBracket)) || (is_key_pressed(KeyCode::Tab) && shift);
+    if indent_keys || outdent_keys {
+        remember(d, 0);
+        let (bs, be, lines) = block_lines(d);
+        let out = lines
+            .into_iter()
+            .map(|l| {
+                if indent_keys {
+                    if l.is_empty() { l } else { format!("  {l}") }
+                } else {
+                    let k = (l.len() - l.trim_start_matches(' ').len()).min(2);
+                    l[k..].to_string()
+                }
+            })
+            .collect();
+        set_block(d, bs, be, out);
+    } else if is_key_pressed(KeyCode::Tab) && !primary {
+        remember(d, 1);
         d.text.insert_str(d.cursor, "  ");
         d.cursor += 2;
     }
-    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
+    if primary && shift && is_key_pressed(KeyCode::K) {
+        remember(d, 0);
+        let (bs, be) = block(d);
+        let (a, b) = if be < d.text.len() { (bs, be + 1) } else { (bs.saturating_sub(if bs > 0 { 1 } else { 0 }), be) };
+        d.text.replace_range(a..b, "");
+        d.cursor = a.min(d.text.len());
+        d.cursor = line_start(&d.text, d.cursor.min(d.text.len()));
+        d.anchor = None;
+    }
+    if alt && !primary && (hit_key(KeyCode::Up) || hit_key(KeyCode::Down)) {
+        let up = hit_key(KeyCode::Up);
+        remember(d, 0);
+        let (bs, be) = block(d);
+        let (a, c) = (d.anchor.unwrap_or(d.cursor), d.cursor);
+        let chunk = d.text[bs..be].to_string();
+        if shift {
+            if up {
+                d.text.insert_str(bs, &format!("{chunk}\n"));
+                d.anchor = Some(a);
+                d.cursor = c;
+            } else {
+                d.text.insert_str(be, &format!("\n{chunk}"));
+                let k = chunk.len() + 1;
+                d.anchor = Some(a + k);
+                d.cursor = c + k;
+            }
+        } else if up && bs > 0 {
+            let ps = line_start(&d.text, bs - 1);
+            let prev = d.text[ps..bs - 1].to_string();
+            d.text.replace_range(ps..be, &format!("{chunk}\n{prev}"));
+            let k = bs - ps;
+            d.anchor = Some(a - k);
+            d.cursor = c - k;
+        } else if !up && be < d.text.len() {
+            let ne = line_end(&d.text, be + 1);
+            let next = d.text[be + 1..ne].to_string();
+            d.text.replace_range(bs..ne, &format!("{next}\n{chunk}"));
+            let k = next.len() + 1;
+            d.anchor = Some(a + k);
+            d.cursor = c + k;
+        }
+        if d.anchor == Some(d.cursor) {
+            d.anchor = None;
+        }
+        return;
+    }
+    let enter = is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter);
+    if enter && !primary && !shift && !alt {
+        remember(d, 0);
+        take_selection(d);
+        let ls = line_start(&d.text, d.cursor);
+        let indent: String = d.text[ls..d.cursor].chars().take_while(|c| *c == ' ').collect();
+        d.text.insert_str(d.cursor, &format!("\n{indent}"));
+        d.cursor += 1 + indent.len();
+    }
+    if hit_key(KeyCode::Backspace) {
+        remember(d, 2);
         if !take_selection(d) && d.cursor > 0 {
-            let p = prev_char(&d.text, d.cursor);
+            let p = if cmd { line_start(&d.text, d.cursor).min(prev_char(&d.text, d.cursor).max(line_start(&d.text, d.cursor))) } else if alt || ctl { word_left(&d.text, d.cursor) } else { prev_char(&d.text, d.cursor) };
+            let p = if cmd && p == d.cursor { prev_char(&d.text, d.cursor) } else { p };
             d.text.replace_range(p..d.cursor, "");
             d.cursor = p;
         }
     }
-    if held_repeat(KeyCode::Delete) || is_key_pressed(KeyCode::Delete) {
+    if hit_key(KeyCode::Delete) {
+        remember(d, 2);
         if !take_selection(d) && d.cursor < d.text.len() {
-            let n = next_char(&d.text, d.cursor);
+            let n = if cmd { line_end(&d.text, d.cursor).max(next_char(&d.text, d.cursor)) } else if alt || ctl { word_right(&d.text, d.cursor) } else { next_char(&d.text, d.cursor) };
             d.text.replace_range(d.cursor..n, "");
         }
     }
-    let moving = [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End].iter().any(|k| is_key_pressed(*k) || held_repeat(*k));
-    if moving {
+    let moves = [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End, KeyCode::PageUp, KeyCode::PageDown];
+    if moves.iter().any(|k| hit_key(*k)) {
+        let had = selection(d);
         if shift {
             d.anchor.get_or_insert(d.cursor);
         } else {
             d.anchor = None;
         }
+        if let (Some((a, b)), false, false) = (had, shift, primary || alt) {
+            if hit_key(KeyCode::Left) || hit_key(KeyCode::Right) {
+                d.cursor = if hit_key(KeyCode::Left) { a } else { b };
+                d.undo_kind = 0;
+                return;
+            }
+        }
     }
+    d.undo_kind = if moves.iter().any(|k| hit_key(*k)) { 0 } else { d.undo_kind };
     let starts = line_starts(&d.text);
     let row = starts.iter().rposition(|s| *s <= d.cursor).unwrap_or(0);
     let col = d.text[starts[row]..d.cursor].chars().count();
-    if held_repeat(KeyCode::Left) || is_key_pressed(KeyCode::Left) {
-        d.cursor = prev_char(&d.text, d.cursor);
-    }
-    if held_repeat(KeyCode::Right) || is_key_pressed(KeyCode::Right) {
-        d.cursor = next_char(&d.text, d.cursor);
-    }
     let goto = |text: &str, starts: &[usize], r: usize, col: usize| -> usize {
         let end = starts.get(r + 1).map(|e| e - 1).unwrap_or(text.len());
         let line = &text[starts[r]..end];
         starts[r] + line.char_indices().nth(col).map(|(k, _)| k).unwrap_or(line.len())
     };
-    let starts = line_starts(&d.text);
-    if (held_repeat(KeyCode::Up) || is_key_pressed(KeyCode::Up)) && row > 0 {
-        d.cursor = goto(&d.text, &starts, row - 1, col);
+    let home = starts[row];
+    let first_text = home + d.text[home..line_end(&d.text, home)].len() - d.text[home..line_end(&d.text, home)].trim_start().len();
+    let smart_home = if d.cursor == first_text { home } else { first_text };
+    if hit_key(KeyCode::Left) {
+        d.cursor = if cmd { smart_home } else if alt || ctl { word_left(&d.text, d.cursor) } else { prev_char(&d.text, d.cursor) };
     }
-    if (held_repeat(KeyCode::Down) || is_key_pressed(KeyCode::Down)) && row + 1 < starts.len() {
-        d.cursor = goto(&d.text, &starts, row + 1, col);
+    if hit_key(KeyCode::Right) {
+        d.cursor = if cmd { line_end(&d.text, d.cursor) } else if alt || ctl { word_right(&d.text, d.cursor) } else { next_char(&d.text, d.cursor) };
+    }
+    if hit_key(KeyCode::Up) {
+        d.cursor = if primary { 0 } else if row > 0 { goto(&d.text, &starts, row - 1, col) } else { 0 };
+    }
+    if hit_key(KeyCode::Down) {
+        d.cursor = if primary { d.text.len() } else if row + 1 < starts.len() { goto(&d.text, &starts, row + 1, col) } else { d.text.len() };
+    }
+    if hit_key(KeyCode::PageUp) {
+        d.cursor = goto(&d.text, &starts, row.saturating_sub(12), col);
+    }
+    if hit_key(KeyCode::PageDown) {
+        d.cursor = goto(&d.text, &starts, (row + 12).min(starts.len() - 1), col);
     }
     if is_key_pressed(KeyCode::Home) {
-        d.cursor = starts[row.min(starts.len() - 1)];
+        d.cursor = if primary { 0 } else { smart_home };
     }
     if is_key_pressed(KeyCode::End) {
-        d.cursor = starts.get(row + 1).map(|e| e - 1).unwrap_or(d.text.len());
+        d.cursor = if primary { d.text.len() } else { line_end(&d.text, d.cursor) };
+    }
+    if d.anchor == Some(d.cursor) && !d.drag {
+        d.anchor = None;
     }
 }
 
@@ -395,16 +657,25 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let row_h = 10.0;
     let rows = ((eh - 6.0) / row_h).floor().max(1.0) as usize;
     let starts = line_starts(&g.venue.code.text);
+    let max_scroll = starts.len().saturating_sub(rows);
+    let (bx, bty, bh) = (ex + ew - 7.0, ey + 3.0, eh - 6.0);
+    let thumb = if max_scroll > 0 { (bh * rows as f32 / starts.len() as f32).max(10.0) } else { bh };
+    let on_bar = max_scroll > 0 && hit(fr, bx - 3.0, ey, 10.0, eh);
     let wheel = mouse_wheel().1;
     if !fresh && wheel != 0.0 && hit(fr, ex, ey, ew, eh) {
-        let c = g.venue.code.cursor.min(g.venue.code.text.len());
-        let r = starts.iter().rposition(|s| *s <= c).unwrap_or(0);
-        let col = g.venue.code.text[starts[r]..c].chars().count();
-        let to = if wheel > 0.0 { r.saturating_sub(3) } else { (r + 3).min(starts.len() - 1) };
-        let line = g.venue.code.text[starts[to]..].split('\n').next().unwrap_or("");
-        g.venue.code.cursor = starts[to] + line.char_indices().nth(col).map(|(k, _)| k).unwrap_or(line.len());
-        if !g.venue.code.drag {
-            g.venue.code.anchor = None;
+        let step = 3usize;
+        g.venue.code.scroll = if wheel > 0.0 { g.venue.code.scroll.saturating_sub(step) } else { (g.venue.code.scroll + step).min(max_scroll) };
+    }
+    if !fresh && on_bar && is_mouse_button_pressed(MouseButton::Left) {
+        g.venue.code.bar = true;
+        fr.click = false;
+    }
+    if g.venue.code.bar {
+        if is_mouse_button_down(MouseButton::Left) && max_scroll > 0 {
+            let frac = ((fr.uy - bty - thumb / 2.0) / (bh - thumb).max(1.0)).clamp(0.0, 1.0);
+            g.venue.code.scroll = (frac * max_scroll as f32).round() as usize;
+        } else {
+            g.venue.code.bar = false;
         }
     }
     let point = |text: &str, starts: &[usize], scroll: usize, hs: usize, ux: f32, uy: f32| -> usize {
@@ -422,17 +693,33 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         starts[r] + line.char_indices().nth(k).map(|(i, _)| i).unwrap_or(line.len())
     };
-    if !fresh && !radio::touch_ui() {
+    if !fresh && !radio::touch_ui() && !g.venue.code.bar {
         let (hs0, sc0) = (g.venue.code.hscroll, g.venue.code.scroll);
-        if is_mouse_button_pressed(MouseButton::Left) && hit(fr, ex, ey, ew, eh) {
+        if is_mouse_button_pressed(MouseButton::Left) && hit(fr, ex, ey, ew - 10.0, eh) {
             let p = point(&g.venue.code.text, &starts, sc0, hs0, fr.ux, fr.uy);
             let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
-            if !shift || g.venue.code.anchor.is_none() {
-                g.venue.code.anchor = Some(if shift { g.venue.code.cursor } else { p });
-            }
-            g.venue.code.cursor = p;
-            g.venue.code.drag = true;
+            let now = get_time();
+            let (t, n, at) = g.venue.code.clicks;
+            let count = if now - t < 0.4 && at == p && !shift { n % 3 + 1 } else { 1 };
+            g.venue.code.clicks = (now, count, p);
             fr.click = false;
+            if count >= 2 {
+                let text = &g.venue.code.text;
+                let (a, b) = if count == 2 { word_at(text, p) } else { (line_start(text, p), (line_end(text, p) + 1).min(text.len())) };
+                g.venue.code.anchor = Some(a);
+                g.venue.code.cursor = b;
+                g.venue.code.drag = false;
+                if b > a {
+                    net::copy(&g.venue.code.text[a..b]);
+                    g.venue.code.copied = now;
+                }
+            } else {
+                if !shift || g.venue.code.anchor.is_none() {
+                    g.venue.code.anchor = Some(if shift { g.venue.code.cursor } else { p });
+                }
+                g.venue.code.cursor = p;
+                g.venue.code.drag = true;
+            }
         } else if g.venue.code.drag && is_mouse_button_down(MouseButton::Left) {
             let uy = fr.uy.clamp(ey - row_h * 0.5, ey + eh);
             let ux = fr.ux.clamp(ex + 18.0, ex + ew + 6.0);
@@ -450,14 +737,23 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     let cursor = g.venue.code.cursor.min(g.venue.code.text.len());
     let crow = starts.iter().rposition(|s| *s <= cursor).unwrap_or(0);
-    if crow < g.venue.code.scroll {
-        g.venue.code.scroll = crow;
+    if cursor != g.venue.code.follow {
+        g.venue.code.follow = cursor;
+        if crow < g.venue.code.scroll {
+            g.venue.code.scroll = crow;
+        }
+        if crow >= g.venue.code.scroll + rows {
+            g.venue.code.scroll = crow + 1 - rows;
+        }
     }
-    if crow >= g.venue.code.scroll + rows {
-        g.venue.code.scroll = crow + 1 - rows;
+    g.venue.code.scroll = g.venue.code.scroll.min(max_scroll);
+    if max_scroll > 0 {
+        ui_round(bx, bty, 4.0, bh, 2.0, Color::new(1.0, 1.0, 1.0, 0.08));
+        let top = bty + (bh - thumb) * g.venue.code.scroll as f32 / max_scroll as f32;
+        ui_round(bx, top, 4.0, thumb, 2.0, if g.venue.code.bar || on_bar { Color::from_rgba(230, 255, 140, 255) } else { Color::from_rgba(198, 255, 61, 190) });
     }
     let sel = selection(&g.venue.code);
-    let avail = ew - 24.0;
+    let avail = ew - 34.0;
     let ccol = g.venue.code.text[starts[crow]..cursor].chars().count();
     let cur_chars: Vec<char> = g.venue.code.text[starts[crow]..].split('\n').next().unwrap_or("").chars().collect();
     if ccol < g.venue.code.hscroll {
@@ -511,7 +807,7 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         ui_text(&shown, ex + 18.0, ly + 8.0, 8.0, col);
         if cut {
-            ui_rect(ex + ew - 4.0, ly + 2.0, 2.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
+            ui_rect(ex + ew - 14.0, ly + 2.0, 2.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
         }
         if hs > 0 && line.chars().count() > 0 {
             ui_rect(ex + 16.0, ly + 2.0, 1.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
@@ -550,7 +846,8 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let settled = get_time() - g.venue.opened_at > 0.2;
     let ctrl = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl) || is_key_down(KeyCode::LeftSuper) || is_key_down(KeyCode::RightSuper);
     let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
-    let run_keys = settled && (ctrl || shift) && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter));
+    let alt = is_key_down(KeyCode::LeftAlt) || is_key_down(KeyCode::RightAlt);
+    let run_keys = settled && (ctrl || shift || alt) && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter));
     let stop_keys = settled && ctrl && is_key_pressed(KeyCode::Period);
     if fr.click && hit(fr, ex, ey, ew, eh) && radio::touch_ui() {
         let shown = g.venue.code.text.replace('\n', " ;; ");

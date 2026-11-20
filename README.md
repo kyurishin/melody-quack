@@ -265,7 +265,13 @@ note("<d a> [f# e] b ~").s("piano")
 - Patterns: spaces split a cycle into steps, `~` is a rest, `[ ]` squeezes a group into one step, `< >` takes turns each cycle, `*2` repeats, `/2` slows, `!3` copies, `@2` makes a step longer, `?` plays it half the time, `,` inside `[ ]` plays things together.
 - Sounds: `bd` `sd` `cp` `hh` `oh` `tom` `rim` `bass` `lid` `chop` `sizzle` `splash`, and for notes (`note("d e f# a")` or `n("0 1 2")`) `.s("piano")`, `"marimba"`, `"bell"`, `"stone"`, `"voice"` (your own animal) or any animal (`"duck"`, `"sheep"`...). Also `.gain()`, `.fast()`, `.slow()`, `.rev()` and `setcps()` / `setbpm()`.
 - **Paste straight from strudel.cc**: multi-line tunes, `$:` blocks, `stack()`, `setcpm()`, euclid rhythms like `bd(3,8)`, `.transpose()` and synth names such as `sawtooth` or `triangle` all work. `.lpf()` (a low-pass filter, also `.cutoff()`) and `.room()` (reverb) work with numbers, patterns like `"<300 2000>"` or moving signals like `sine.range(300, 3000).slow(4)`. Effects this computer can't do yet (`.delay`, `.hpf`...) are skipped and listed under the code, and the rest still plays.
-- Click to put the cursor anywhere, drag to select (it's copied as you let go, like the pc bang terminal), shift+click or shift+arrows to stretch a selection, ctrl+a selects everything, ctrl+c / ctrl+x copy and cut, and typing or pasting replaces what's selected.
+- The editor works like a normal code editor (cmd on a Mac, ctrl elsewhere):
+  - click to put the cursor anywhere, drag to select (copied as you let go, like the pc bang terminal), double-click for a word, triple-click for a line, shift+click or shift+arrows to stretch a selection
+  - cmd/ctrl+a select all, c / x / v copy, cut and paste (with nothing selected, copy and cut take the whole line), z undo, shift+z or y redo
+  - cmd/ctrl+/ comments lines in or out, tab / shift+tab or cmd/ctrl+] / [ indent and outdent, alt+up/down moves lines, shift+alt+up/down copies them, cmd/ctrl+shift+k deletes the line
+  - alt or ctrl+left/right jumps by word, cmd+left/right to the start or end of the line, cmd/ctrl+up/down or ctrl+home/end to the top or bottom; alt or ctrl+backspace deletes a word, cmd+backspace the rest of the line
+  - alt+enter plays as well as ctrl/cmd+enter, and new lines keep the indent
+  - the mouse wheel or the scroll bar on the right moves through long code
 - Everyone can play it for themselves. **The admin and DJs** also get **play for the room**: everyone in the club hears the code in sync, people arriving later hear it too, and the header says "live coding". DJs need a yes from the admin first, just like the decks. **stop** ends the set for everyone.
 
 Once the goose has let you in, you can walk back in through the chapel door for the rest of the night (E: back into st. bassilica), no code needed.
