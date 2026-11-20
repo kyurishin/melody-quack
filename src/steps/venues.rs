@@ -2400,10 +2400,20 @@ fn pcbang(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if let (Some(t), Some(ms)) = (g.venue.tonight.clone(), to_start(g)) {
         let mark = ms - 30.0 * 60_000.0;
         if t.phase <= 1 && t.mine == 0 && mark < 10.0 * 60_000.0 {
-            let line = if mark >= 0.0 { format!("the goose writes the code in {}. sit down on the dot.", clock(mark)) } else { format!("now! {} gone. sit down.", clock(mark)) };
-            let w = ui_measure(&line, 10.0) + 14.0;
-            ui_rect((low_w() - w) / 2.0, 26.0, w, 15.0, Color::new(0.78, 0.2, 0.3, 0.9));
-            ui_text(&line, (low_w() - w) / 2.0 + 7.0, 36.5, 10.0, WHITE);
+            let secs = (mark.abs() / 1000.0).floor() as i64;
+            let big = if mark >= 0.0 { format!("{:02}:{:02}", secs / 60, secs % 60) } else { "now!".to_string() };
+            let small = if mark >= 0.0 { "until the code drops - be at a computer on the dot" } else { "sit down now, the first 30 get it" };
+            let urgent = mark < 10_000.0;
+            let pulse = if urgent { 0.5 + 0.5 * (fr.time * 6.0).sin().abs() } else { 0.0 };
+            let w = (ui_measure(small, 7.0) + 20.0).max(120.0).min(low_w() - 190.0).max(110.0);
+            let (x, y, h) = ((low_w() - w) / 2.0, 5.0, 31.0);
+            let edge = if urgent { Color::new(1.0, 0.45 + 0.3 * pulse, 0.55, 1.0) } else { ui::skin::PINK_EDGE };
+            ui_round(x + 1.5, y + 2.0, w, h, 7.0, Color::new(0.05, 0.03, 0.12, 0.5));
+            ui_round_frame(x, y, w, h, 7.0, ui::skin::PANEL_SOLID, edge);
+            let bw = ui_measure_as(ui::Face::Data, &big, 14.0);
+            ui_circle(x + (w - bw) / 2.0 - 7.0, y + 10.5, 2.6, if urgent { edge } else { ui::skin::PINK });
+            ui_text_as(ui::Face::Data, &big, x + (w - bw) / 2.0, y + 16.0, 14.0, ui::skin::GOLD);
+            ui_text_fit(small, x + (w - ui_measure(small, 7.0).min(w - 12.0)) / 2.0, y + 26.0, 7.0, w - 12.0, ui::skin::CREAM);
         }
     }
     if g.venue.talk > 0.0 {
