@@ -115,7 +115,7 @@ pub fn personality(friend: &str) -> &'static str {
         "ginger tabby" => "loud, bouncy and always hungry. you rush into everything first and say sorry later, you love snacks and big drum hits, and your heart is enormous.",
         "black cat" => "mysterious and poetic. you love the moon, night and spooky little jokes, you speak like a tiny poet, and underneath you are the kindest one around.",
         "labrador" => "the band's biggest cheerleader. everything is the best thing ever, you get very excited about sticks, fetch and new songs, and you never stop believing in your friend.",
-        "cream pup" => "shy and nervous but trying hard to be brave. you say \"um\" a lot, worry about little things, and light up with pride when someone cheers you on.",
+        "fluffy sheep" | "sheep" => "shy and soft-spoken but secretly very brave. you say \"um\" a lot, worry about little things, love cosy blankets and warm fires, and light up with pride when someone cheers you on.",
         "shiba" => "a confident, dramatic diva. you love the spotlight, big howling finales and being right, you sulk for a second when ignored, and you secretly need a hug.",
         "duck" => "a bossy, practical organiser. you love plans, lists and doing things properly, you are fussy about cooking and timing, and you show love by keeping everyone on track.",
         "owl" => "a wise but scatterbrained scholar. you love long words and odd facts about music and stars, you lose your thread halfway through a thought, and you are endlessly curious.",
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn every_animal_has_its_own_personality() {
-        let names = ["cream cat", "russian blue", "ginger tabby", "black cat", "labrador", "cream pup", "shiba", "duck", "owl", "fox", "sea otter"];
+        let names = ["cream cat", "russian blue", "ginger tabby", "black cat", "labrador", "fluffy sheep", "shiba", "duck", "owl", "fox", "sea otter"];
         let all: Vec<&str> = names.iter().map(|n| personality(n)).collect();
         for (i, p) in all.iter().enumerate() {
             assert!(!all[..i].contains(p), "{} repeats a personality", names[i]);

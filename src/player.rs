@@ -143,6 +143,7 @@ impl Player {
                 }
             }
             Body::Dog(look) => draw_dog(b, at, self.yaw, time, self.walking, speaking, dance, self.carrying, look),
+            Body::Sheep => draw_sheep(b, at, self.yaw, time, self.walking, speaking, dance, self.carrying),
             Body::Duck => draw_duck(b, at, self.yaw, time, self.walking, speaking, dance, self.carrying),
             Body::Owl => draw_owl(b, at, self.yaw, time, self.walking, speaking, dance, self.carrying),
             Body::Fox => draw_fox(b, at, self.yaw, time, self.walking, speaking, dance, self.carrying),

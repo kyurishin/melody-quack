@@ -182,6 +182,7 @@ struct Live {
     line: String,
     mix: String,
     look: String,
+    code: String,
 }
 
 struct Cast {
@@ -753,7 +754,7 @@ impl Hub {
                 let url = url.trim();
                 let stream_url = format!("{}/live/{}.mp3", self.accounts.public, code.replace('-', ""));
                 let fine = match mode {
-                    "decks" => true,
+                    "decks" | "code" => true,
                     "stream" => !self.accounts.public.is_empty(),
                     "audio" => url.starts_with("https://") && url.len() < 200 && !url.contains(' '),
                     _ => false,
@@ -772,13 +773,30 @@ impl Hub {
                 }
                 let (mode, url) = if mode == "stream" { ("audio", stream_url.as_str()) } else { (mode, url) };
                 let line = format!("live {id} {mode} {} {dj}", if mode == "audio" { url } else { "-" });
-                self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new(), look: String::new() });
+                self.live.insert(code, Live { by: id, line: line.clone(), mix: String::new(), look: String::new(), code: String::new() });
                 let all: Vec<u32> = self.others(id).into_iter().chain([id]).collect();
                 for to in all {
                     self.say(to, line.clone());
                 }
             }
             "offair" => self.off_air(id),
+            "strudel" => {
+                let Some(code) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
+                    return;
+                };
+                let text: String = rest.chars().filter(|c| !c.is_control()).take(3000).collect();
+                let mine = self.live.get(&code).map(|l| l.by == id && l.line.contains(" code ")).unwrap_or(false);
+                if !mine || text.trim().is_empty() {
+                    return;
+                }
+                let line = format!("strudel {text}");
+                if let Some(l) = self.live.get_mut(&code) {
+                    l.code = line.clone();
+                }
+                for to in self.others(id) {
+                    self.say(to, line.clone());
+                }
+            }
             "aud" => {
                 let Some(code) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
                     return;
@@ -1009,8 +1027,11 @@ impl Hub {
                     for line in history {
                         self.say(id, format!("heard {line}"));
                     }
-                    if let Some((line, mix, look)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone(), l.look.clone())) {
+                    if let Some((line, mix, look, strudel)) = self.live.get(code).map(|l| (l.line.clone(), l.mix.clone(), l.look.clone(), l.code.clone())) {
                         self.say(id, line);
+                        if !strudel.is_empty() {
+                            self.say(id, strudel);
+                        }
                         if !mix.is_empty() {
                             self.say(id, mix);
                         }
@@ -1815,6 +1836,27 @@ mod tests {
             got.push(m.to_string());
         }
         assert!(got.contains(&"providers steam".to_string()));
+    }
+
+    #[test]
+    fn the_admin_can_live_code_for_the_room_and_late_comers_hear_it() {
+        let mut h = hub();
+        h.admin_key = Some("k".to_string());
+        let (adm, fan, late) = (h.connect(None), h.connect(None), h.connect(None));
+        h.handle(adm, "host ACD-EFG-HJK 1|132|9|duck mass", 0);
+        h.handle(adm, "join ACD-EFG-HJK 1 0 0 ky", 1);
+        h.handle(fan, "join ACD-EFG-HJK 1 0 0 mina", 2);
+        h.handle(fan, "strudel s(\"bd*4\")", 3);
+        said(&mut h, adm);
+        h.handle(adm, "dj k", 4);
+        h.handle(adm, "golive code", 5);
+        assert!(said(&mut h, fan).iter().any(|l| l.starts_with("live ") && l.contains(" code ")));
+        h.handle(adm, "strudel s(\"bd*4\")\\nnote(\"d e\")", 6);
+        assert_eq!(said(&mut h, fan), vec!["strudel s(\"bd*4\")\\nnote(\"d e\")".to_string()]);
+        h.handle(late, "join ACD-EFG-HJK 1 0 0 rex", 7);
+        assert!(said(&mut h, late).contains(&"strudel s(\"bd*4\")\\nnote(\"d e\")".to_string()));
+        h.handle(adm, "offair", 8);
+        assert!(said(&mut h, fan).contains(&"live 0".to_string()));
     }
 
     #[test]

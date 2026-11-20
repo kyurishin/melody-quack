@@ -92,14 +92,14 @@ Press V (or start a new game) to choose who you are and who your friend is. W/S 
 | ginger tabby | a bright, short meow |
 | black cat | a deep meow, an octave lower |
 | labrador | a round woof |
-| cream pup | a little yap |
+| fluffy sheep | a wobbly "baa" |
 | shiba | an "awoo" howl |
 | duck | a buzzy quack |
 | owl | a vocoder "hoo-hoo", with DJ headphones |
 | fox | a hoarse, breathy bellow (with a teal scarf and a big bushy tail) |
 | sea otter | smashes a shell on his belly, so every note is a tuned clack |
 
-Each one has its own personality too, which comes through when you chat with them: the cream cat is a gentle dreamer, the russian blue is calm and dry, the ginger tabby is loud and always hungry, the black cat is a moonlit little poet, the labrador is everyone's biggest cheerleader, the cream pup is shy but trying to be brave, the shiba is a dramatic diva, the duck is a bossy organiser, the owl is a scatterbrained scholar, the fox is a playful trickster and the sea otter takes everything nice and slow.
+Each one has its own personality too, which comes through when you chat with them: the cream cat is a gentle dreamer, the russian blue is calm and dry, the ginger tabby is loud and always hungry, the black cat is a moonlit little poet, the labrador is everyone's biggest cheerleader, the fluffy sheep is shy but secretly brave, the shiba is a dramatic diva, the duck is a bossy organiser, the owl is a scatterbrained scholar, the fox is a playful trickster and the sea otter takes everything nice and slow.
 
 **Your companion** is a little AI bandmate. It fetches sticks for the fire, wood, stones and acorns for you; it sits by the fire and plays along (bass under you, its own improvised phrases, echoes of what you just played); it fishes next to you and sometimes saves a ring you missed. It also writes songs: a new game starts with an empty songbook, and every solo writes a new tune, grows one it knows or plays a favourite, up to eight tunes. When it solos, answer back.
 
@@ -248,6 +248,25 @@ Press P for local co-op on one keyboard: the screen splits outdoors, and you sha
 **St. Bassilica**, the concrete chapel at the end of the forest path: the board outside carries flyers (old torn ones no longer work). Give the goose a code at the door (type it, paste it, or click one you've seen). Inside: a generated techno set seeded by the rave, a dancing crowd, and everyone who came, with names over their heads (blue ravers, purple DJs, the admin in gold with a star). You hear each other sing, and the set is in sync for everyone.
 
 **Chat:** Enter opens it, Enter sends, Esc closes; phones have a "chat" button. Messages fade after about fifteen seconds and coloured names match the name tags. Offline, your message only shows on your screen, with a note saying so.
+
+### The live code computer
+
+In the middle of St. Bassilica's dance floor stands a computer with a green screen. Press E at it to open **live code**, a small music editor in the spirit of [Strudel](https://strudel.cc/). Each line is a pattern that loops in time with the club:
+
+```
+setcps(0.55)
+s("bd*4")
+s("~ cp ~ cp")
+s("hh*8").gain(0.5)
+note("<d a> [f# e] b ~").s("piano")
+```
+
+- **ctrl+enter** plays (or press **play**), **ctrl+.** stops, Esc closes the editor and keeps the music going. The line that's playing lights up; a mistake shows which line and why.
+- Patterns: spaces split a cycle into steps, `~` is a rest, `[ ]` squeezes a group into one step, `< >` takes turns each cycle, `*2` repeats, `/2` slows, `!3` copies, `@2` makes a step longer, `?` plays it half the time, `,` inside `[ ]` plays things together.
+- Sounds: `bd` `sd` `cp` `hh` `oh` `tom` `rim` `bass` `lid` `chop` `sizzle` `splash`, and for notes (`note("d e f# a")` or `n("0 1 2")`) `.s("piano")`, `"marimba"`, `"bell"`, `"stone"`, `"voice"` (your own animal) or any animal (`"duck"`, `"sheep"`...). Also `.gain()`, `.fast()`, `.slow()`, `.rev()` and `setcps()` / `setbpm()`.
+- Everyone can play it for themselves. **The admin and DJs** also get **play for the room**: everyone in the club hears the code in sync, people arriving later hear it too, and the header says "live coding". DJs need a yes from the admin first, just like the decks. **stop** ends the set for everyone.
+
+Once the goose has let you in, you can walk back in through the chapel door for the rest of the night (E: back into st. bassilica), no code needed.
 
 ## DJs
 

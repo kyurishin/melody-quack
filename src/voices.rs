@@ -52,14 +52,6 @@ pub(crate) fn render_meow_style(freq: f32, length: f32, bright: f32) -> Vec<f32>
     normalise(out, 0.5)
 }
 
-pub(crate) fn render_yap(freq: f32) -> Vec<f32> {
-    let mut w = render_woof(freq);
-    w.truncate((0.2 * SAMPLE_RATE as f32) as usize);
-    let n = w.len() as f32;
-    let out = w.into_iter().enumerate().map(|(i, v)| v * smoothstep((n - i as f32) / (0.05 * SAMPLE_RATE as f32))).collect();
-    normalise(out, 0.5)
-}
-
 pub(crate) fn render_howl(freq: f32) -> Vec<f32> {
     let sr = SAMPLE_RATE as f32;
     let length = 0.62;
@@ -75,6 +67,31 @@ pub(crate) fn render_howl(freq: f32) -> Vec<f32> {
             phase = (phase + freq * glide * vib / sr) % 1.0;
             let tone = p.sin() + open * (0.5 * (2.0 * p).sin() + 0.2 * (3.0 * p).sin());
             tone * smoothstep(t / 0.007) * smoothstep((length - t) / 0.2)
+        })
+        .collect();
+    normalise(out, 0.5)
+}
+
+pub(crate) fn render_baa(freq: f32) -> Vec<f32> {
+    let sr = SAMPLE_RATE as f32;
+    let length = 0.5;
+    let mut phase = 0.0_f32;
+    let formants = [(750.0, 1.0, 0.18), (1250.0, 0.7, 0.12), (2600.0, 0.3, 0.1)];
+    let out: Vec<f32> = (0..(length * sr) as usize)
+        .map(|i| {
+            let t = i as f32 / sr;
+            let u = t / length;
+            let bleat = 1.0 + 0.045 * (t * 2.0 * PI * 9.0).sin() * smoothstep((u - 0.15) / 0.2);
+            let glide = 0.92 + 0.08 * smoothstep(u / 0.12) - 0.05 * smoothstep((u - 0.6) / 0.4);
+            let f0 = freq * glide * bleat;
+            let p = phase * 2.0 * PI;
+            phase = (phase + f0 / sr) % 1.0;
+            let mut tone = 0.0;
+            for h in 1..12 {
+                let hf = f0 * h as f32;
+                tone += (h as f32 * p).sin() * formant_gain(hf, &formants) / (h as f32).sqrt();
+            }
+            tone * smoothstep(t / 0.02) * smoothstep((length - t) / 0.18)
         })
         .collect();
     normalise(out, 0.5)

@@ -359,7 +359,9 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         }
     }
     if !g.inside && !g.players[0].seated && !g.fishing.active {
-        if let Some(h) = venues::outdoor_hint(g.players[0].pos) {
+        let p = g.players[0].pos;
+        let back = steps::venues::can_go_back_in(g) && (p.distance(venues::CHAPEL_DOOR) < 1.2 || p.distance(venues::GOOSE) < 1.0);
+        if let Some(h) = if back { Some("E: back into st. bassilica") } else { venues::outdoor_hint(p) } {
             fr.hint = h.to_string();
         }
     }

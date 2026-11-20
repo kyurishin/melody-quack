@@ -43,6 +43,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             room: steps::visits::own_house(g).size,
             home_code: g.venue.visits.code.clone(),
             friends: steps::chat::friends_text(g),
+            live_code: g.venue.code.text.clone(),
             gfx: (crate::glow::enabled(), crate::render::pixel_look()),
             dex: g.dex_counts.clone(),
             mush: g.inv.mush,

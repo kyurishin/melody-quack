@@ -99,6 +99,7 @@ fn chapel_solids() -> Vec<(f32, f32, f32, f32)> {
     v.push((BOOTH.0 - 1.3, 0.0, BOOTH.0 + 1.3, BOOTH.1 + 0.35));
     v.push((2.7, 0.6, 3.5, 1.5));
     v.push((7.5, 0.6, 8.3, 1.5));
+    v.push(steps::code_desk::solid());
     v
 }
 
@@ -116,6 +117,7 @@ fn enter(g: &mut Game, venue: Venue) {
         g.players[who].facing = vec2(0.0, -1.0);
     }
     if venue == Venue::Chapel {
+        g.venue.entered_at = get_time();
         let tonight = g.venue.now.as_ref().map(|n| g.venue.secret.iter().any(|s| s.code == n.code)).unwrap_or(false);
         let today = sky().day;
         if tonight && g.quests.event_day != today {
@@ -175,6 +177,21 @@ fn enter(g: &mut Game, venue: Venue) {
     while get_char_pressed().is_some() {}
 }
 
+pub(crate) fn can_go_back_in(g: &Game) -> bool {
+    back_in(g).is_some()
+}
+
+fn back_in(g: &Game) -> Option<Rave> {
+    let now = g.venue.now.as_ref()?;
+    if now.expired || g.venue.entered_at <= 0.0 || get_time() - g.venue.entered_at > 6.0 * 3600.0 {
+        return None;
+    }
+    if g.venue.raves.iter().chain(g.venue.secret.iter()).any(|r| r.code == now.code && r.expired) {
+        return None;
+    }
+    Some(now.clone())
+}
+
 fn leave(g: &mut Game) {
     net::cast_stop();
     g.venue.relive = None;
@@ -200,6 +217,9 @@ fn leave(g: &mut Game) {
         net::listen("");
     }
     g.venue.practice = false;
+    g.venue.code.room = None;
+    g.venue.code.mine = None;
+    g.venue.code.sharing = false;
     g.venue.at = Venue::None;
     g.venue.overlay = Overlay::None;
     g.venue.pc_open = false;
@@ -352,7 +372,7 @@ fn online(g: &mut Game, dt: f32) {
     }
     while let Some(line) = net::recv() {
         let parts: Vec<&str> = line.split(' ').collect();
-        if steps::visits::on_message(g, &parts) || steps::chat::on_message(g, &parts) {
+        if steps::visits::on_message(g, &parts) || steps::chat::on_message(g, &parts) || steps::code_desk::on_message(g, &parts, &line) {
             continue;
         }
         let finding = |g: &Game, code: &str| g.venue.find.as_ref().map(|(c, _)| c == code).unwrap_or(false);
@@ -577,6 +597,7 @@ fn online(g: &mut Game, dt: f32) {
             "credit" if parts.len() >= 2 => g.venue.credit = parts[1].parse().unwrap_or(g.venue.credit),
             "nolive" => {
                 net::cast_stop();
+                g.venue.code.sharing = false;
                 g.toasts.push(("the decks aren't free, or you need a fresh yes from the admin.".to_string(), 5.0));
             }
             "live" if parts.len() >= 2 => {
@@ -584,6 +605,10 @@ fn online(g: &mut Game, dt: f32) {
                 g.venue.look = 0;
                 if parts[1] == "0" || parts.len() < 5 {
                     g.venue.on_air = None;
+                    g.venue.code.room = None;
+                    if g.venue.code.sharing {
+                        g.venue.code.sharing = false;
+                    }
                     net::cast_stop();
                     if was_audio {
                         net::listen("");
@@ -594,6 +619,9 @@ fn online(g: &mut Game, dt: f32) {
                     }
                 } else {
                     let audio = parts[2] == "audio";
+                    if parts[2] != "code" {
+                        g.venue.code.room = None;
+                    }
                     let url = if audio && parts[3].starts_with("https://") { parts[3].to_string() } else { String::new() };
                     let name = parts[4..].join(" ");
                     let me = if g.venue.admin { Some(g.venue.admin_name.clone()) } else { g.venue.dj_name.clone() };
@@ -2062,10 +2090,22 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
             return false;
         }
         let p = g.players[0].pos;
-        if p.distance(PCBANG_DOOR) < 0.8 {
+        if (p.distance(CHAPEL_DOOR) < 1.2 || p.distance(GOOSE) < 1.0) && back_in(g).is_some() {
+            if let Some(r) = back_in(g) {
+                g.venue.now = Some(r);
+                g.toasts.push(("the goose nods you back in".to_string(), 2.5));
+                enter(g, Venue::Chapel);
+            }
+        } else if p.distance(PCBANG_DOOR) < 0.8 {
             enter(g, Venue::PcBang);
         } else if p.distance(BOARD) < 0.9 {
             g.venue.overlay = Overlay::Flyer(0);
+        } else if (p.distance(CHAPEL_DOOR) < 0.9 || p.distance(GOOSE) < 0.9) && back_in(g).is_some() {
+            if let Some(r) = back_in(g) {
+                g.venue.now = Some(r);
+                g.toasts.push(("the goose nods you back in".to_string(), 2.5));
+                enter(g, Venue::Chapel);
+            }
         } else if p.distance(CHAPEL_DOOR) < 0.9 || p.distance(GOOSE) < 0.9 {
             g.venue.overlay = Overlay::Door;
             g.venue.door_code.clear();
@@ -2100,6 +2140,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Pot => pot_panel(g, fr, fresh),
         Overlay::Notes => steps::notify::panel(g, fr, fresh),
         Overlay::Quests => steps::quests_panel::panel(g, fr, fresh),
+        Overlay::Code => steps::code_desk::panel(g, fr, fresh),
         Overlay::None => {}
     }
     true
@@ -3416,7 +3457,10 @@ fn rave_tick(g: &mut Game, dt: f32) -> (f32, usize, bool) {
         return (0.0, 0, false);
     };
     let decks_live = g.venue.on_air.as_ref().map(|o| !o.audio).unwrap_or(false);
-    let live = !g.venue.live.is_empty() || g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
+    steps::code_desk::tick(g);
+    let coding = steps::code_desk::room_live(g) || g.venue.code.sharing;
+    let decks_live = decks_live && !coding;
+    let live = !g.venue.live.is_empty() || g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false) || coding;
     let (beat_on, melody_on, sound) = if decks_live { (g.venue.mix.0, g.venue.mix.1, g.venue.mix.2) } else { (true, true, r.sound) };
     let bpm = if !g.venue.live.is_empty() && g.radio_bpm > 0.0 { g.radio_bpm } else { g.venue.bpm_now.max(60.0) };
     let beat = (get_time() - g.venue.rave_start) * bpm as f64 / 60.0;
@@ -3586,6 +3630,11 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         return;
     }
     let at_decks = !lounge && local.distance(vec2(BOOTH.0, BOOTH.1 + 0.85)) < 1.0;
+    let at_code = !lounge && !at_decks && steps::code_desk::near(local);
+    if !fresh && !busy && at_code && is_key_pressed(KeyCode::E) {
+        steps::code_desk::open(g);
+        return;
+    }
     let at_bar = lounge && (g.players[0].pos - LG_ORIGIN).distance(LG_BAR) < 1.1;
     let at_seat = lounge && !g.players[0].seated && free_seat(g).is_some();
     if !fresh && !busy && at_decks && is_key_pressed(KeyCode::E) {
@@ -3641,6 +3690,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             b.top(o + vec3(x as f32 + 0.5, 0.0, z as f32 + 0.5), c);
         }
     }
+    steps::code_desk::draw(&mut b, o, time, g.venue.code.mine.is_some() || steps::code_desk::room_live(g));
     let (conc, conc_dark, conc_deep) = match look {
         1 => (Color::from_rgba(122, 90, 60, 255), Color::from_rgba(102, 74, 50, 255), Color::from_rgba(46, 84, 50, 255)),
         2 => (Color::from_rgba(196, 190, 180, 255), Color::from_rgba(170, 164, 156, 255), Color::from_rgba(96, 100, 116, 255)),
@@ -3815,7 +3865,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         if g.venue.practice {
             "practice: you on the decks, only you hear it".to_string()
         } else {
-            format!("live: dj {} - {}", o.name, if o.audio { "real audio" } else { "on the decks" })
+            format!("live: dj {} - {}", o.name, if o.audio { "real audio" } else if steps::code_desk::room_live(g) || g.venue.code.sharing { "live coding" } else { "on the decks" })
         }
     } else if live {
         format!("live: {}", g.venue.live)
@@ -3845,6 +3895,8 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         "enter: send   esc: close"
     } else if at_decks {
         "E: the decks   enter: chat"
+    } else if at_code {
+        "E: the live code computer   enter: chat"
     } else if at_bar {
         "E: the goose's bar   enter: chat"
     } else if at_seat {

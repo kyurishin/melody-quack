@@ -142,6 +142,45 @@ pub(crate) fn draw_dog(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: b
     draw_carry(b, o, yaw, vec3(0.0, 0.47, 0.5), carry);
 }
 
+pub(crate) fn draw_sheep(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: bool, bleating: bool, dance: f32, carry: Option<Carry>) {
+    let wool = Color::from_rgba(250, 247, 238, 255);
+    let wool_shade = Color::from_rgba(232, 226, 214, 255);
+    let face = Color::from_rgba(70, 58, 64, 255);
+    let ink = Color::from_rgba(24, 20, 22, 255);
+    let bob = if walking { (time * 11.0).sin().abs() * 0.04 } else { dance * 0.07 };
+    let o = pos + vec3(0.0, bob, 0.0);
+    let step = if walking { (time * 11.0).sin() * 0.05 } else { 0.0 };
+    for (lx, lz, phase) in [(-0.12, 0.15, 1.0), (0.12, 0.15, -1.0), (-0.12, -0.18, -1.0), (0.12, -0.18, 1.0)] {
+        b.box_at(o, yaw, vec3(lx, 0.09, lz + step * phase), vec3(0.08, 0.18, 0.08), face);
+    }
+    b.box_at(o, yaw, vec3(0.0, 0.36, -0.02), vec3(0.42, 0.32, 0.56), wool);
+    for (k, (x, y, z)) in [(-0.2, 0.46, 0.15), (0.2, 0.46, -0.1), (0.0, 0.53, 0.05), (-0.18, 0.3, -0.24), (0.19, 0.3, 0.2), (0.0, 0.5, -0.22)].iter().enumerate() {
+        let puff = 0.16 + (k % 2) as f32 * 0.03;
+        b.box_at(o, yaw, vec3(*x, *y, *z), vec3(puff, puff, puff), if k % 3 == 0 { wool_shade } else { wool });
+    }
+    let wag = (time * 9.0).sin() * 0.04;
+    b.box_at(o, yaw, vec3(wag, 0.42, -0.32), vec3(0.1, 0.1, 0.08), wool);
+    b.box_at(o, yaw, vec3(0.0, 0.54, 0.3), vec3(0.22, 0.24, 0.2), face);
+    b.box_at(o, yaw, vec3(0.0, 0.68, 0.27), vec3(0.28, 0.12, 0.22), wool);
+    b.box_at(o, yaw, vec3(0.0, 0.47, 0.41), vec3(0.14, 0.09, 0.04), tinted(face, 0.12));
+    for side in [-1.0_f32, 1.0] {
+        let flick = if (time * 0.7 + side).sin() > 0.97 { 0.03 } else { 0.0 };
+        b.box_at(o, yaw, vec3(side * 0.17, 0.6 + flick, 0.3), vec3(0.12, 0.05, 0.08), face);
+        b.box_at(o, yaw, vec3(side * 0.165, 0.6 + flick, 0.3), vec3(0.06, 0.03, 0.05), Color::from_rgba(240, 170, 180, 255));
+        let blinking = time % 3.7 < 0.12;
+        if blinking {
+            b.box_at(o, yaw, vec3(side * 0.06, 0.57, 0.402), vec3(0.05, 0.015, 0.01), ink);
+        } else {
+            b.box_at(o, yaw, vec3(side * 0.06, 0.57, 0.402), vec3(0.045, 0.05, 0.01), WHITE);
+            b.box_at(o, yaw, vec3(side * 0.06, 0.565, 0.408), vec3(0.025, 0.03, 0.01), ink);
+        }
+    }
+    if bleating {
+        b.box_at(o, yaw, vec3(0.0, 0.445, 0.43), vec3(0.08, 0.04, 0.02), Color::from_rgba(130, 50, 60, 255));
+    }
+    draw_carry(b, o, yaw, vec3(0.0, 0.45, 0.45), carry);
+}
+
 pub(crate) fn draw_duck(b: &mut Batch, pos: Vec3, yaw: f32, time: f32, walking: bool, quacking: bool, dance: f32, carry: Option<Carry>) {
     let white = Color::from_rgba(250, 250, 244, 255);
     let wing = Color::from_rgba(222, 224, 228, 255);

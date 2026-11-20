@@ -39,6 +39,7 @@ pub(crate) struct Progress {
     pub(crate) room: u8,
     pub(crate) home_code: String,
     pub(crate) friends: String,
+    pub(crate) live_code: String,
     pub(crate) gfx: (bool, bool),
     pub(crate) dex: Vec<u32>,
     pub(crate) mush: [u32; 3],
@@ -85,6 +86,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
     out += &format!("room {}\n", p.room);
     if p.gfx != (true, false) {
         out += &format!("gfx {} {}\n", p.gfx.0 as u8, p.gfx.1 as u8);
+    }
+    if !p.live_code.is_empty() {
+        out += &format!("livecode {}\n", crate::strudel::escape(&p.live_code));
     }
     if !p.friends.is_empty() {
         out += &format!("friends {}\n", p.friends);
@@ -177,6 +181,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         room: 0,
         home_code: String::new(),
         friends: String::new(),
+        live_code: String::new(),
         gfx: (true, false),
         dex: vec![0; fish::COUNT],
         mush: [0; 3],
@@ -246,6 +251,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                 }
             },
             "gfx" if nums.len() == 2 => p.gfx = (nums[0] > 0.0, nums[1] > 0.0),
+            "livecode" => p.live_code = crate::strudel::unescape(rest).chars().take(3000).collect(),
             "friends" => p.friends = rest.trim().chars().filter(|c| !c.is_control() && *c != ' ').take(2000).collect(),
             "homecode" => p.home_code = rest.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(11).collect(),
             "room" if nums.len() == 1 => p.room = (nums[0].max(0.0) as u8).min(home::MAX_SIZE),

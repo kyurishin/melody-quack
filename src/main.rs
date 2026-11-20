@@ -40,6 +40,7 @@ mod home_draw;
 mod reading;
 mod render;
 mod glow;
+mod strudel;
 mod diary;
 mod gathering;
 mod camp;
@@ -320,6 +321,7 @@ async fn main() {
     let mut saved_tour = 0u8;
     let mut saved_home_code = String::new();
     let mut saved_friends = String::new();
+    let mut saved_code = String::new();
     let mut fresh_key: Option<(String, String)> = None;
     let mut saved_session = String::new();
     let mut saved_companion = true;
@@ -339,6 +341,7 @@ async fn main() {
         saved_tour = saved.tour;
         saved_home_code = saved.home_code.clone();
         saved_friends = saved.friends.clone();
+        saved_code = saved.live_code.clone();
         crate::glow::set_enabled(saved.gfx.0);
         crate::render::set_pixel_look(saved.gfx.1);
         saved_session = saved.session.clone();
@@ -574,6 +577,8 @@ async fn main() {
     g.venue.tour = saved_tour;
     g.venue.visits.code = saved_home_code;
     steps::chat::load_friends(&mut g, &saved_friends);
+    g.venue.code.cursor = saved_code.len();
+    g.venue.code.text = saved_code;
     g.venue.session = saved_session;
     loop {
         let mut fr = Frame::default();

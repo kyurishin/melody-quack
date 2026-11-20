@@ -27,30 +27,31 @@ pub(crate) enum Body {
     Owl,
     Fox,
     Otter,
+    Sheep,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) enum VoiceKind {
     Meow { shift: i32, bright: f32, length: f32 },
     Woof,
-    Yap,
     Howl,
     Quack,
     Hoot,
     Bellow,
     Shell,
+    Baa,
 }
 
 pub(crate) fn voice_word(kind: VoiceKind) -> &'static str {
     match kind {
         VoiceKind::Meow { .. } => "meow",
         VoiceKind::Woof => "woof",
-        VoiceKind::Yap => "yap",
         VoiceKind::Howl => "awoo",
         VoiceKind::Quack => "quack",
         VoiceKind::Hoot => "hoo",
         VoiceKind::Bellow => "yowl",
         VoiceKind::Shell => "clack",
+        VoiceKind::Baa => "baa",
     }
 }
 
@@ -93,12 +94,7 @@ pub(crate) fn roster() -> Vec<Character> {
             body: Body::Dog(DogLook { fur: rgba(232, 196, 128), ear: rgba(200, 156, 92), muzzle: rgba(232, 196, 128), tail: Some(false), collar: None }),
             voice: VoiceKind::Woof,
         },
-        Character {
-            name: "cream pup",
-            noun: "dog",
-            body: Body::Dog(DogLook { fur: rgba(248, 230, 194), ear: rgba(214, 164, 104), muzzle: rgba(254, 244, 222), tail: None, collar: Some(rgba(52, 178, 168)) }),
-            voice: VoiceKind::Yap,
-        },
+        Character { name: "fluffy sheep", noun: "sheep", body: Body::Sheep, voice: VoiceKind::Baa },
         Character {
             name: "shiba",
             noun: "dog",
@@ -117,11 +113,11 @@ pub(crate) fn render_voice(kind: VoiceKind, note: u8) -> Vec<f32> {
     match kind {
         VoiceKind::Meow { shift, bright, length } => render_meow_style(f(shift), length, bright),
         VoiceKind::Woof => render_woof(f(-12)),
-        VoiceKind::Yap => render_yap(f(-5)),
         VoiceKind::Howl => render_howl(f(-12)),
         VoiceKind::Quack => render_quack(f(-12)),
         VoiceKind::Hoot => render_hoot_machine(f(-12)),
         VoiceKind::Bellow => render_fox(f(0)),
         VoiceKind::Shell => render_shell(f(0)),
+        VoiceKind::Baa => render_baa(f(-12)),
     }
 }

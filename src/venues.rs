@@ -54,6 +54,7 @@ pub(crate) enum Overlay {
     Pot,
     Notes,
     Quests,
+    Code,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -120,6 +121,7 @@ pub(crate) struct Kitchen {
 pub(crate) struct VenueState {
     pub(crate) jam: crate::diary::JamDesk,
     pub(crate) chat: crate::steps::chat::Chat,
+    pub(crate) code: crate::steps::code_desk::CodeDesk,
     pub(crate) notes: crate::steps::notify::Notes,
     pub(crate) kitchen: Kitchen,
     pub(crate) partner: steps::partner::Partner,
@@ -243,6 +245,7 @@ pub(crate) struct VenueState {
     pub(crate) term_pw: bool,
     pub(crate) flag: bool,
     pub(crate) rave_start: f64,
+    pub(crate) entered_at: f64,
     pub(crate) last_step: i64,
     pub(crate) pulse: f32,
     pub(crate) crowd: Vec<Player>,
