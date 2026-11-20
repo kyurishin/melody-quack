@@ -277,6 +277,7 @@ pub(crate) enum Kind {
     Sound,
     Note,
     Index,
+    Raw,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -287,6 +288,7 @@ pub(crate) struct Layer {
     pub(crate) gain: f32,
     pub(crate) fast: f64,
     pub(crate) rev: bool,
+    pub(crate) shift: i64,
     pub(crate) line: usize,
 }
 
@@ -629,6 +631,9 @@ fn first_number(v: &Val) -> Option<f64> {
 const PATTERN_FNS: [&str; 5] = ["s", "sound", "note", "n", "freq"];
 
 fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Layer>, String> {
+    if let Val::Str(t) = v {
+        return Ok(vec![Layer { kind: Kind::Raw, pat: parse_mini(t)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, line }]);
+    }
     let Val::Call(name, args, methods) = v else {
         return Err("start with s(\"...\"), note(\"...\") or n(\"...\")".to_string());
     };
@@ -650,7 +655,7 @@ fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Laye
                 "n" => Kind::Index,
                 _ => Kind::Sound,
             };
-            vec![Layer { kind, pat: parse_mini(text)?, sound: None, gain: 1.0, fast: 1.0, rev: false, line }]
+            vec![Layer { kind, pat: parse_mini(text)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, line }]
         }
         "stack" => {
             let mut all = Vec::new();
@@ -681,6 +686,23 @@ fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Laye
     for (m, margs) in methods {
         let num = margs.first().and_then(first_number);
         match m.as_str() {
+            "note" | "n" | "s" | "sound" if margs.is_empty() => {
+                for l in layers.iter_mut() {
+                    if l.kind == Kind::Raw {
+                        l.kind = match m.as_str() {
+                            "note" => Kind::Note,
+                            "n" => Kind::Index,
+                            _ => Kind::Sound,
+                        };
+                    }
+                }
+            }
+            "transpose" | "add" if num.is_some() && matches!(margs.first(), Some(Val::Num(_))) || m == "transpose" && num.is_some() => {
+                let k = num.unwrap_or(0.0).round() as i64;
+                for l in layers.iter_mut() {
+                    l.shift += k;
+                }
+            }
             "s" | "sound" => {
                 if let Some(Val::Str(t)) = margs.first() {
                     let pat = parse_mini(t)?;
@@ -715,7 +737,7 @@ fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Laye
             "fast" | "slow" => {
                 if let Some(n) = num.filter(|n| *n > 0.0) {
                     for l in layers.iter_mut() {
-                        l.fast = if m == "fast" { (l.fast * n).clamp(0.0625, 16.0) } else { (l.fast / n).clamp(0.0625, 16.0) };
+                        l.fast = if m == "fast" { (l.fast * n).clamp(1.0 / 256.0, 64.0) } else { (l.fast / n).clamp(1.0 / 256.0, 64.0) };
                     }
                 }
             }
@@ -809,7 +831,12 @@ fn midi_index(n: i64) -> usize {
     }).map(|(i, _)| i).unwrap_or(0)
 }
 
+#[cfg(test)]
 pub(crate) fn note_index(word: &str) -> Option<usize> {
+    note_pc(word).map(midi_index)
+}
+
+fn note_pc(word: &str) -> Option<i64> {
     let w = word.trim_end_matches(|c: char| c.is_ascii_digit() || c == '-');
     let mut chars = w.chars();
     let base = match chars.next()? {
@@ -830,11 +857,7 @@ pub(crate) fn note_index(word: &str) -> Option<usize> {
             _ => return None,
         }
     }
-    let pc = (pc as i32).rem_euclid(12);
-    NOTE_PCS.iter().enumerate().min_by_key(|(_, p)| {
-        let d = (pc - **p).rem_euclid(12);
-        d.min(12 - d)
-    }).map(|(i, _)| i)
+    Some((pc as i64).rem_euclid(12))
 }
 
 pub(crate) fn hits(p: &Program, cycle: i64) -> Vec<Hit> {
@@ -844,7 +867,7 @@ pub(crate) fn hits(p: &Program, cycle: i64) -> Vec<Hit> {
         query(&Node::Fast(Box::new(layer.pat.clone()), layer.fast), cycle, 0.0, 1.0, &mut evs);
         let sounds = layer.sound.as_ref().map(|s| {
             let mut v = Vec::new();
-            query(&Node::Fast(Box::new(s.clone()), layer.fast), cycle, 0.0, 1.0, &mut v);
+            query(s, cycle, 0.0, 1.0, &mut v);
             v
         });
         for e in evs {
@@ -856,15 +879,20 @@ pub(crate) fn hits(p: &Program, cycle: i64) -> Vec<Hit> {
                     .map(|s| s.value.clone())
                     .unwrap_or_else(|| default.to_string())
             };
-            let (sound, note) = match layer.kind {
+            let kind = match layer.kind {
+                Kind::Raw if layer.sound.is_some() => Kind::Note,
+                Kind::Raw => Kind::Sound,
+                k => k,
+            };
+            let (sound, note) = match kind {
                 Kind::Sound => {
                     let (name, idx) = e.value.split_once(':').map(|(a, b)| (a.to_string(), b.parse::<usize>().ok())).unwrap_or((e.value.clone(), None));
                     (name, idx.map(|i| i % 6))
                 }
-                Kind::Note => (pick("piano"), note_index(&e.value).or_else(|| e.value.parse::<f64>().ok().map(|n| midi_index(n.round() as i64)))),
-                Kind::Index => (pick("piano"), e.value.parse::<i64>().ok().map(|n| n.rem_euclid(6) as usize)),
+                Kind::Note => (pick("piano"), note_pc(&e.value).or_else(|| e.value.parse::<f64>().ok().map(|n| n.round() as i64)).map(|n| midi_index(n + layer.shift))),
+                _ => (pick("piano"), e.value.parse::<i64>().ok().map(|n| n.rem_euclid(6) as usize)),
             };
-            if (layer.kind != Kind::Sound) && note.is_none() {
+            if kind != Kind::Sound && note.is_none() {
                 continue;
             }
             out.push(Hit { at, sound, note, gain: layer.gain, line: layer.line });
@@ -1013,5 +1041,19 @@ melody: n("0 2 4 <6 7>".add("<0 3>"))
             assert!(!p.layers.is_empty());
             assert!(!hits(&p, 0).is_empty() || !hits(&p, 1).is_empty(), "{t}");
         }
+    }
+
+    #[test]
+    fn a_stack_of_plain_strings_turned_into_notes_plays() {
+        let code = "// two parts\nstack(\n  // top\n  `[B3@2 D4] [A3]\n  [G3 A3]`,\n  // bottom\n  `[[C2 G2] E3@2] [F#3]`\n).transpose(12).slow(8)\n  .superimpose(x=>x.add(0.06)) // detune\n  .note()\n  .gain(.1)\n  .s('triangle')\n  .room(1)\n  //.pianoroll({fold:1})\n";
+        let p = parse(code).unwrap();
+        assert_eq!(p.layers.len(), 2);
+        assert_eq!(p.skipped, vec!["superimpose".to_string(), "room".to_string()]);
+        let all: Vec<Hit> = (0..8).flat_map(|c| hits(&p, c)).collect();
+        assert!(all.iter().all(|h| h.sound == "triangle"));
+        assert!(all.iter().any(|h| h.note == Some(4)));
+        assert!(all.iter().any(|h| h.note == Some(2)));
+        let up = parse("note(\"c3\").transpose(2)").unwrap();
+        assert_eq!(hits(&up, 0)[0].note, Some(0));
     }
 }

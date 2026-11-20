@@ -20,6 +20,7 @@ pub(crate) struct CodeDesk {
     pub(crate) flash: Vec<f64>,
     pub(crate) sharing: bool,
     pub(crate) scroll: usize,
+    pub(crate) hscroll: usize,
 }
 
 pub(crate) fn solid() -> (f32, f32, f32, f32) {
@@ -120,7 +121,7 @@ pub(crate) fn tick(g: &mut Game) {
                 let t = cycle as f64 + h.at;
                 if t >= from && t < to {
                     if let Some((sound, ch)) = sound_for(g, &h.sound, h.note) {
-                        g.audio.play_ch(ch, sound, 0.8 * h.gain);
+                        g.audio.play_ch(ch, sound, 0.8 * h.gain.max(0.0).sqrt());
                     }
                     let fl = &mut g.venue.code.flash;
                     if fl.len() <= h.line {
@@ -220,8 +221,9 @@ fn edit(g: &mut Game, settled: bool) {
         let clean: String = text.replace("\r\n", "\n").replace('\r', "\n").replace('\t', "  ").chars().filter(|c| *c == '\n' || !c.is_control()).collect();
         if d.text.trim() == strudel::EXAMPLE.trim() && !clean.trim().is_empty() {
             d.text = clean;
-            d.cursor = d.text.len();
+            d.cursor = 0;
             d.scroll = 0;
+            d.hscroll = 0;
         } else if before + clean.len() <= MAX_CODE {
             d.text.insert_str(d.cursor, &clean);
             d.cursor += clean.len();
@@ -301,6 +303,15 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let row_h = 10.0;
     let rows = ((eh - 6.0) / row_h).floor().max(1.0) as usize;
     let starts = line_starts(&g.venue.code.text);
+    let wheel = mouse_wheel().1;
+    if !fresh && wheel != 0.0 && hit(fr, ex, ey, ew, eh) {
+        let c = g.venue.code.cursor.min(g.venue.code.text.len());
+        let r = starts.iter().rposition(|s| *s <= c).unwrap_or(0);
+        let col = g.venue.code.text[starts[r]..c].chars().count();
+        let to = if wheel > 0.0 { r.saturating_sub(3) } else { (r + 3).min(starts.len() - 1) };
+        let line = g.venue.code.text[starts[to]..].split('\n').next().unwrap_or("");
+        g.venue.code.cursor = starts[to] + line.char_indices().nth(col).map(|(k, _)| k).unwrap_or(line.len());
+    }
     let cursor = g.venue.code.cursor.min(g.venue.code.text.len());
     let crow = starts.iter().rposition(|s| *s <= cursor).unwrap_or(0);
     if crow < g.venue.code.scroll {
@@ -309,6 +320,16 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if crow >= g.venue.code.scroll + rows {
         g.venue.code.scroll = crow + 1 - rows;
     }
+    let avail = ew - 24.0;
+    let ccol = g.venue.code.text[starts[crow]..cursor].chars().count();
+    let cur_chars: Vec<char> = g.venue.code.text[starts[crow]..].split('\n').next().unwrap_or("").chars().collect();
+    if ccol < g.venue.code.hscroll {
+        g.venue.code.hscroll = ccol.saturating_sub(6);
+    }
+    while g.venue.code.hscroll < ccol && ui_measure(&cur_chars[g.venue.code.hscroll..ccol].iter().collect::<String>(), 8.0) > avail - 10.0 {
+        g.venue.code.hscroll += 1;
+    }
+    let hs = g.venue.code.hscroll;
     let now = get_time();
     let err_line = g.venue.code.error.as_ref().map(|e| e.0);
     for (k, line) in g.venue.code.text.split('\n').enumerate().skip(g.venue.code.scroll).take(rows) {
@@ -329,13 +350,21 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         } else {
             Color::from_rgba(230, 236, 222, 255)
         };
-        let mut shown = line.to_string();
-        while shown.chars().count() > 1 && ui_measure(&shown, 8.0) > ew - 22.0 {
+        let mut shown: String = line.chars().skip(hs).collect();
+        let mut cut = false;
+        while shown.chars().count() > 1 && ui_measure(&shown, 8.0) > avail {
             shown.pop();
+            cut = true;
         }
         ui_text(&shown, ex + 18.0, ly + 8.0, 8.0, col);
+        if cut {
+            ui_rect(ex + ew - 4.0, ly + 2.0, 2.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
+        }
+        if hs > 0 && line.chars().count() > 0 {
+            ui_rect(ex + 16.0, ly + 2.0, 1.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
+        }
         if k == crow && (fr.time * 2.0).fract() < 0.6 && g.venue.overlay == venues::Overlay::Code {
-            let before_cursor: String = g.venue.code.text[starts[k]..cursor].to_string();
+            let before_cursor: String = g.venue.code.text[starts[k]..cursor].chars().skip(hs).collect();
             let cx = ex + 18.0 + ui_measure(&before_cursor, 8.0);
             ui_rect(cx, ly + 1.0, 1.0, row_h - 1.0, green);
         }
