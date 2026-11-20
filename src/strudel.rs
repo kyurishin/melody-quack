@@ -289,7 +289,80 @@ pub(crate) struct Layer {
     pub(crate) fast: f64,
     pub(crate) rev: bool,
     pub(crate) shift: i64,
+    pub(crate) lpf: Option<Param>,
+    pub(crate) room: Option<Param>,
     pub(crate) line: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Param {
+    Num(f64),
+    Pat(Node),
+    Sig { shape: String, lo: f64, hi: f64, speed: f64 },
+}
+
+fn smooth_noise(t: f64) -> f64 {
+    let i = t.floor();
+    let f = t - i;
+    let a = hash01(i as i64, 77);
+    let b = hash01(i as i64 + 1, 77);
+    let u = f * f * (3.0 - 2.0 * f);
+    a + (b - a) * u
+}
+
+impl Param {
+    fn at(&self, cycle: i64, at: f64) -> Option<f64> {
+        match self {
+            Param::Num(n) => Some(*n),
+            Param::Pat(node) => {
+                let mut v = Vec::new();
+                query(node, cycle, 0.0, 1.0, &mut v);
+                let e = v.iter().filter(|e| e.at <= at + 1e-9).last().or(v.first())?;
+                e.value.split(':').next()?.parse::<f64>().ok()
+            }
+            Param::Sig { shape, lo, hi, speed } => {
+                let t = (cycle as f64 + at) * speed;
+                let tau = std::f64::consts::TAU;
+                let u = match shape.as_str() {
+                    "sine" | "sine2" => 0.5 + 0.5 * (tau * t).sin(),
+                    "cosine" | "cosine2" => 0.5 + 0.5 * (tau * t).cos(),
+                    "saw" | "saw2" => t.rem_euclid(1.0),
+                    "isaw" | "isaw2" => 1.0 - t.rem_euclid(1.0),
+                    "tri" | "tri2" => 1.0 - (2.0 * t.rem_euclid(1.0) - 1.0).abs(),
+                    "square" | "square2" => if t.rem_euclid(1.0) < 0.5 { 0.0 } else { 1.0 },
+                    "rand" | "rand2" => hash01((t * 4096.0) as i64, 91),
+                    _ => smooth_noise(t),
+                };
+                Some(lo + (hi - lo) * u)
+            }
+        }
+    }
+}
+
+const SIGNALS: [&str; 15] = ["sine", "cosine", "saw", "isaw", "tri", "square", "rand", "perlin", "sine2", "cosine2", "saw2", "isaw2", "tri2", "square2", "rand2"];
+
+fn param(v: &Val) -> Option<Param> {
+    match v {
+        Val::Num(n) => Some(Param::Num(*n)),
+        Val::Str(t) => parse_mini(t).ok().map(Param::Pat),
+        Val::Call(name, args, methods) if args.is_empty() && SIGNALS.contains(&name.as_str()) => {
+            let (mut lo, mut hi, mut speed) = (0.0, 1.0, 1.0);
+            for (m, a) in methods {
+                let n: Vec<f64> = a.iter().filter_map(first_number).collect();
+                match (m.as_str(), n.as_slice()) {
+                    ("range" | "rangex", [a, b, ..]) => {
+                        lo = *a;
+                        hi = *b;
+                    }
+                    ("slow", [k, ..]) if *k > 0.0 => speed /= k,
+                    ("fast", [k, ..]) if *k > 0.0 => speed *= k,
+                    _ => {}
+                }
+            }
+            Some(Param::Sig { shape: name.clone(), lo, hi, speed })
+        }
+        _ => None,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -305,6 +378,8 @@ pub(crate) struct Hit {
     pub(crate) sound: String,
     pub(crate) note: Option<usize>,
     pub(crate) gain: f32,
+    pub(crate) lpf: Option<f32>,
+    pub(crate) room: f32,
     pub(crate) line: usize,
 }
 
@@ -632,7 +707,7 @@ const PATTERN_FNS: [&str; 5] = ["s", "sound", "note", "n", "freq"];
 
 fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Layer>, String> {
     if let Val::Str(t) = v {
-        return Ok(vec![Layer { kind: Kind::Raw, pat: parse_mini(t)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, line }]);
+        return Ok(vec![Layer { kind: Kind::Raw, pat: parse_mini(t)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, lpf: None, room: None, line }]);
     }
     let Val::Call(name, args, methods) = v else {
         return Err("start with s(\"...\"), note(\"...\") or n(\"...\")".to_string());
@@ -655,7 +730,7 @@ fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Laye
                 "n" => Kind::Index,
                 _ => Kind::Sound,
             };
-            vec![Layer { kind, pat: parse_mini(text)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, line }]
+            vec![Layer { kind, pat: parse_mini(text)?, sound: None, gain: 1.0, fast: 1.0, rev: false, shift: 0, lpf: None, room: None, line }]
         }
         "stack" => {
             let mut all = Vec::new();
@@ -744,6 +819,17 @@ fn to_layers(v: &Val, line: usize, skipped: &mut Vec<String>) -> Result<Vec<Laye
             "rev" => {
                 for l in layers.iter_mut() {
                     l.rev = !l.rev;
+                }
+            }
+            "lpf" | "cutoff" | "ctf" | "lp" | "room" => {
+                if let Some(p) = margs.first().and_then(param) {
+                    for l in layers.iter_mut() {
+                        if m == "room" {
+                            l.room = Some(p.clone());
+                        } else {
+                            l.lpf = Some(p.clone());
+                        }
+                    }
                 }
             }
             "bank" | "scale" | "color" | "colour" | "pianoroll" | "punchcard" | "scope" | "spiral" | "orbit" | "p" | "q" | "_pianoroll" | "_scope" | "_punchcard" | "analyze" | "fft" => {}
@@ -895,11 +981,96 @@ pub(crate) fn hits(p: &Program, cycle: i64) -> Vec<Hit> {
             if kind != Kind::Sound && note.is_none() {
                 continue;
             }
-            out.push(Hit { at, sound, note, gain: layer.gain, line: layer.line });
+            let lpf = layer.lpf.as_ref().and_then(|p| p.at(cycle, e.at)).map(|f| f.clamp(30.0, 20000.0) as f32);
+            let room = layer.room.as_ref().and_then(|p| p.at(cycle, e.at)).unwrap_or(0.0).clamp(0.0, 1.0) as f32;
+            out.push(Hit { at, sound, note, gain: layer.gain, lpf, room, line: layer.line });
         }
     }
     out.sort_by(|a, b| a.at.partial_cmp(&b.at).unwrap_or(std::cmp::Ordering::Equal));
     out
+}
+
+pub(crate) fn lpf_bucket(f: f32) -> Option<i16> {
+    if f >= 16000.0 {
+        return None;
+    }
+    Some(((f.max(40.0) / 40.0).log2() * 3.0).round() as i16)
+}
+
+pub(crate) fn bucket_hz(b: i16) -> f32 {
+    40.0 * 2f32.powf(b as f32 / 3.0)
+}
+
+pub(crate) fn room_bucket(r: f32) -> u8 {
+    (r.clamp(0.0, 1.0) * 8.0).round() as u8
+}
+
+pub(crate) fn render_fx(dry: &[f32], lpf: Option<f32>, room: f32, rate: f32) -> Vec<f32> {
+    let mut x: Vec<f32> = dry.to_vec();
+    if let Some(f) = lpf {
+        let w = std::f32::consts::TAU * f.min(rate * 0.45) / rate;
+        let q = 1.0f32;
+        let alpha = w.sin() / (2.0 * q);
+        let c = w.cos();
+        let a0 = 1.0 + alpha;
+        let (b0, b1, b2) = ((1.0 - c) / 2.0 / a0, (1.0 - c) / a0, (1.0 - c) / 2.0 / a0);
+        let (a1, a2) = (-2.0 * c / a0, (1.0 - alpha) / a0);
+        let (mut x1, mut x2, mut y1, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        for v in x.iter_mut() {
+            let y = b0 * *v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1;
+            x1 = *v;
+            y2 = y1;
+            y1 = y;
+            *v = y;
+        }
+    }
+    if room > 0.01 {
+        let k = rate / 44100.0;
+        let tail = ((0.5 + 1.8 * room) * rate) as usize;
+        let n = x.len() + tail;
+        let mut wet = vec![0.0f32; n];
+        let feedback = 0.78 + 0.16 * room;
+        let damp = 0.3f32;
+        for d in [1116.0f32, 1188.0, 1277.0, 1356.0, 1422.0, 1491.0] {
+            let len = (d * k) as usize;
+            let mut buf = vec![0.0f32; len];
+            let (mut i, mut low) = (0usize, 0.0f32);
+            for t in 0..n {
+                let input = x.get(t).copied().unwrap_or(0.0);
+                let out = buf[i];
+                low = out * (1.0 - damp) + low * damp;
+                buf[i] = input + low * feedback;
+                wet[t] += out;
+                i = (i + 1) % len;
+            }
+        }
+        for d in [556.0f32, 441.0, 341.0, 225.0] {
+            let len = (d * k) as usize;
+            let mut buf = vec![0.0f32; len];
+            let mut i = 0usize;
+            for v in wet.iter_mut() {
+                let b = buf[i];
+                let out = -*v + b;
+                buf[i] = *v + b * 0.5;
+                *v = out;
+                i = (i + 1) % len;
+            }
+        }
+        let fade = (0.25 * rate) as usize;
+        let level = 0.045 * room;
+        let dry_level = 1.0 - 0.35 * room;
+        let mut out = Vec::with_capacity(n);
+        for t in 0..n {
+            let mut v = x.get(t).copied().unwrap_or(0.0) * dry_level + wet[t] * level;
+            if t + fade > n {
+                v *= (n - t) as f32 / fade as f32;
+            }
+            out.push(v);
+        }
+        x = out;
+    }
+    x
 }
 
 pub(crate) fn escape(code: &str) -> String {
@@ -1011,12 +1182,13 @@ melody: n("0 2 4 <6 7>".add("<0 3>"))
         let p = parse(tune).unwrap();
         assert_eq!(p.cps, Some(0.5));
         assert_eq!(p.layers.len(), 3);
-        for m in ["lpf", "room", "every", "delay"] {
+        for m in ["every", "delay"] {
             assert!(p.skipped.iter().any(|s| s == m), "{m} in {:?}", p.skipped);
         }
         let h = hits(&p, 0);
         assert!(h.iter().any(|h| h.sound == "bd"));
-        assert!(h.iter().any(|h| h.sound == "sawtooth" && h.note.is_some()));
+        assert!(h.iter().any(|h| h.sound == "sawtooth" && h.note.is_some() && h.lpf.is_some() && h.room > 0.4));
+        assert!(!p.skipped.iter().any(|s| s == "lpf" || s == "room"));
         assert!(h.iter().any(|h| h.sound == "gm_epiano1"));
         assert!(!h.iter().any(|h| h.sound == "cp"));
 
@@ -1048,12 +1220,43 @@ melody: n("0 2 4 <6 7>".add("<0 3>"))
         let code = "// two parts\nstack(\n  // top\n  `[B3@2 D4] [A3]\n  [G3 A3]`,\n  // bottom\n  `[[C2 G2] E3@2] [F#3]`\n).transpose(12).slow(8)\n  .superimpose(x=>x.add(0.06)) // detune\n  .note()\n  .gain(.1)\n  .s('triangle')\n  .room(1)\n  //.pianoroll({fold:1})\n";
         let p = parse(code).unwrap();
         assert_eq!(p.layers.len(), 2);
-        assert_eq!(p.skipped, vec!["superimpose".to_string(), "room".to_string()]);
+        assert_eq!(p.skipped, vec!["superimpose".to_string()]);
         let all: Vec<Hit> = (0..8).flat_map(|c| hits(&p, c)).collect();
         assert!(all.iter().all(|h| h.sound == "triangle"));
         assert!(all.iter().any(|h| h.note == Some(4)));
         assert!(all.iter().any(|h| h.note == Some(2)));
         let up = parse("note(\"c3\").transpose(2)").unwrap();
         assert_eq!(hits(&up, 0)[0].note, Some(0));
+    }
+
+    #[test]
+    fn lpf_and_room_are_parsed_and_rendered() {
+        let p = parse("note(\"c3 e3\").s(\"sawtooth\").lpf(800).room(.5)\ns(\"hh*4\").lpf(\"<300 4000>\")\ns(\"bd\").cutoff(sine.range(200, 2000).slow(4))").unwrap();
+        assert!(p.skipped.is_empty(), "{:?}", p.skipped);
+        let h = hits(&p, 0);
+        assert!(h.iter().any(|h| h.lpf == Some(800.0) && (h.room - 0.5).abs() < 1e-6));
+        assert!(h.iter().any(|h| h.sound == "hh" && h.lpf == Some(300.0)));
+        assert!(hits(&p, 1).iter().any(|h| h.sound == "hh" && h.lpf == Some(4000.0)));
+        assert!(h.iter().any(|h| h.sound == "bd" && h.lpf.map(|f| f > 200.0 && f < 2000.0).unwrap_or(false)));
+
+        let rate = 44100.0;
+        let mut seed = 1u32;
+        let noise: Vec<f32> = (0..4410).map(|_| {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            (seed >> 8) as f32 / (1u32 << 24) as f32 * 1.2 - 0.6
+        }).collect();
+        let hf = |v: &[f32]| v.windows(2).map(|w| (w[1] - w[0]).abs()).sum::<f32>() / v.len() as f32;
+        let dark = render_fx(&noise, Some(400.0), 0.0, rate);
+        assert_eq!(dark.len(), noise.len());
+        assert!(hf(&dark) < hf(&noise) * 0.2, "{} {}", hf(&dark), hf(&noise));
+        let wet = render_fx(&noise, None, 1.0, rate);
+        assert!(wet.len() > noise.len() + rate as usize);
+        let tail = &wet[noise.len() + 4410..noise.len() + 8820];
+        let rms = |v: &[f32]| (v.iter().map(|x| x * x).sum::<f32>() / v.len() as f32).sqrt();
+        println!("dry {} wet-body {} tail {} peak {}", rms(&noise), rms(&wet[..noise.len()]), rms(tail), wet.iter().fold(0.0f32, |m, x| m.max(x.abs())));
+        assert!(rms(tail) > rms(&noise) * 0.05);
+        assert!(wet.iter().all(|x| x.is_finite() && x.abs() < 1.5));
+        assert_eq!(lpf_bucket(20000.0), None);
+        assert!((bucket_hz(lpf_bucket(800.0).unwrap()) - 800.0).abs() < 80.0);
     }
 }

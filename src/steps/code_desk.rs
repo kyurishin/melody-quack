@@ -21,6 +21,27 @@ pub(crate) struct CodeDesk {
     pub(crate) sharing: bool,
     pub(crate) scroll: usize,
     pub(crate) hscroll: usize,
+    pub(crate) anchor: Option<usize>,
+    pub(crate) drag: bool,
+    pub(crate) copied: f64,
+}
+
+fn selection(d: &CodeDesk) -> Option<(usize, usize)> {
+    let a = d.anchor?.min(d.text.len());
+    let c = d.cursor.min(d.text.len());
+    (a != c).then(|| (a.min(c), a.max(c)))
+}
+
+fn take_selection(d: &mut CodeDesk) -> bool {
+    if let Some((a, b)) = selection(d) {
+        d.text.replace_range(a..b, "");
+        d.cursor = a;
+        d.anchor = None;
+        true
+    } else {
+        d.anchor = None;
+        false
+    }
 }
 
 pub(crate) fn solid() -> (f32, f32, f32, f32) {
@@ -91,6 +112,45 @@ pub(crate) fn room_live(g: &Game) -> bool {
     g.venue.code.room.is_some()
 }
 
+type FxKey = (u16, i16, u8);
+
+thread_local! {
+    static FX: std::cell::RefCell<std::collections::HashMap<FxKey, (audio::Sound, f64)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+const FX_KEEP: usize = 64;
+
+fn with_fx(g: &Game, sound: &audio::Sound, h: &strudel::Hit, now: f64, budget: &mut usize) -> Option<audio::Sound> {
+    let lpf = h.lpf.and_then(strudel::lpf_bucket);
+    let room = strudel::room_bucket(h.room);
+    if (lpf.is_none() && room == 0) || sound.id() == u16::MAX {
+        return None;
+    }
+    let key = (sound.id(), lpf.unwrap_or(i16::MAX), room);
+    FX.with(|fx| {
+        let mut fx = fx.borrow_mut();
+        if let Some((s, used)) = fx.get_mut(&key) {
+            *used = now;
+            return g.audio.is_loaded(s).then(|| s.clone());
+        }
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
+        if fx.len() >= FX_KEEP {
+            if let Some(old) = fx.iter().min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Equal)).map(|(k, _)| *k) {
+                if let Some((s, _)) = fx.remove(&old) {
+                    g.audio.unload(&s);
+                }
+            }
+        }
+        let wet = strudel::render_fx(sound.samples(), lpf.map(strudel::bucket_hz), room as f32 / 8.0, SAMPLE_RATE as f32);
+        let s = g.audio.load_loose(wet);
+        fx.insert(key, (s.clone(), now));
+        g.audio.is_loaded(&s).then_some(s)
+    })
+}
+
 pub(crate) fn tick(g: &mut Game) {
     if g.venue.at != venues::Venue::Chapel {
         g.venue.code.mine = None;
@@ -111,6 +171,7 @@ pub(crate) fn tick(g: &mut Game) {
     if programs.is_empty() || last <= 0.0 || now - last > 0.5 {
         return;
     }
+    let mut budget = 2;
     for p in programs {
         let c = cps(g, &p);
         let from = (last - g.venue.rave_start) * c;
@@ -121,7 +182,9 @@ pub(crate) fn tick(g: &mut Game) {
                 let t = cycle as f64 + h.at;
                 if t >= from && t < to {
                     if let Some((sound, ch)) = sound_for(g, &h.sound, h.note) {
-                        g.audio.play_ch(ch, sound, 0.8 * h.gain.max(0.0).sqrt());
+                        let sound = sound.clone();
+                        let played = with_fx(g, &sound, &h, now, &mut budget);
+                        g.audio.play_ch(ch, played.as_ref().unwrap_or(&sound), 0.8 * h.gain.max(0.0).sqrt());
                     }
                     let fl = &mut g.venue.code.flash;
                     if fl.len() <= h.line {
@@ -212,12 +275,14 @@ fn edit(g: &mut Game, settled: bool) {
     d.cursor = d.cursor.min(d.text.len());
     while let Some(ch) = get_char_pressed() {
         if settled && !ch.is_control() && !shortcut_held() && d.text.len() < MAX_CODE {
+            take_selection(d);
             d.text.insert(d.cursor, ch);
             d.cursor += ch.len_utf8();
         }
     }
-    let before = d.text.len();
     if let Some(text) = net::pasted() {
+        take_selection(d);
+        let before = d.text.len();
         let clean: String = text.replace("\r\n", "\n").replace('\r', "\n").replace('\t', "  ").chars().filter(|c| *c == '\n' || !c.is_control()).collect();
         if d.text.trim() == strudel::EXAMPLE.trim() && !clean.trim().is_empty() {
             d.text = clean;
@@ -237,27 +302,54 @@ fn edit(g: &mut Game, settled: bool) {
     if !settled {
         return;
     }
-    let starts = line_starts(&d.text);
-    let row = starts.iter().rposition(|s| *s <= d.cursor).unwrap_or(0);
-    let col = d.text[starts[row]..d.cursor].chars().count();
     let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+    if ctrl && is_key_pressed(KeyCode::A) {
+        d.anchor = Some(0);
+        d.cursor = d.text.len();
+    }
+    if ctrl && (is_key_pressed(KeyCode::C) || is_key_pressed(KeyCode::X)) {
+        if let Some((a, b)) = selection(d) {
+            net::copy(&d.text[a..b]);
+            d.copied = get_time();
+            if is_key_pressed(KeyCode::X) {
+                take_selection(d);
+            }
+        }
+    }
     if (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) && !ctrl && !shift {
+        take_selection(d);
         d.text.insert(d.cursor, '\n');
         d.cursor += 1;
     }
     if is_key_pressed(KeyCode::Tab) {
+        take_selection(d);
         d.text.insert_str(d.cursor, "  ");
         d.cursor += 2;
     }
-    if (held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace)) && d.cursor > 0 {
-        let p = prev_char(&d.text, d.cursor);
-        d.text.replace_range(p..d.cursor, "");
-        d.cursor = p;
+    if held_repeat(KeyCode::Backspace) || is_key_pressed(KeyCode::Backspace) {
+        if !take_selection(d) && d.cursor > 0 {
+            let p = prev_char(&d.text, d.cursor);
+            d.text.replace_range(p..d.cursor, "");
+            d.cursor = p;
+        }
     }
-    if (held_repeat(KeyCode::Delete) || is_key_pressed(KeyCode::Delete)) && d.cursor < d.text.len() {
-        let n = next_char(&d.text, d.cursor);
-        d.text.replace_range(d.cursor..n, "");
+    if held_repeat(KeyCode::Delete) || is_key_pressed(KeyCode::Delete) {
+        if !take_selection(d) && d.cursor < d.text.len() {
+            let n = next_char(&d.text, d.cursor);
+            d.text.replace_range(d.cursor..n, "");
+        }
     }
+    let moving = [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End].iter().any(|k| is_key_pressed(*k) || held_repeat(*k));
+    if moving {
+        if shift {
+            d.anchor.get_or_insert(d.cursor);
+        } else {
+            d.anchor = None;
+        }
+    }
+    let starts = line_starts(&d.text);
+    let row = starts.iter().rposition(|s| *s <= d.cursor).unwrap_or(0);
+    let col = d.text[starts[row]..d.cursor].chars().count();
     if held_repeat(KeyCode::Left) || is_key_pressed(KeyCode::Left) {
         d.cursor = prev_char(&d.text, d.cursor);
     }
@@ -311,6 +403,50 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         let to = if wheel > 0.0 { r.saturating_sub(3) } else { (r + 3).min(starts.len() - 1) };
         let line = g.venue.code.text[starts[to]..].split('\n').next().unwrap_or("");
         g.venue.code.cursor = starts[to] + line.char_indices().nth(col).map(|(k, _)| k).unwrap_or(line.len());
+        if !g.venue.code.drag {
+            g.venue.code.anchor = None;
+        }
+    }
+    let point = |text: &str, starts: &[usize], scroll: usize, hs: usize, ux: f32, uy: f32| -> usize {
+        let r = (scroll + ((uy - ey - 4.0) / row_h).floor().max(0.0) as usize).min(starts.len() - 1);
+        let line = text[starts[r]..].split('\n').next().unwrap_or("");
+        let chars: Vec<char> = line.chars().collect();
+        let mut k = hs.min(chars.len());
+        while k < chars.len() {
+            let w0 = ui_measure(&chars[hs.min(k)..k].iter().collect::<String>(), 8.0);
+            let w1 = ui_measure(&chars[hs.min(k)..=k].iter().collect::<String>(), 8.0);
+            if ex + 18.0 + (w0 + w1) * 0.5 > ux {
+                break;
+            }
+            k += 1;
+        }
+        starts[r] + line.char_indices().nth(k).map(|(i, _)| i).unwrap_or(line.len())
+    };
+    if !fresh && !radio::touch_ui() {
+        let (hs0, sc0) = (g.venue.code.hscroll, g.venue.code.scroll);
+        if is_mouse_button_pressed(MouseButton::Left) && hit(fr, ex, ey, ew, eh) {
+            let p = point(&g.venue.code.text, &starts, sc0, hs0, fr.ux, fr.uy);
+            let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+            if !shift || g.venue.code.anchor.is_none() {
+                g.venue.code.anchor = Some(if shift { g.venue.code.cursor } else { p });
+            }
+            g.venue.code.cursor = p;
+            g.venue.code.drag = true;
+            fr.click = false;
+        } else if g.venue.code.drag && is_mouse_button_down(MouseButton::Left) {
+            let uy = fr.uy.clamp(ey - row_h * 0.5, ey + eh);
+            let ux = fr.ux.clamp(ex + 18.0, ex + ew + 6.0);
+            g.venue.code.cursor = point(&g.venue.code.text, &starts, sc0, hs0, ux, uy);
+        }
+        if g.venue.code.drag && !is_mouse_button_down(MouseButton::Left) {
+            g.venue.code.drag = false;
+            if let Some((a, b)) = selection(&g.venue.code) {
+                net::copy(&g.venue.code.text[a..b]);
+                g.venue.code.copied = get_time();
+            } else {
+                g.venue.code.anchor = None;
+            }
+        }
     }
     let cursor = g.venue.code.cursor.min(g.venue.code.text.len());
     let crow = starts.iter().rposition(|s| *s <= cursor).unwrap_or(0);
@@ -320,6 +456,7 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if crow >= g.venue.code.scroll + rows {
         g.venue.code.scroll = crow + 1 - rows;
     }
+    let sel = selection(&g.venue.code);
     let avail = ew - 24.0;
     let ccol = g.venue.code.text[starts[crow]..cursor].chars().count();
     let cur_chars: Vec<char> = g.venue.code.text[starts[crow]..].split('\n').next().unwrap_or("").chars().collect();
@@ -356,6 +493,22 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             shown.pop();
             cut = true;
         }
+        if let Some((a, b)) = sel {
+            let (ls, le) = (starts[k], starts[k] + line.len());
+            if a <= le && b >= ls && (b > ls || a == ls) {
+                let from = line[..a.max(ls) - ls].chars().count().max(hs) - hs;
+                let to = line[..b.min(le) - ls].chars().count().max(hs) - hs;
+                let vis: Vec<char> = line.chars().skip(hs).collect();
+                let x0 = ui_measure(&vis[..from.min(vis.len())].iter().collect::<String>(), 8.0);
+                let mut x1 = ui_measure(&vis[..to.min(vis.len())].iter().collect::<String>(), 8.0);
+                if b > le {
+                    x1 += 3.0;
+                }
+                if x1 > x0 {
+                    ui_rect(ex + 18.0 + x0, ly, (x1 - x0).min(avail + 4.0 - x0), row_h, Color::new(0.78, 1.0, 0.24, 0.28));
+                }
+            }
+        }
         ui_text(&shown, ex + 18.0, ly + 8.0, 8.0, col);
         if cut {
             ui_rect(ex + ew - 4.0, ly + 2.0, 2.0, row_h - 3.0, Color::new(0.78, 1.0, 0.24, 0.45));
@@ -371,7 +524,9 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     pixel_text(before);
     let by = y + h - 38.0;
-    if let Some((line, msg)) = g.venue.code.error.clone() {
+    if get_time() - g.venue.code.copied < 1.5 {
+        ui_text("copied - paste it anywhere with ctrl+v", x + 10.0, by - 2.0, 8.0, green);
+    } else if let Some((line, msg)) = g.venue.code.error.clone() {
         ui_text_fit(&format!("line {}: {msg}", line + 1), x + 10.0, by - 2.0, 8.0, w - 20.0, Color::from_rgba(255, 120, 130, 255));
     } else if let Some(p) = g.venue.code.mine.as_ref().filter(|p| !p.skipped.is_empty()) {
         let list: Vec<String> = p.skipped.iter().take(6).map(|m| format!(".{m}")).collect();

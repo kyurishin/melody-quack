@@ -6,6 +6,7 @@ unsafe extern "C" {
     fn audio_add_buffer(content: *const u8, content_len: u32) -> u32;
     fn audio_play_buffer(buffer: u32, volume: f32, repeat: bool) -> u32;
     fn audio_source_is_loaded(buffer: u32) -> bool;
+    fn audio_source_delete(buffer: u32);
 }
 
 #[unsafe(no_mangle)]
@@ -17,6 +18,16 @@ use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct Sound(u32, Option<u32>, Rc<Vec<f32>>, Option<Rc<Vec<f32>>>, u16);
+
+impl Sound {
+    pub fn id(&self) -> u16 {
+        self.4
+    }
+
+    pub fn samples(&self) -> &[f32] {
+        &self.2
+    }
+}
 
 pub struct Audio {
     ring: std::cell::Cell<bool>,
@@ -148,6 +159,14 @@ impl Audio {
     pub fn load(&self, samples: Vec<f32>) -> Sound {
         let id = self.next_id();
         self.keep(Sound(add(&samples), None, Rc::new(samples), None, id))
+    }
+
+    pub fn load_loose(&self, samples: Vec<f32>) -> Sound {
+        Sound(add(&samples), None, Rc::new(samples), None, u16::MAX)
+    }
+
+    pub fn unload(&self, sound: &Sound) {
+        unsafe { audio_source_delete(sound.0) };
     }
 
     pub fn load_ringing(&self, samples: Vec<f32>) -> Sound {

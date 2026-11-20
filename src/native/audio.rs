@@ -61,6 +61,16 @@ pub fn stream_clear() {
 #[derive(Clone)]
 pub struct Sound(Arc<Vec<f32>>, Option<Arc<Vec<f32>>>, u16);
 
+impl Sound {
+    pub fn id(&self) -> u16 {
+        self.2
+    }
+
+    pub fn samples(&self) -> &[f32] {
+        &self.0
+    }
+}
+
 pub struct Audio {
     voices: Arc<Mutex<Vec<Voice>>>,
     _stream: Option<cpal::Stream>,
@@ -192,6 +202,12 @@ impl Audio {
     pub fn load(&self, samples: Vec<f32>) -> Sound {
         self.keep(Sound(Arc::new(samples), None, self.next_id()))
     }
+
+    pub fn load_loose(&self, samples: Vec<f32>) -> Sound {
+        Sound(Arc::new(samples), None, u16::MAX)
+    }
+
+    pub fn unload(&self, _sound: &Sound) {}
 
     pub fn load_ringing(&self, samples: Vec<f32>) -> Sound {
         let wet = crate::ring_effect(&samples);
