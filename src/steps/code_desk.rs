@@ -3,7 +3,9 @@ use crate::*;
 #[allow(unused_imports)]
 use macroquad::prelude::*;
 use crate::strudel::{self, Program};
-use steps::venues::{button, held_repeat, hit, paste_into, shortcut_held};
+use steps::venues::{button, held_repeat, hit, shortcut_held};
+
+pub(crate) const MAX_CODE: usize = 8000;
 
 pub(crate) const SPOT: (f32, f32) = (5.5, 5.35);
 
@@ -53,10 +55,11 @@ fn sound_for<'a>(g: &'a Game, name: &str, note: Option<usize>) -> Option<(&'a au
     match name {
         "bd" | "kick" => drum(&g.kick),
         "sd" | "sn" | "cp" | "clap" => drum(&g.clap),
-        "hh" | "hat" | "ch" => drum(&g.hat),
-        "oh" => drum(&g.open_hat),
+        "hh" | "hat" | "ch" | "sh" | "shaker" => drum(&g.hat),
+        "oh" | "rd" | "ride" => drum(&g.open_hat),
         "lt" | "mt" | "ht" | "tom" => drum(&g.tom),
-        "rim" | "rs" => drum(&g.rim),
+        "rim" | "rs" | "perc" | "cb" => drum(&g.rim),
+        "cr" | "crash" => drum(&g.splash),
         "bass" => drum(&g.bass),
         "lid" => drum(&g.lid),
         "chop" => drum(&g.chop),
@@ -64,9 +67,12 @@ fn sound_for<'a>(g: &'a Game, name: &str, note: Option<usize>) -> Option<(&'a au
         "splash" => drum(&g.splash),
         "crackle" => drum(&g.crackle),
         "plink" => drum(&g.plink),
-        "piano" | "keys" => Some((&g.piano[n], 3)),
-        "marimba" => Some((&g.marimba[n], 3)),
-        "bell" | "bells" => Some((&g.bells[n], 3)),
+        "piano" | "keys" | "superpiano" | "rhodes" | "epiano" => Some((&g.piano[n], 3)),
+        "marimba" | "sawtooth" | "saw" | "square" | "supersaw" | "pulse" | "vibraphone" | "xylophone" => Some((&g.marimba[n], 3)),
+        "bell" | "bells" | "sine" | "triangle" | "tri" | "glockenspiel" | "music_box" => Some((&g.bells[n], 3)),
+        other if other.starts_with("gm_") && other.contains("piano") => Some((&g.piano[n], 3)),
+        other if other.starts_with("gm_") && (other.contains("bell") || other.contains("celesta") || other.contains("glock")) => Some((&g.bells[n], 3)),
+        other if other.starts_with("gm_") => Some((&g.marimba[n], 3)),
         "stone" | "stones" => Some((&g.stones[n], 3)),
         "voice" | "me" => Some((&g.voices[g.players[0].character][n], 3)),
         other => {
@@ -204,17 +210,27 @@ fn edit(g: &mut Game, settled: bool) {
     let ctrl = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl) || is_key_down(KeyCode::LeftSuper) || is_key_down(KeyCode::RightSuper);
     d.cursor = d.cursor.min(d.text.len());
     while let Some(ch) = get_char_pressed() {
-        if settled && !ch.is_control() && !shortcut_held() && d.text.len() < 3000 {
+        if settled && !ch.is_control() && !shortcut_held() && d.text.len() < MAX_CODE {
             d.text.insert(d.cursor, ch);
             d.cursor += ch.len_utf8();
         }
     }
     let before = d.text.len();
-    let mut pasted = String::new();
-    paste_into(&mut pasted, 3000, |c| c == '\n' || !c.is_control());
-    if !pasted.is_empty() && before + pasted.len() <= 3000 {
-        d.text.insert_str(d.cursor, &pasted);
-        d.cursor += pasted.len();
+    if let Some(text) = net::pasted() {
+        let clean: String = text.replace("\r\n", "\n").replace('\r', "\n").replace('\t', "  ").chars().filter(|c| *c == '\n' || !c.is_control()).collect();
+        if d.text.trim() == strudel::EXAMPLE.trim() && !clean.trim().is_empty() {
+            d.text = clean;
+            d.cursor = d.text.len();
+            d.scroll = 0;
+        } else if before + clean.len() <= MAX_CODE {
+            d.text.insert_str(d.cursor, &clean);
+            d.cursor += clean.len();
+        } else if clean.len() <= MAX_CODE {
+            d.text = clean;
+            d.cursor = d.text.len();
+        } else {
+            d.error = Some((0, format!("that's too long to paste - {MAX_CODE} characters at most")));
+        }
     }
     if !settled {
         return;
@@ -328,6 +344,9 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let by = y + h - 38.0;
     if let Some((line, msg)) = g.venue.code.error.clone() {
         ui_text_fit(&format!("line {}: {msg}", line + 1), x + 10.0, by - 2.0, 8.0, w - 20.0, Color::from_rgba(255, 120, 130, 255));
+    } else if let Some(p) = g.venue.code.mine.as_ref().filter(|p| !p.skipped.is_empty()) {
+        let list: Vec<String> = p.skipped.iter().take(6).map(|m| format!(".{m}")).collect();
+        ui_text_fit(&format!("playing - skipped what this computer can't do yet: {}", list.join(" ")), x + 10.0, by - 2.0, 7.0, w - 20.0, ui::skin::GOLD);
     } else {
         ui_text_fit("s(\"bd sd\")  note(\"d e f# a\").s(\"piano\")   ~ rest  [ ] group  < > take turns  *2 faster", x + 10.0, by - 2.0, 7.0, w - 20.0, ui::skin::MUTED);
     }
@@ -352,7 +371,7 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if fr.click && hit(fr, ex, ey, ew, eh) && radio::touch_ui() {
         let shown = g.venue.code.text.replace('\n', " ;; ");
         if let Some(t) = radio::ask_text("live code (;; starts a new line)", &shown) {
-            g.venue.code.text = t.replace(" ;; ", "\n").replace(";;", "\n").chars().take(3000).collect();
+            g.venue.code.text = t.replace(" ;; ", "\n").replace(";;", "\n").chars().take(MAX_CODE).collect();
             g.venue.code.cursor = g.venue.code.text.len();
             run(g);
         }

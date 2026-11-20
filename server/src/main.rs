@@ -534,7 +534,7 @@ impl Hub {
     }
 
     fn handle(&mut self, id: u32, line: &str, now: i64) {
-        let bulky = line.starts_with("aud ") || line.starts_with("cloudput ") || (line.starts_with("otter ") && line.len() <= otter::MAX_LINE) || (line.starts_with("letin ") && line.len() <= homes::MAX_HOUSE);
+        let bulky = (line.starts_with("strudel ") && line.len() <= 16 * 1024) || line.starts_with("aud ") || line.starts_with("cloudput ") || (line.starts_with("otter ") && line.len() <= otter::MAX_LINE) || (line.starts_with("letin ") && line.len() <= homes::MAX_HOUSE);
         if (line.len() > MAX_LINE && !bulky) || line.len() > MAX_BULK || !self.clients.contains_key(&id) {
             return;
         }
@@ -784,7 +784,7 @@ impl Hub {
                 let Some(code) = self.clients.get(&id).and_then(|c| c.room.clone()) else {
                     return;
                 };
-                let text: String = rest.chars().filter(|c| !c.is_control()).take(3000).collect();
+                let text: String = rest.chars().filter(|c| !c.is_control()).take(12_000).collect();
                 let mine = self.live.get(&code).map(|l| l.by == id && l.line.contains(" code ")).unwrap_or(false);
                 if !mine || text.trim().is_empty() {
                     return;
