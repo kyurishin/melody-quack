@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "melody-quack"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "cpal",
  "fontdue",
