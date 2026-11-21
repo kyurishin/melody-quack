@@ -3,6 +3,7 @@ use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 mod tempo;
+mod paper;
 mod fish;
 mod emoji;
 mod home;
@@ -260,16 +261,15 @@ async fn main() {
     let page_turn = 0.0f32;
     let turn_dir = 1.0f32;
     let painted: Option<(usize, usize)> = None;
-    let spines_painted = false;
-    let page_rt: Vec<RenderTarget> = (0..2).map(|_| {
-        let rt = render_target(512, 680);
-        rt.texture.set_filter(FilterMode::Linear);
-        rt
+    let page_rt: Vec<Texture2D> = (0..2).map(|_| {
+        let t = Texture2D::from_image(&paper::Paper::new(512, 680, WHITE).image());
+        t.set_filter(FilterMode::Linear);
+        t
     }).collect();
-    let spine_rt: Vec<RenderTarget> = (0..books::BOOKS.len()).map(|_| {
-        let rt = render_target(640, 96);
-        rt.texture.set_filter(FilterMode::Linear);
-        rt
+    let spine_rt: Vec<Texture2D> = (0..books::BOOKS.len()).map(|i| {
+        let t = Texture2D::from_image(&reading::paint_spine(&books::BOOKS[i]));
+        t.set_filter(FilterMode::Linear);
+        t
     }).collect();
     let mic_message_clock = 0.0_f32;
     let tree_rest: std::collections::HashMap<(i32, i32), f32> = std::collections::HashMap::new();
@@ -523,7 +523,6 @@ async fn main() {
         page_turn,
         turn_dir,
         painted,
-        spines_painted,
         page_rt,
         spine_rt,
         mic_message_clock,

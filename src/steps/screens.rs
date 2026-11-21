@@ -12,12 +12,6 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
         let tap = fr.click && !close_hit;
         let (tap_left, tap_right) = (tap && fr.ux < low_w() * 0.33, tap && fr.ux > low_w() * 0.67);
         let tap_mid = tap && !tap_left && !tap_right;
-        if g.open_book.is_none() || !g.spines_painted {
-            for (i, book) in books::BOOKS.iter().enumerate() {
-                paint_spine(&g.spine_rt[i], book);
-            }
-            g.spines_painted = g.painted.is_some();
-        }
         let count = books::BOOKS.len();
         match g.open_book {
             None => {
@@ -60,9 +54,11 @@ pub(crate) fn bookshelf(g: &mut Game, fr: &mut Frame) {
         }
         g.page_turn = (g.page_turn - get_frame_time() * 2.6).max(0.0);
         if let Some(b) = g.open_book {
-            paint_page(&g.page_rt[0], &books::BOOKS[b], g.book_spread * 2, true);
-            paint_page(&g.page_rt[1], &books::BOOKS[b], g.book_spread * 2 + 1, false);
-            g.painted = Some((b, g.book_spread));
+            if g.painted != Some((b, g.book_spread)) {
+                g.page_rt[0].update(&paint_page(&books::BOOKS[b], g.book_spread * 2, true));
+                g.page_rt[1].update(&paint_page(&books::BOOKS[b], g.book_spread * 2 + 1, false));
+                g.painted = Some((b, g.book_spread));
+            }
             draw_book_scene(&books::BOOKS[b], &g.page_rt, g.page_turn, g.turn_dir, fr.time);
         } else {
             draw_shelf_scene(g.shelf_sel, fr.time, &g.spine_rt);

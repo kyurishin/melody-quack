@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 macroquad = "0.4.16"
+fontdue = "0.9"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 cpal = "0.18"

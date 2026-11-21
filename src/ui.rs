@@ -305,23 +305,6 @@ pub(crate) fn emoji_strip(who: usize, two_player: bool) -> (f32, f32, f32) {
     (x, y, cell)
 }
 
-pub(crate) fn wrap_px(text: &str, size: u16, width: f32) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    for word in text.split_whitespace() {
-        let candidate = if line.is_empty() { word.to_string() } else { format!("{} {}", line, word) };
-        if !line.is_empty() && measure_text(&candidate, None, size, 1.0).width > width {
-            lines.push(std::mem::replace(&mut line, word.to_string()));
-        } else {
-            line = candidate;
-        }
-    }
-    if !line.is_empty() {
-        lines.push(line);
-    }
-    lines
-}
-
 pub(crate) fn ui_star(x: f32, y: f32, size: f32, color: Color) {
     let a = size / 5.0;
     ui_rect(x + a * 2.0, y, a, size, color);

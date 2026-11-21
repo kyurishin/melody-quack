@@ -697,6 +697,7 @@ name = "melody-quack"
 version = "0.3.6"
 dependencies = [
  "cpal",
+ "fontdue",
  "macroquad",
  "mp3lame-encoder",
  "symphonia",
