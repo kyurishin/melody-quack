@@ -1,6 +1,6 @@
 # Melody Quack
 
-![St. Bassilica, the chapel rave, with friends chatting](web/shots/chapel.webp)
+![St. Bassilica on a live coding night, with friends dancing and chatting round the green-screen computer](web/shots/chapel.webp)
 
 A cosy pixel game about animal friends making music. Your animal's voice is your instrument: jam by the campfire, fish on the beat, cook percussion, decorate your home, and at night find the secret code to the rave at St. Bassilica, where friends dance together online and DJs play live sets, from the in-game decks or straight from Serato.
 
@@ -182,6 +182,8 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **mirror ball** (300), **dance arcade** (500: arrows from the music on your mic, or the game's beat), **wall tv** (1000: five pixel visual channels), **sampler** (180: a 16-step grid; Space twice clears all the pads)
 - **techno club set** (free): one tap turns the room into a concrete club
 
+![The bookshelf: nine books with their titles on the spines](web/shots/bookshelf.webp)
+
 **Putting things away:** while carrying a piece, M puts it in your bag. In the bag at home, W/S picks a stored piece, E takes it out, X twice packs everything. Room upgrades store pieces that are in the way.
 
 **Daily quests:** three a day (fish, mushrooms, cooking, watering, sticks, notes, emojis, stars, dancing), in your bag with their acorn rewards.
@@ -274,6 +276,8 @@ note("<d a> [f# e] b ~").s("piano")
   - the mouse wheel or the scroll bar on the right moves through long code
 - Everyone can play it for themselves. **The admin and DJs** also get **play for the room**: everyone in the club hears the code in sync, people arriving later hear it too, and the header says "live coding". DJs need a yes from the admin first, just like the decks. **stop** ends the set for everyone.
 
+![Live code playing for the room, with a low-pass sweep and a little reverb](web/shots/live-code.webp)
+
 Once the goose has let you in, you can walk back in through the chapel door for the rest of the night (E: back into st. bassilica), no code needed.
 
 ## DJs
@@ -296,7 +300,7 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
 
 ![The jungle at sunset](web/shots/jungle.webp)
 
-**The admin** signs in with the admin key in the same box and shows as a gold name with a star.
+**The admin** signs in with the admin key in the same box, and their name glows neon green in the club.
 
 - The decks in any room are yours straight away, without asking; going live takes over from a DJ who is playing.
 - The envelope gets three tabs:
