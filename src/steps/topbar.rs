@@ -59,6 +59,36 @@ fn radio_label(g: &Game, time: f32, room: f32) -> String {
     }
 }
 
+pub(crate) const WIDGETS: [&str; 8] = ["radio", "counts", "recipes", "acorns", "clock", "fire", "mail", "bell"];
+pub(crate) const RADIO: u8 = 0;
+pub(crate) const COUNTS: u8 = 1;
+pub(crate) const RECIPES: u8 = 2;
+pub(crate) const ACORNS: u8 = 3;
+pub(crate) const CLOCK: u8 = 4;
+pub(crate) const FIRE: u8 = 5;
+pub(crate) const MAIL: u8 = 6;
+pub(crate) const BELL: u8 = 7;
+
+thread_local! {
+    static HIDE: std::cell::Cell<u16> = const { std::cell::Cell::new(0) };
+}
+
+pub(crate) fn hidden(w: u8) -> bool {
+    HIDE.with(|h| h.get() & (1 << w) != 0)
+}
+
+pub(crate) fn hide_mask() -> u16 {
+    HIDE.with(|h| h.get())
+}
+
+pub(crate) fn set_hide_mask(m: u16) {
+    HIDE.with(|h| h.set(m & 0xff));
+}
+
+pub(crate) fn toggle_widget(w: u8) {
+    HIDE.with(|h| h.set(h.get() ^ (1 << w)));
+}
+
 pub(crate) fn layout(g: &Game) -> Bar {
     let lw = low_w();
     let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Quests, Tab::Help, Tab::Settings];
@@ -122,7 +152,8 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
         return false;
     }
     let bar = layout(g);
-    if let Some((sx, sw)) = bar.slider {
+    let radio_on = !hidden(RADIO);
+    if let Some((sx, sw)) = bar.slider.filter(|_| radio_on) {
         if is_mouse_button_down(MouseButton::Left) && (g.mix_drag == Some(99) || (is_mouse_button_pressed(MouseButton::Left) && fr.uy > Y && fr.uy < Y + H && fr.ux > sx - 4.0 && fr.ux < sx + sw + 4.0)) {
             g.mix_drag = Some(99);
             g.mix[4] = ((fr.ux - sx) / sw).clamp(0.0, 1.0);
@@ -138,12 +169,12 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
     if !fr.click || fr.uy < Y || fr.uy > Y + H {
         return false;
     }
-    if fr.ux > bar.play.0 && fr.ux < bar.play.0 + bar.play.1 {
+    if radio_on && fr.ux > bar.play.0 && fr.ux < bar.play.0 + bar.play.1 {
         g.looper.beat = !g.looper.beat;
         fr.click = false;
         return true;
     }
-    if fr.ux > bar.label.0 && fr.ux < bar.label.0 + bar.label.1 && g.now_playing.is_empty() && !g.cooking {
+    if radio_on && fr.ux > bar.label.0 && fr.ux < bar.label.0 + bar.label.1 && g.now_playing.is_empty() && !g.cooking {
         g.looper.quantise = g.looper.quantise.next();
         g.save_clock = 99.0;
         fr.click = false;
@@ -180,7 +211,8 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
             return true;
         }
     }
-    if fr.ux > bar.logo.0 && fr.ux < bar.radio.0 + bar.radio.1 {
+    let right = if radio_on { bar.radio.0 + bar.radio.1 } else { bar.group.0 + bar.group.1 };
+    if fr.ux > bar.logo.0 && fr.ux < right {
         fr.click = false;
         return true;
     }
@@ -284,6 +316,7 @@ pub(crate) fn draw(g: &mut Game, fr: &mut Frame) {
             ui_text_as(Face::Label, tab_name(t), x + 16.0, cy + 3.0, TAB_SIZE, ink);
         }
     }
+    if !hidden(RADIO) {
     let (rx, rw) = bar.radio;
     ui_round_frame(rx, Y, rw, H, 6.0, skin::PANEL, skin::EDGE);
     let (px, pw) = bar.play;
@@ -312,6 +345,7 @@ pub(crate) fn draw(g: &mut Game, fr: &mut Frame) {
     }
     if let Some(spx) = bar.speaker {
         speaker(spx, cy, skin::CREAM);
+    }
     }
     stats(g, fr);
 }
@@ -344,33 +378,41 @@ fn stats(g: &Game, fr: &mut Frame) {
     let acorn_w = pill_w(&acorns) + 9.0;
     let res_w = pill_w(&res);
     let fire_w = 44.0;
-    let mut x = low_w() - 4.0 - acorn_w;
-    {
+    let mut x = low_w() - 4.0;
+    if !hidden(ACORNS) {
+        x -= acorn_w;
         let ax = x;
         ui_round_frame(ax, y, acorn_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
         ui_acorn(ax + 8.5, y + 7.4, 1.0);
         ui_text_as(Face::Data, &acorns[0].1, ax + 15.0, y + 10.5, 9.0, skin::CREAM);
+        x -= 3.0;
     }
-    x -= 3.0 + dish_w;
-    {
+    if !hidden(RECIPES) {
+        x -= dish_w;
         let dx = x;
         ui_round_frame(dx, y, dish_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
         ui_circle(dx + 8.5, y + 8.0, 3.6, Color::from_rgba(255, 150, 180, 255));
         ui_round(dx + 4.0, y + 6.5, 9.0, 1.6, 0.8, Color::from_rgba(255, 200, 220, 255));
         ui_text_as(Face::Data, &dishes[0].1, dx + 15.0, y + 10.5, 9.0, skin::CREAM);
+        x -= 3.0;
     }
-    x -= 3.0 + res_w;
-    pill(x, y, &res);
-    let row2_left = x;
-    let y3 = y + 17.0;
+    if !hidden(COUNTS) {
+        x -= res_w;
+        pill(x, y, &res);
+        x -= 3.0;
+    }
+    let row1 = !(hidden(ACORNS) && hidden(RECIPES) && hidden(COUNTS));
+    let row2_left = x + 3.0;
+    let y3 = if row1 { y + 17.0 } else { y };
     let sk = sky();
     let temp = sk.temp.map(|t| format!("  {:.0}C", t)).unwrap_or_default();
     let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
     let tw = ui_measure(&line, 9.0) + 20.0;
+    let row2 = !(hidden(CLOCK) && hidden(FIRE));
     let fx = low_w() - 4.0 - fire_w;
-    let tx = fx - 3.0 - tw;
-    DROP.with(|d| d.set(17.0));
-    {
+    let tx = if hidden(FIRE) { low_w() - 4.0 - tw } else { fx - 3.0 - tw };
+    DROP.with(|d| d.set(match (row1, row2) { (true, true) => 17.0, (false, false) => -17.0, _ => 0.0 }));
+    if !hidden(FIRE) {
         ui_round_frame(fx, y3, fire_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
         let lit = g.camp.lit;
         let flame = if lit { Color::from_rgba(255, 140, 50, 255) } else { Color::from_rgba(140, 120, 130, 255) };
@@ -385,6 +427,7 @@ fn stats(g: &Game, fr: &mut Frame) {
             ui_round(fx + 13.0, y3 + 5.5, 26.0 * fill, 3.0, 1.5, flame);
         }
     }
+    if !hidden(CLOCK) {
     let ty = y3;
     ui_round_frame(tx, ty, tw, 14.0, 5.0, skin::PANEL, skin::EDGE);
     let night = sk.hour < 6.0 || sk.hour >= 19.0;
@@ -399,7 +442,8 @@ fn stats(g: &Game, fr: &mut Frame) {
         ui_circle(tx + 8.0, ty + 7.0, 2.8, skin::GOLD);
     }
     ui_text(&line, tx + 15.0, ty + 10.5, 9.0, skin::CREAM);
-    fr.ix = row2_left.min(tx);
+    }
+    fr.ix = if row2 { row2_left.min(if hidden(CLOCK) { fx } else { tx }) } else { row2_left };
 }
 
 pub(crate) fn drop(g: &Game) -> f32 {

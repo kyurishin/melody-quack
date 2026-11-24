@@ -1538,7 +1538,9 @@ pub(crate) fn typing(g: &Game) -> bool {
 
 fn bell_rect(g: &Game) -> (f32, f32, f32, f32) {
     let (x, y, w, h) = mail_rect(g);
-    if radio::touch_ui() {
+    if steps::topbar::hidden(steps::topbar::MAIL) {
+        (x, y, w, h)
+    } else if radio::touch_ui() {
         (x, y - h - 4.0, w, h)
     } else {
         (x, y + h + 3.0, w, h)
@@ -1563,6 +1565,7 @@ pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
     }
     let (x, y, w, h) = mail_rect(g);
     if !g.two_player {
+        if !steps::topbar::hidden(steps::topbar::MAIL) {
         ui_round_frame(x, y, w, h, 4.0, ui::skin::PANEL, ui::skin::EDGE);
         let (ex, ey, ew, eh) = (x + 4.0, y + 4.0, w - 8.0, h - 8.0);
         ui_round(ex, ey, ew, eh, 1.2, Color::from_rgba(255, 240, 220, 255));
@@ -1572,6 +1575,10 @@ pub(crate) fn mail_icon(g: &mut Game, fr: &mut Frame) {
         if (g.venue.tonight.is_some() && g.venue.mail_seen != mail_key(g)) || (g.venue.admin && !g.venue.requests.is_empty()) {
             ui_circle(x + w - 1.0, y + 1.0, 4.2, Color::from_rgba(255, 90, 140, 255));
             ui_text("1", x + w - 2.8, y + 3.8, 7.5, WHITE);
+        }
+        }
+        if steps::topbar::hidden(steps::topbar::BELL) {
+            return;
         }
         let (bx, by, bw, bh) = bell_rect(g);
         ui_round_frame(bx, by, bw, bh, 4.0, ui::skin::PANEL, ui::skin::EDGE);
@@ -2058,7 +2065,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
     let mut fresh = false;
     if mail_visible(g) && fr.click {
         let (mx, my, mw, mh) = mail_rect(g);
-        if hit(fr, mx - 2.0, my - 6.0, mw + 8.0, mh + 8.0) {
+        if !steps::topbar::hidden(steps::topbar::MAIL) && hit(fr, mx - 2.0, my - 6.0, mw + 8.0, mh + 8.0) {
             g.venue.overlay = Overlay::Mail;
             g.venue.admin_tab = if g.venue.admin && !g.venue.requests.is_empty() { 1 } else { 0 };
             g.venue.mail_seen = mail_key(g);
@@ -2067,7 +2074,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
             fresh = true;
         }
         let (bx, by, bw, bh) = bell_rect(g);
-        if fr.click && !g.two_player && hit(fr, bx - 2.0, by - 4.0, bw + 6.0, bh + 6.0) {
+        if fr.click && !g.two_player && !steps::topbar::hidden(steps::topbar::BELL) && hit(fr, bx - 2.0, by - 4.0, bw + 6.0, bh + 6.0) {
             steps::notify::open(g);
             g.audio.play_ch(3, &g.plink, 0.4);
             fr.click = false;

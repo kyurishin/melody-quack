@@ -344,6 +344,7 @@ async fn main() {
         saved_code = saved.live_code.clone();
         crate::glow::set_enabled(saved.gfx.0);
         crate::render::set_pixel_look(saved.gfx.1);
+        steps::topbar::set_hide_mask(saved.widgets);
         saved_session = saved.session.clone();
         saved_companion = !saved.companion_off;
         if saved.tiles.len() == world.tiles.len() {

@@ -45,6 +45,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             friends: steps::chat::friends_text(g),
             live_code: g.venue.code.text.clone(),
             gfx: (crate::glow::enabled(), crate::render::pixel_look()),
+            widgets: steps::topbar::hide_mask(),
             dex: g.dex_counts.clone(),
             mush: g.inv.mush,
             shroomdex: g.shroom_counts.clone(),

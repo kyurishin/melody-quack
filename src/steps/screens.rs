@@ -454,6 +454,21 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
                 crate::glow::set_enabled(!crate::glow::enabled());
                 g.save_clock = 99.0;
             }
+            ry += 24.0;
+            ui_text_as(ui::Face::Label, "top bar", cx, ry + 8.0, 9.0, ui::skin::CREAM);
+            ui_text("tap to show or hide", cx + ui_measure_as(ui::Face::Label, "top bar", 9.0) + 6.0, ry + 8.0, 7.0, ui::skin::MUTED);
+            ry += 12.0;
+            let chip_w = ((cw - 4.0) / 2.0).floor();
+            for (i, name) in steps::topbar::WIDGETS.iter().enumerate() {
+                let (col, row) = (i % 2, i / 2);
+                let on = !steps::topbar::hidden(i as u8);
+                let label = format!("{} {}", if on { "on " } else { "off" }, name);
+                if button(fr, &label, cx + col as f32 * (chip_w + 4.0), ry + row as f32 * 15.0, chip_w, 13.0, on) && keys {
+                    steps::topbar::toggle_widget(i as u8);
+                    g.save_clock = 99.0;
+                    fr.click = false;
+                }
+            }
         }
         _ => {
             let name = if g.venue.name.is_empty() { "-".to_string() } else { g.venue.name.clone() };
