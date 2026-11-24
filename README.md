@@ -278,7 +278,7 @@ note("<d a> [f# e] b ~").s("piano")
 
 ![Live code playing for the room, with a low-pass sweep and a little reverb](web/shots/live-code.webp)
 
-Once the goose has let you in, you can walk back in through the chapel door for the rest of the night (E: back into st. bassilica), no code needed.
+Once the goose has let you in, you can walk back in for the rest of the night: E at the door, then **back in** (or just Enter), no code needed. You can still give the goose a different code, for a friend's rave for example.
 
 ## DJs
 

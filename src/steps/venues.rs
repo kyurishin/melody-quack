@@ -2105,21 +2105,13 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         }
         let p = g.players[0].pos;
         if (p.distance(CHAPEL_DOOR) < 1.2 || p.distance(GOOSE) < 1.0) && back_in(g).is_some() {
-            if let Some(r) = back_in(g) {
-                g.venue.now = Some(r);
-                g.toasts.push(("the goose nods you back in".to_string(), 2.5));
-                enter(g, Venue::Chapel);
-            }
+            open_goose(g, true);
         } else if p.distance(PCBANG_DOOR) < 0.8 {
             enter(g, Venue::PcBang);
         } else if p.distance(BOARD) < 0.9 {
             g.venue.overlay = Overlay::Flyer(0);
         } else if (p.distance(CHAPEL_DOOR) < 0.9 || p.distance(GOOSE) < 0.9) && back_in(g).is_some() {
-            if let Some(r) = back_in(g) {
-                g.venue.now = Some(r);
-                g.toasts.push(("the goose nods you back in".to_string(), 2.5));
-                enter(g, Venue::Chapel);
-            }
+            open_goose(g, true);
         } else if p.distance(CHAPEL_DOOR) < 0.9 || p.distance(GOOSE) < 0.9 {
             g.venue.overlay = Overlay::Door;
             g.venue.door_code.clear();
@@ -3343,6 +3335,24 @@ fn flyer_view(g: &mut Game, fr: &mut Frame, i: usize, fresh: bool) {
     }
 }
 
+fn open_goose(g: &mut Game, welcome: bool) {
+    g.venue.overlay = Overlay::Door;
+    g.venue.door_code.clear();
+    g.venue.door_msg = if welcome { "welcome back. in you go - or tell me a new code.".to_string() } else { "evening. code?".to_string() };
+    while get_char_pressed().is_some() {}
+}
+
+fn go_back_in(g: &mut Game) -> bool {
+    if let Some(r) = back_in(g) {
+        g.venue.now = Some(r);
+        g.toasts.push(("the goose nods you back in".to_string(), 2.5));
+        enter(g, Venue::Chapel);
+        true
+    } else {
+        false
+    }
+}
+
 fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let touch = radio::touch_ui();
     let chip_rows = if touch { g.venue.known.len().min(3) as f32 } else { 0.0 };
@@ -3424,12 +3434,19 @@ fn door_talk(g: &mut Game, fr: &mut Frame, fresh: bool) {
             g.venue.door_code = text.chars().filter(|c| c.is_ascii_alphanumeric()).take(9).collect::<String>().to_uppercase();
         }
     }
+    let again = back_in(g).is_some();
+    let back_hit = again && if touch { button(fr, "back in", x + w - 124.0, y + h - 24.0, 58.0, 18.0, true) } else { button(fr, "back in", x + w - 106.0, y + h - 22.0, 50.0, 14.0, true) };
+    if back_hit || (again && g.venue.door_code.is_empty() && is_key_pressed(KeyCode::Enter)) {
+        fr.click = false;
+        go_back_in(g);
+        return;
+    }
     if is_key_pressed(KeyCode::Enter) {
         submit = Some(g.venue.door_code.clone());
     }
     let close_hit = if touch { button(fr, "close", x + w - 62.0, y + h - 24.0, 54.0, 18.0, false) } else { button(fr, "close", x + w - 52.0, y + h - 22.0, 44.0, 14.0, false) };
     if !touch {
-        ui_text("enter: go in   esc: close", x + 12.0, y + h - 6.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
+        ui_text(if again { "enter: back in   esc: close" } else { "enter: go in   esc: close" }, x + 12.0, y + h - 6.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.55));
     }
     if is_key_pressed(KeyCode::Escape) || close_hit || (fr.click && !hit(fr, x, y, w, h)) {
         g.venue.overlay = Overlay::None;
