@@ -109,8 +109,8 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
                 }
             }
             if play_now {
-                let sound = &g.voices[g.players[who].character][i];
-                g.audio.play_ch(who, sound, 0.8);
+                let sound = crate::flavour::voice(g, who, i);
+                g.audio.play_ch(who, &sound, 0.8);
                 g.players[who].key_glow[i] = 1.0;
                 g.players[who].voice_timer = 0.4;
                 if who == 0 && fr.dog_jamming {
@@ -141,8 +141,8 @@ pub(crate) fn play_notes(g: &mut Game, fr: &mut Frame) {
             continue;
         }
         let (who, i) = (id / 6, id % 6);
-        let sound = &g.voices[g.players[who].character][i];
-        g.audio.play_ch(who, sound, 0.75);
+        let sound = crate::flavour::voice(g, who, i);
+        g.audio.play_ch(who, &sound, 0.75);
         g.players[who].key_glow[i] = 1.0;
         g.players[who].voice_timer = 0.3;
     }
@@ -447,6 +447,9 @@ pub(crate) fn cook_dish(g: &mut Game, chosen: Option<[u32; 6]>) -> (usize, bool,
     let new = !g.dishes.contains(&dish);
     if new {
         g.dishes.push(dish);
+    }
+    if let Some(m) = g.meals.get_mut(dish) {
+        *m = (*m + 1).min(99);
     }
     let earned = if new { 10 } else { 5 };
     g.inv.acorns += earned;

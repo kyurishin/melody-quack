@@ -159,6 +159,8 @@ Then 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, siz
 
 ![The pot: picking what to cook](web/shots/pot.webp)
 
+**Food changes your voice.** Every dish you cook lands in your bag (M). Eat one from the bag (W/S and E, or tap it) and your singing changes for 30 seconds: grilled fish gives you a deeper voice, golden lakeside pie goes chipmunk-high, truffle risotto sounds like an old game console, moonlit broth turns ghostly, and so on: each of the 21 dishes has its own sound. Drinks from the bars change it too: cola is fizzy and crunchy, club-mate fast and buzzy, sparkling water bright and airy, vanilla ice cream soft and muffled, a franzbroetchen warm with an echo. In the club, everyone hears your changed voice and sees the treat's sparkle around you.
+
 ### Your home and acorns
 
 Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming, fishing, cooking and from your friend's errands, then spend them at the **catalogue** in the corner (E): W/S switches tabs (catalogue, diary, fishdex, mushrooms), A/D browses, E buys, Esc closes. E places what you bought, X turns it; face a piece and X picks it up to move it (or sell it back for half at the catalogue). Wallpaper and floors cost 10 acorns once, then switch for free. Everything is saved.
@@ -299,6 +301,8 @@ DJs are members of a 5 euro a month Patreon tier. Each gets a **DJ key** from th
 ![The DJ lounge: the wall tv, the sofa and the goose's bar](web/shots/lounge.webp)
 
 ![The jungle at sunset](web/shots/jungle.webp)
+
+**The owl's bar:** everyone in the club can visit the owl's bar in the front right corner of the dance floor, with the same drinks and treats as the goose's bar in the lounge.
 
 **The admin** signs in with the admin key in the same box, and their name glows neon green in the club.
 

@@ -4,6 +4,7 @@ use std::f32::consts::PI;
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 mod tempo;
 mod paper;
+mod flavour;
 mod fish;
 mod emoji;
 mod home;
@@ -220,6 +221,7 @@ async fn main() {
     let cooking = false;
     let mut cook_progress = 0u32;
     let mut dishes: Vec<usize> = Vec::new();
+    let mut meals: Vec<u32> = vec![0; DISHES.len()];
     let hearts: Vec<(Vec3, f32)> = Vec::new();
     let jam = false;
     let dusk = update_sky().night * 0.95;
@@ -366,6 +368,7 @@ async fn main() {
         camp.pile = saved.pile;
         camp.ring = saved.ring;
         dishes = saved.dishes;
+        meals = saved.meals;
         cook_progress = saved.cook_progress;
         for who in 0..2 {
             players[who].character = saved.characters[who];
@@ -483,6 +486,7 @@ async fn main() {
         cooking,
         cook_progress,
         dishes,
+        meals,
         hearts,
         jam,
         dusk,

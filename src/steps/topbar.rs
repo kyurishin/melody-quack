@@ -89,6 +89,44 @@ pub(crate) fn toggle_widget(w: u8) {
     HIDE.with(|h| h.set(h.get() ^ (1 << w)));
 }
 
+pub(crate) fn widget_icon(w: u8, x: f32, y: f32) {
+    let (cx, cy) = (x + 5.5, y + 5.5);
+    match w {
+        RADIO => {
+            ui_round(x, y, 11.0, 11.0, 3.0, skin::PINK);
+            ui_tri(vec2(x + 3.8, y + 2.8), vec2(x + 8.4, cy), vec2(x + 3.8, y + 8.2), skin::INK);
+        }
+        COUNTS => {
+            ui_round(x, y + 3.0, 3.4, 5.0, 1.0, Color::from_rgba(255, 128, 74, 255));
+            ui_round(x + 3.8, y + 3.0, 3.4, 5.0, 1.0, Color::from_rgba(200, 200, 214, 255));
+            ui_round(x + 7.6, y + 3.0, 3.4, 5.0, 1.0, Color::from_rgba(120, 200, 240, 255));
+        }
+        RECIPES => {
+            ui_circle(cx, cy + 0.5, 3.6, Color::from_rgba(255, 150, 180, 255));
+            ui_round(x + 1.0, cy - 1.0, 9.0, 1.6, 0.8, Color::from_rgba(255, 200, 220, 255));
+        }
+        ACORNS => ui_acorn(cx, cy, 1.0),
+        CLOCK => {
+            for k in 0..8 {
+                let a = k as f32 * std::f32::consts::PI / 4.0;
+                ui_line(vec2(cx + a.cos() * 3.4, cy + a.sin() * 3.4), vec2(cx + a.cos() * 5.0, cy + a.sin() * 5.0), 0.5, skin::GOLD);
+            }
+            ui_circle(cx, cy, 2.8, skin::GOLD);
+        }
+        FIRE => {
+            let flame = Color::from_rgba(255, 140, 50, 255);
+            ui_tri(vec2(cx, y + 1.0), vec2(cx + 3.5, y + 9.0), vec2(cx - 3.5, y + 9.0), flame);
+            ui_circle(cx, y + 7.5, 3.2, flame);
+            ui_circle(cx, y + 8.1, 1.6, Color::from_rgba(255, 220, 110, 255));
+        }
+        MAIL => {
+            ui_round(x, y + 2.0, 11.0, 8.0, 1.2, Color::from_rgba(255, 240, 220, 255));
+            ui_tri(vec2(x + 0.4, y + 2.4), vec2(x + 10.6, y + 2.4), vec2(cx, y + 7.0), Color::from_rgba(255, 196, 120, 255));
+        }
+        _ => steps::notify::bell(x, y, skin::GOLD),
+    }
+}
+
 pub(crate) fn layout(g: &Game) -> Bar {
     let lw = low_w();
     let all = [Tab::Music, Tab::Chat, Tab::Items, Tab::Quests, Tab::Help, Tab::Settings];

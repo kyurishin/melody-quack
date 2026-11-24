@@ -69,6 +69,7 @@ pub(crate) struct Game {
     pub(crate) cooking: bool,
     pub(crate) cook_progress: u32,
     pub(crate) dishes: Vec<usize>,
+    pub(crate) meals: Vec<u32>,
     pub(crate) hearts: Vec<(Vec3, f32)>,
     pub(crate) jam: bool,
     pub(crate) dusk: f32,

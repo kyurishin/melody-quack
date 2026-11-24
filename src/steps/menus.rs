@@ -141,6 +141,10 @@ pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
     }
 }
 
+pub(crate) fn bag_food(g: &Game) -> Vec<usize> {
+    (0..DISHES.len()).filter(|d| g.meals.get(*d).copied().unwrap_or(0) > 0).collect()
+}
+
 pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
     fr.bag_keys = [is_key_pressed(KeyCode::M), g.two_player && is_key_pressed(KeyCode::Backspace)];
     for who in 0..2 {
@@ -164,7 +168,9 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
         }
     }
     g.bag_clear_armed = (g.bag_clear_armed - fr.dt).max(0.0);
-    fr.bag_busy = g.show_inventory && g.inside && !g.shop_open && !steps::visits::visiting(g);
+    let food = bag_food(g);
+    let furn = if g.inside { g.stored.len() } else { 0 };
+    fr.bag_busy = g.show_inventory && (g.inside || !food.is_empty()) && !g.shop_open && !steps::visits::visiting(g);
     if fr.bag_busy && g.holding.is_none() {
         let owner = g.bag_owner;
         let (up, down, act, clear) = if owner == 0 {
@@ -175,10 +181,14 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
         if up {
             g.bag_sel = g.bag_sel.saturating_sub(1);
         }
-        if down && g.bag_sel + 1 < g.stored.len() {
+        if down && g.bag_sel + 1 < furn + food.len() {
             g.bag_sel += 1;
         }
-        if act && g.bag_sel < g.stored.len() {
+        if act && g.bag_sel >= furn && g.bag_sel < furn + food.len() {
+            crate::flavour::eat(g, food[g.bag_sel - furn]);
+            let left = furn + bag_food(g).len();
+            g.bag_sel = g.bag_sel.min(left.saturating_sub(1));
+        } else if act && g.inside && g.bag_sel < g.stored.len() {
             let item = g.stored.remove(g.bag_sel);
             let ahead = ahead_local(&g.players[owner]);
             g.holding = Some(home::Piece { item, x: ahead.0, z: ahead.1, rot: 0, state: 0, day: 0 });
@@ -187,7 +197,7 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
             g.bag_sel = g.bag_sel.min(g.stored.len().saturating_sub(1));
             g.toasts.push((format!("took the {} out - {} to place it", item.name(), if owner == 0 { "E" } else { "O" }), 2.5));
         }
-        if clear && !g.house.pieces.is_empty() {
+        if clear && g.inside && !g.house.pieces.is_empty() {
             if g.bag_clear_armed > 0.0 {
                 let n = g.house.pieces.len();
                 for piece in g.house.pieces.drain(..) {

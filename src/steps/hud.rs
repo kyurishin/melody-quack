@@ -397,7 +397,11 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
         let w = 210f32.min(low_w() - 16.0);
         let shown_items = 5usize;
         let furn_rows = if g.stored.is_empty() { 1 } else { g.stored.len().min(shown_items) };
-        let h = 30.0 + lines.len() as f32 * 11.0 + 16.0 + g.quests.list.len() as f32 * 11.0 + 16.0 + furn_rows as f32 * 11.0 + 18.0;
+        let food = steps::menus::bag_food(g);
+        let food_rows = food.len().clamp(1, 4);
+        let show_furn = g.inside || food.is_empty();
+        let furn_h = if show_furn { 16.0 + furn_rows as f32 * 11.0 } else { 0.0 };
+        let h = 30.0 + lines.len() as f32 * 11.0 + 16.0 + g.quests.list.len() as f32 * 11.0 + furn_h + 16.0 + food_rows as f32 * 11.0 + 18.0;
         let x = 8.0;
         let y = if steps::topbar::shown(g) { 42.0 + steps::topbar::drop(g) } else if fr.touch_ui && fr.portrait { 42.0 } else { 22.0 };
         let h = h.min(low_h() - y - 4.0);
@@ -434,6 +438,7 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
             ui_text(&reward, x + w - 8.0 - ui_measure(&reward, 9.0), ty, 9.0, ACORN_COLOR);
             ty += 11.0;
         }
+        if show_furn {
         ty += 5.0;
         ui_text_as(ui::Face::Label, &format!("furniture in the bag ({})", g.stored.len()), x + 8.0, ty, 10.0, Color::from_rgba(255, 190, 210, 255));
         ty += 11.0;
@@ -449,8 +454,47 @@ pub(crate) fn draw_bag(g: &mut Game, fr: &mut Frame) {
                 ty += 11.0;
             }
         }
-        let bag_hint = if !g.inside {
+        }
+        ty += 5.0;
+        ui_text_as(ui::Face::Label, &format!("food ({})", food.iter().map(|d| g.meals[*d]).sum::<u32>()), x + 8.0, ty, 10.0, Color::from_rgba(255, 214, 110, 255));
+        let head_w = ui_measure_as(ui::Face::Label, &format!("food ({})", food.iter().map(|d| g.meals[*d]).sum::<u32>()), 10.0);
+        ui_text_fit("eat one: your voice changes for 30s", x + 14.0 + head_w, ty, 7.0, w - 22.0 - head_w, ui::skin::MUTED);
+        ty += 11.0;
+        let furn = if g.inside { g.stored.len() } else { 0 };
+        if food.is_empty() {
+            ui_text("cook by the fire and your dishes land here", x + 8.0, ty, 9.0, Color::new(1.0, 1.0, 1.0, 0.5));
+        } else {
+            let sel = g.bag_sel.checked_sub(furn);
+            let first = sel.unwrap_or(0).saturating_sub(1).min(food.len().saturating_sub(4));
+            let mut eat: Option<usize> = None;
+            for (r, d) in food.iter().enumerate().skip(first).take(4) {
+                let over = steps::venues::hit(fr, x + 5.0, ty - 8.0, w - 10.0, 10.0);
+                if sel == Some(r) || over {
+                    ui_rect(x + 5.0, ty - 8.0, w - 10.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.14));
+                }
+                ui_text(DISHES[*d], x + 10.0, ty, 9.0, WHITE);
+                let n = format!("x{}  eat", g.meals[*d]);
+                ui_text(&n, x + w - 10.0 - ui_measure(&n, 9.0), ty, 9.0, Color::from_rgba(255, 214, 110, 255));
+                if over && fr.click {
+                    eat = Some(*d);
+                    g.bag_sel = furn + r;
+                }
+                ty += 11.0;
+            }
+            if let Some(d) = eat {
+                fr.click = false;
+                crate::flavour::eat(g, d);
+            }
+        }
+        let on_food = g.bag_sel >= furn && !food.is_empty();
+        let bag_hint = if fr.touch_ui && !food.is_empty() {
+            "tap a dish to eat it - bag to close"
+        } else if !g.inside && !food.is_empty() {
+            "W/S choose  E eat  M or esc: close"
+        } else if !g.inside {
             if fr.touch_ui { "bag to close" } else { "M or esc: close" }
+        } else if on_food && g.bag_owner == 0 {
+            "W/S choose  E eat  X pack all  esc: close"
         } else if g.bag_clear_armed > 0.0 {
             "X again: pack ALL furniture away"
         } else if g.bag_owner == 0 {

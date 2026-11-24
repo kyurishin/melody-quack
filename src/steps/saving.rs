@@ -22,6 +22,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             pile: g.camp.pile,
             ring: g.camp.ring,
             dishes: g.dishes.clone(),
+            meals: g.meals.clone(),
             cook_progress: g.cook_progress,
             characters: [g.players[0].character, g.players[1].character],
             spots: if g.inside { [DOOR_OUT + vec2(0.0, 0.25), DOOR_OUT + vec2(1.0, 0.4)] } else { [g.players[0].pos, g.players[1].pos] },

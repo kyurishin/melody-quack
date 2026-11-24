@@ -94,12 +94,15 @@ fn pc_solids() -> Vec<(f32, f32, f32, f32)> {
     v
 }
 
+const CH_BAR: (f32, f32) = (9.3, 8.3);
+
 fn chapel_solids() -> Vec<(f32, f32, f32, f32)> {
     let mut v: Vec<(f32, f32, f32, f32)> = PILLARS.iter().map(|(x, z)| (x - 0.25, z - 0.25, x + 0.25, z + 0.25)).collect();
     v.push((BOOTH.0 - 1.3, 0.0, BOOTH.0 + 1.3, BOOTH.1 + 0.35));
     v.push((2.7, 0.6, 3.5, 1.5));
     v.push((7.5, 0.6, 8.3, 1.5));
     v.push(steps::code_desk::solid());
+    v.push((8.15, 6.75, 10.55, 7.85));
     v
 }
 
@@ -273,6 +276,7 @@ fn online(g: &mut Game, dt: f32) {
     steps::visits::tick(g, dt);
     steps::chat::tick(g);
     steps::notify::tick(g);
+    crate::flavour::tick(g, get_frame_time());
     let st = net::state();
     g.venue.net_retry -= dt;
     if (st == 0 || st == -1) && g.venue.net_retry <= 0.0 {
@@ -683,6 +687,8 @@ fn online(g: &mut Game, dt: f32) {
                             p.emote = Some((e, 3.0));
                         } else if (TREAT_EMO..TREAT_EMO + MENU.len()).contains(&e) {
                             p.treat = Some((e - TREAT_EMO, TREAT_TIME));
+                        } else if (crate::flavour::EAT_EMO..crate::flavour::EAT_EMO + DISHES.len()).contains(&e) {
+                            p.treat = Some((crate::flavour::DRINKS + e - crate::flavour::EAT_EMO, TREAT_TIME));
                         }
                     }
                 }
@@ -739,11 +745,16 @@ fn online(g: &mut Game, dt: f32) {
             }
             "sing" if parts.len() >= 4 => {
                 if let (Ok(id), Ok(slot), Ok(note)) = (parts[1].parse::<u32>(), parts[2].parse::<usize>(), parts[3].parse::<usize>()) {
+                    let mut heard = None;
                     if let Some(p) = g.venue.peers.iter_mut().find(|p| p.id == id && p.slot == slot.min(1)) {
                         p.sing = 0.25;
                         if note < 6 && g.venue.at == Venue::Chapel {
-                            g.audio.play_ch(1, &g.voices[p.character][note], 0.8);
+                            heard = Some((p.character, p.treat));
                         }
+                    }
+                    if let Some((ch, treat)) = heard {
+                        let sound = crate::flavour::peer_voice(g, ch, note, treat);
+                        g.audio.play_ch(1, &sound, 0.8);
                     }
                 }
             }
@@ -2231,8 +2242,8 @@ fn walk_room(g: &mut Game, dt: f32, origin: Vec2, size: (f32, f32), solids: &[(f
         let keys = if who == 0 { NOTE_KEYS } else { P2_NOTE_KEYS };
         for i in 0..6 {
             if is_key_pressed(keys[i]) {
-                let voice = g.players[who].character;
-                g.audio.play_ch(who, &g.voices[voice][i], 1.0);
+                let sound = crate::flavour::voice(g, who, i);
+                g.audio.play_ch(who, &sound, 1.0);
                 g.players[who].voice_timer = 0.25;
                 g.players[who].key_glow[i] = 1.0;
                 if g.venue.joined {
@@ -3634,12 +3645,6 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         to_club(g);
     }
     let lounge = g.venue.lounge;
-    if let Some((_, left)) = g.venue.treat.as_mut() {
-        *left -= dt;
-    }
-    if g.venue.treat.map(|t| t.1 <= 0.0).unwrap_or(false) {
-        g.venue.treat = None;
-    }
     if lounge {
         let moving = [KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D, KeyCode::Up, KeyCode::Down, KeyCode::Left, KeyCode::Right].iter().any(|k| is_key_down(*k));
         if g.players[0].seated && moving && !busy {
@@ -3680,6 +3685,13 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let at_code = !lounge && !at_decks && steps::code_desk::near(local);
     if !fresh && !busy && at_code && is_key_pressed(KeyCode::E) {
         steps::code_desk::open(g);
+        return;
+    }
+    let at_club_bar = !lounge && !at_code && local.distance(vec2(CH_BAR.0, CH_BAR.1)) < 0.9;
+    if !fresh && !busy && at_club_bar && is_key_pressed(KeyCode::E) {
+        g.venue.overlay = Overlay::Bar;
+        g.venue.opened_at = get_time();
+        while get_char_pressed().is_some() {}
         return;
     }
     let at_bar = lounge && (g.players[0].pos - LG_ORIGIN).distance(LG_BAR) < 1.1;
@@ -3738,6 +3750,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
     }
     steps::code_desk::draw(&mut b, o, time, g.venue.code.mine.is_some() || steps::code_desk::room_live(g));
+    draw_club_bar(&mut b, o, time, pulse);
     let (conc, conc_dark, conc_deep) = match look {
         1 => (Color::from_rgba(122, 90, 60, 255), Color::from_rgba(102, 74, 50, 255), Color::from_rgba(46, 84, 50, 255)),
         2 => (Color::from_rgba(196, 190, 180, 255), Color::from_rgba(170, 164, 156, 255), Color::from_rgba(96, 100, 116, 255)),
@@ -3946,6 +3959,8 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         "E: the live code computer   enter: chat"
     } else if at_bar {
         "E: the goose's bar   enter: chat"
+    } else if at_club_bar {
+        "E: the owl's bar   enter: chat"
     } else if at_seat {
         "E: sit down   enter: chat"
     } else if lounge && g.players[0].seated {
@@ -4372,7 +4387,8 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_rect(x + 3.0, y + 3.0, w, h, ink());
     ui_rect(x, y, w, h, Color::from_rgba(52, 30, 30, 255));
     ui_rect(x, y, w, 3.0, Color::from_rgba(255, 154, 60, 255));
-    ui_text("the goose's bar", x + 10.0, y + 17.0, 12.0, cream());
+    let keeper = if g.venue.lounge { "goose" } else { "owl" };
+    ui_text(&format!("the {keeper}'s bar"), x + 10.0, y + 17.0, 12.0, cream());
     let purse = format!("{} acorns", g.inv.acorns);
     ui_text(&purse, x + w - 10.0 - ui_measure(&purse, 9.0), y + 16.0, 9.0, Color::from_rgba(255, 214, 110, 255));
     let n = MENU.len();
@@ -4425,17 +4441,16 @@ fn bar_panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             g.inv.acorns -= price;
             g.save_clock = 99.0;
             g.audio.play_ch(3, &g.bells[4], 0.4);
+            let sound = crate::flavour::drink(i).0;
             let line = match i {
-                0 | 1 | 2 => format!("the goose slides you a {name}. honk. (-{price} acorns)"),
-                3 => format!("two scoops of vanilla ice cream. bliss. (-{price} acorns)"),
-                _ => format!("a warm franzbroetchen, straight from hamburg. (-{price} acorns)"),
+                0 | 1 | 2 if g.venue.lounge => format!("the goose slides you a {name}. honk. your voice goes {sound}. (-{price} acorns)"),
+                0 | 1 | 2 => format!("the owl hoots and hands you a {name}. your voice goes {sound}. (-{price} acorns)"),
+                3 => format!("two scoops of vanilla ice cream. bliss. your voice goes {sound}. (-{price} acorns)"),
+                _ => format!("a warm franzbroetchen, straight from hamburg. your voice goes {sound}. (-{price} acorns)"),
             };
             g.venue.bar_note = (line.clone(), get_time());
             g.toasts.push((line, 3.5));
-            g.venue.treat = Some((i, TREAT_TIME));
-            if g.venue.joined {
-                net::send(&format!("emo 0 {}", TREAT_EMO + i));
-            }
+            crate::flavour::start(g, i);
             let at = g.players[0].pos;
             for k in 0..4 {
                 g.hearts.push((vec3(at.x + (k as f32 * 0.7).sin() * 0.2, 1.1 + k as f32 * 0.12, at.y), 1.4));
@@ -4551,11 +4566,34 @@ fn free_seat(g: &Game) -> Option<(f32, f32, f32, f32)> {
     LG_SEATS.iter().copied().filter(|s| !taken(s) && front(s) < 0.9).min_by(|a, b| front(a).total_cmp(&front(b)))
 }
 
+fn draw_club_bar(b: &mut Batch, o: Vec3, time: f32, pulse: f32) {
+    let wood = Color::from_rgba(70, 44, 30, 255);
+    let top = Color::from_rgba(120, 78, 52, 255);
+    b.cube(o + vec3(9.35, 0.45, 7.6), vec3(2.2, 0.9, 0.4), wood);
+    b.cube(o + vec3(9.35, 0.93, 7.6), vec3(2.32, 0.06, 0.52), top);
+    let neon = Color::new(1.0, 0.35 + 0.25 * pulse, 0.75, 0.9);
+    let was = b.unlit;
+    b.unlit = true;
+    b.cube(o + vec3(9.35, 0.75, 7.82), vec3(2.0, 0.04, 0.02), neon);
+    b.unlit = was;
+    let glass = [Color::from_rgba(120, 200, 240, 230), Color::from_rgba(150, 220, 110, 230), Color::from_rgba(240, 170, 80, 230)];
+    for k in 0..3 {
+        b.cube(o + vec3(8.6 + k as f32 * 0.35, 1.04, 7.6), vec3(0.08, 0.16, 0.08), glass[k]);
+    }
+    for k in 0..3 {
+        b.cube(o + vec3(8.6 + k as f32 * 0.75, 0.32, 8.15), vec3(0.28, 0.05, 0.28), Color::from_rgba(150, 40, 50, 255));
+        b.cube(o + vec3(8.6 + k as f32 * 0.75, 0.15, 8.15), vec3(0.05, 0.3, 0.05), Color::from_rgba(40, 40, 46, 255));
+    }
+    b.cube(o + vec3(9.85, 0.22, 7.1), vec3(0.7, 0.44, 0.5), Color::from_rgba(50, 32, 24, 255));
+    critters::draw_owl(b, o + vec3(9.85, 0.44, 7.1), 0.0, time, false, false, 0.0, None);
+}
+
 fn draw_treat(b: &mut Batch, feet: Vec3, kind: usize, left: f32, time: f32) {
     let fade = (left / 3.0).min(1.0);
     let was = b.unlit;
     b.unlit = true;
     let seed = feet.x * 3.7 + feet.z * 1.3;
+    let kind = if kind < crate::flavour::DRINKS { kind } else { (kind - crate::flavour::DRINKS) % crate::flavour::DRINKS };
     match kind {
         0 => {
             for k in 0..12 {

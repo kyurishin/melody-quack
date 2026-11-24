@@ -18,6 +18,7 @@ pub(crate) struct Progress {
     pub(crate) pile: u32,
     pub(crate) ring: u8,
     pub(crate) dishes: Vec<usize>,
+    pub(crate) meals: Vec<u32>,
     pub(crate) cook_progress: u32,
     pub(crate) characters: [usize; 2],
     pub(crate) spots: [Vec2; 2],
@@ -73,6 +74,9 @@ pub(crate) fn encode_progress(p: &Progress) -> String {
         out += &format!("ring {}\n", p.ring);
     }
     out += &format!("dishes {}\n", list(p.dishes.iter().map(|d| d.to_string()).collect()));
+    if p.meals.iter().any(|n| *n > 0) {
+        out += &format!("meals {}\n", p.meals.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(","));
+    }
     out += &format!("cook {}\n", p.cook_progress);
     out += &format!("chars {} {}\n", p.characters[0], p.characters[1]);
     out += &format!("spots {:.2} {:.2} {:.2} {:.2}\n", p.spots[0].x, p.spots[0].y, p.spots[1].x, p.spots[1].y);
@@ -164,6 +168,7 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
         pile: 0,
         ring: 0,
         dishes: Vec::new(),
+        meals: vec![0; DISHES.len()],
         cook_progress: 0,
         characters: [0, 4],
         spots: [vec2(6.5, 16.5), vec2(7.5, 16.5)],
@@ -222,6 +227,11 @@ pub(crate) fn decode_progress(text: &str, characters: usize) -> Option<Progress>
                 p.fuel = nums[0];
                 p.lit = nums[1] > 0.0;
                 p.pile = nums[2] as u32;
+            }
+            "meals" => {
+                for (i, v) in rest.split(',').enumerate().take(DISHES.len()) {
+                    p.meals[i] = v.trim().parse::<u32>().unwrap_or(0).min(99);
+                }
             }
             "dishes" => p.dishes = rest.split(',').filter_map(|v| v.parse().ok()).filter(|d| *d < DISHES.len()).collect(),
             "cook" if nums.len() == 1 => p.cook_progress = (nums[0] as u32).min(COOK_GOAL),

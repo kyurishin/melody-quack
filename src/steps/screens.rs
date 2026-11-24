@@ -456,14 +456,18 @@ pub(crate) fn pause_menu(g: &mut Game, fr: &mut Frame) {
             }
             ry += 24.0;
             ui_text_as(ui::Face::Label, "top bar", cx, ry + 8.0, 9.0, ui::skin::CREAM);
-            ui_text("tap to show or hide", cx + ui_measure_as(ui::Face::Label, "top bar", 9.0) + 6.0, ry + 8.0, 7.0, ui::skin::MUTED);
-            ry += 12.0;
-            let chip_w = ((cw - 4.0) / 2.0).floor();
+            ui_text("show or hide each part", cx + ui_measure_as(ui::Face::Label, "top bar", 9.0) + 6.0, ry + 8.0, 7.0, ui::skin::MUTED);
+            ry += 13.0;
+            let col_w = ((cw - 8.0) / 2.0).floor();
             for (i, name) in steps::topbar::WIDGETS.iter().enumerate() {
-                let (col, row) = (i % 2, i / 2);
+                let (rx, rry) = (cx + (i % 2) as f32 * (col_w + 8.0), ry + (i / 2) as f32 * 17.0);
                 let on = !steps::topbar::hidden(i as u8);
-                let label = format!("{} {}", if on { "on " } else { "off" }, name);
-                if button(fr, &label, cx + col as f32 * (chip_w + 4.0), ry + row as f32 * 15.0, chip_w, 13.0, on) && keys {
+                steps::topbar::widget_icon(i as u8, rx + 1.0, rry + 2.0);
+                ui_text_fit(name, rx + 16.0, rry + 10.0, 8.0, col_w - 44.0, if on { ui::skin::CREAM } else { ui::skin::MUTED });
+                let (tx, ty) = (rx + col_w - 24.0, rry + 1.0);
+                ui_round(tx, ty, 24.0, 12.0, 6.0, if on { ui::skin::PINK } else { Color::new(1.0, 1.0, 1.0, 0.16) });
+                ui_circle(if on { tx + 18.0 } else { tx + 6.0 }, ty + 6.0, 4.6, if on { ui::skin::CREAM } else { ui::skin::MUTED });
+                if hit(fr, rx, rry, col_w, 15.0) && fr.click && keys {
                     steps::topbar::toggle_widget(i as u8);
                     g.save_clock = 99.0;
                     fr.click = false;
