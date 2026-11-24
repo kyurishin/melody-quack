@@ -176,14 +176,8 @@ pub(crate) fn draw_piece(b: &mut Batch, piece: &home::Piece, time: f32, alpha: f
                 bx(b, vec3(0.52, 0.535, 0.0), vec3(0.14, 0.08, 0.14), k(Color::from_rgba(250, 250, 250, 255)));
                 bx(b, vec3(0.0, 0.51, 0.0), vec3(0.28, 0.03, 0.18), k(Color::from_rgba(240, 160, 170, 255)));
             } else {
-                let food = {
-                    let (r, gg, bb) = DISH_COLOURS[(piece.state as usize - 1) % DISH_COLOURS.len()];
-                    Color::from_rgba(r, gg, bb, 255)
-                };
-                bx(b, vec3(0.0, 0.505, 0.0), vec3(0.48, 0.02, 0.34), k(Color::from_rgba(245, 245, 240, 255)));
-                bx(b, vec3(0.0, 0.54, 0.0), vec3(0.28, 0.06, 0.2), k(food));
-                let steam = (time * 1.5).fract();
-                bx(b, vec3((time * 3.0).sin() * 0.03, 0.6 + steam * 0.25, 0.0), vec3(0.05, 0.04, 0.05), k(Color::new(1.0, 1.0, 1.0, 0.6 * (1.0 - steam))));
+                let d = (piece.state as usize - 1) % DISHES.len();
+                draw_dish(b, o + vec3(0.0, 0.51, 0.0), yaw, d, 0.85, time, true);
             }
         }
         Item::RecordPlayer => {
@@ -820,5 +814,175 @@ pub(crate) fn render_shop_preview(target: &RenderTarget, left: f32, top: f32, wi
             }
         }
     }
+    b.flush();
+}
+
+pub(crate) fn recipe_hint(d: usize) -> &'static str {
+    match d {
+        1 => "1 common fish",
+        2 => "2 fish",
+        3 => "1 rare fish",
+        4 => "1 common mushroom",
+        5 => "2 mushrooms",
+        6 => "1 fish and 1 mushroom",
+        7 => "2 mushrooms, one of them rare",
+        8 => "1 uncommon fish",
+        9 => "2 fish, one of them rare",
+        10 => "3 fish",
+        11 => "3 fish, one of them rare",
+        12 => "1 uncommon mushroom",
+        13 => "1 rare mushroom",
+        14 => "3 mushrooms",
+        15 => "3 mushrooms, one of them rare",
+        16 => "1 fish and 1 mushroom, one of them rare",
+        17 => "2 fish and 1 mushroom",
+        18 => "2 fish and 1 mushroom, one of them rare",
+        19 => "1 fish and 2 mushrooms",
+        20 => "1 fish and 2 mushrooms, one of them rare",
+        _ => "any other mix in the pot",
+    }
+}
+
+pub(crate) fn draw_dish(b: &mut Batch, o: Vec3, yaw: f32, d: usize, s: f32, time: f32, known: bool) {
+    let shade = |c: Color| if known { c } else { Color::new(0.12, 0.1, 0.18, 1.0) };
+    let mut bx = |b: &mut Batch, at: Vec3, size: Vec3, c: Color| b.box_at(o, yaw, at * s, size * s, shade(c));
+    let (r, g, bl) = DISH_COLOURS[d % DISH_COLOURS.len()];
+    let food = Color::from_rgba(r, g, bl, 255);
+    let dark = Color::new(food.r * 0.72, food.g * 0.72, food.b * 0.72, 1.0);
+    let plate = Color::from_rgba(245, 245, 240, 255);
+    let rim = Color::from_rgba(214, 214, 226, 255);
+    let bowl = Color::from_rgba(236, 226, 212, 255);
+    let fish = |b: &mut Batch, bx: &mut dyn FnMut(&mut Batch, Vec3, Vec3, Color), x: f32, z: f32, c: Color| {
+        bx(b, vec3(x, 0.09, z), vec3(0.34, 0.08, 0.13), c);
+        bx(b, vec3(x - 0.21, 0.09, z), vec3(0.09, 0.07, 0.16), Color::new(c.r * 0.8, c.g * 0.8, c.b * 0.8, 1.0));
+        bx(b, vec3(x + 0.13, 0.12, z + 0.04), vec3(0.03, 0.03, 0.03), Color::from_rgba(30, 30, 40, 255));
+        for k in 0..3 {
+            bx(b, vec3(x - 0.08 + k as f32 * 0.08, 0.135, z), vec3(0.02, 0.01, 0.12), Color::from_rgba(90, 50, 30, 255));
+        }
+    };
+    let mushroom = |b: &mut Batch, bx: &mut dyn FnMut(&mut Batch, Vec3, Vec3, Color), x: f32, z: f32, c: Color| {
+        bx(b, vec3(x, 0.08, z), vec3(0.05, 0.08, 0.05), Color::from_rgba(240, 230, 210, 255));
+        bx(b, vec3(x, 0.14, z), vec3(0.13, 0.05, 0.13), c);
+    };
+    let plate_at = |b: &mut Batch, bx: &mut dyn FnMut(&mut Batch, Vec3, Vec3, Color), w: f32, d: f32| {
+        bx(b, vec3(0.0, 0.02, 0.0), vec3(w, 0.03, d), plate);
+        bx(b, vec3(0.0, 0.035, 0.0), vec3(w * 0.8, 0.01, d * 0.8), rim);
+    };
+    let bowl_at = |b: &mut Batch, bx: &mut dyn FnMut(&mut Batch, Vec3, Vec3, Color), soup: Color| {
+        bx(b, vec3(0.0, 0.03, 0.0), vec3(0.24, 0.06, 0.24), bowl);
+        bx(b, vec3(0.0, 0.1, 0.0), vec3(0.4, 0.1, 0.4), bowl);
+        bx(b, vec3(0.0, 0.152, 0.0), vec3(0.34, 0.01, 0.34), soup);
+    };
+    match d {
+        0 => {
+            bx(b, vec3(0.0, 0.01, 0.0), vec3(0.32, 0.02, 0.32), plate);
+            bx(b, vec3(0.0, 0.1, 0.0), vec3(0.2, 0.18, 0.2), Color::from_rgba(200, 120, 90, 255));
+            bx(b, vec3(0.0, 0.192, 0.0), vec3(0.16, 0.01, 0.16), food);
+            bx(b, vec3(0.13, 0.11, 0.0), vec3(0.05, 0.1, 0.03), Color::from_rgba(200, 120, 90, 255));
+        }
+        1 | 8 => {
+            plate_at(b, &mut bx, 0.62, 0.36);
+            fish(b, &mut bx, 0.0, 0.0, if d == 8 { Color::from_rgba(150, 90, 60, 255) } else { food });
+            bx(b, vec3(0.2, 0.05, 0.1), vec3(0.08, 0.02, 0.05), Color::from_rgba(250, 230, 90, 255));
+        }
+        4 | 12 => {
+            plate_at(b, &mut bx, 0.5, 0.42);
+            for (k, (x, z)) in [(-0.12, -0.06), (0.1, -0.08), (0.0, 0.09)].iter().enumerate() {
+                mushroom(b, &mut bx, *x, *z, if k % 2 == 0 { food } else { dark });
+            }
+            if d == 12 {
+                bx(b, vec3(0.0, 0.18, 0.0), vec3(0.1, 0.03, 0.06), Color::from_rgba(255, 230, 120, 255));
+            }
+        }
+        6 | 16 => {
+            bx(b, vec3(0.0, 0.1, 0.0), vec3(0.46, 0.18, 0.46), Color::from_rgba(60, 56, 66, 255));
+            bx(b, vec3(0.0, 0.2, 0.0), vec3(0.4, 0.01, 0.4), food);
+            bx(b, vec3(-0.27, 0.16, 0.0), vec3(0.06, 0.04, 0.12), Color::from_rgba(40, 36, 44, 255));
+            bx(b, vec3(0.27, 0.16, 0.0), vec3(0.06, 0.04, 0.12), Color::from_rgba(40, 36, 44, 255));
+            mushroom(b, &mut bx, -0.08, 0.05, dark);
+            bx(b, vec3(0.08, 0.22, -0.05), vec3(0.14, 0.04, 0.06), Color::from_rgba(240, 150, 80, 255));
+        }
+        10 | 11 => {
+            plate_at(b, &mut bx, 0.8, 0.5);
+            fish(b, &mut bx, -0.05, -0.1, food);
+            fish(b, &mut bx, 0.05, 0.1, dark);
+            mushroom(b, &mut bx, 0.28, -0.12, Color::from_rgba(200, 120, 80, 255));
+            if d == 11 {
+                for k in 0..3 {
+                    bx(b, vec3(-0.06 + k as f32 * 0.06, 0.2 + (k % 2) as f32 * 0.03, -0.1), vec3(0.04, 0.06, 0.04), Color::from_rgba(255, 210, 70, 255));
+                }
+            }
+        }
+        13 => {
+            plate_at(b, &mut bx, 0.44, 0.36);
+            bx(b, vec3(0.0, 0.07, 0.0), vec3(0.3, 0.06, 0.24), Color::from_rgba(226, 170, 100, 255));
+            bx(b, vec3(0.0, 0.105, 0.0), vec3(0.24, 0.01, 0.18), Color::from_rgba(250, 220, 150, 255));
+            for (x, z) in [(-0.06, -0.04), (0.06, 0.04)] {
+                bx(b, vec3(x, 0.12, z), vec3(0.08, 0.03, 0.06), Color::from_rgba(70, 50, 40, 255));
+            }
+        }
+        14 | 15 => {
+            bowl_at(b, &mut bx, Color::from_rgba(240, 232, 210, 255));
+            for k in 0..9 {
+                let a = k as f32 * 2.3;
+                bx(b, vec3(a.cos() * 0.1, 0.165, a.sin() * 0.1), vec3(0.03, 0.02, 0.02), if k % 3 == 0 { dark } else { Color::from_rgba(250, 246, 230, 255) });
+            }
+            if d == 15 {
+                bx(b, vec3(0.0, 0.18, 0.0), vec3(0.08, 0.03, 0.08), Color::from_rgba(60, 44, 36, 255));
+            }
+        }
+        17 | 18 => {
+            plate_at(b, &mut bx, 0.5, 0.5);
+            bx(b, vec3(0.0, 0.09, 0.0), vec3(0.36, 0.1, 0.36), Color::from_rgba(214, 150, 88, 255));
+            bx(b, vec3(0.0, 0.145, 0.0), vec3(0.32, 0.02, 0.32), Color::from_rgba(236, 184, 110, 255));
+            for k in 0..3 {
+                bx(b, vec3(-0.1 + k as f32 * 0.1, 0.16, 0.0), vec3(0.03, 0.01, 0.26), Color::from_rgba(250, 220, 160, 255));
+            }
+        }
+        _ => {
+            bowl_at(b, &mut bx, food);
+            let bits = [dark, Color::from_rgba(240, 150, 80, 255), Color::from_rgba(120, 170, 90, 255)];
+            for k in 0..5 {
+                let a = k as f32 * 1.7 + d as f32;
+                bx(b, vec3(a.cos() * 0.09, 0.165, a.sin() * 0.09), vec3(0.05, 0.03, 0.05), bits[k % 3]);
+            }
+        }
+    }
+    let golden = matches!(d, 3 | 7 | 9 | 11 | 15 | 16 | 18);
+    let steam_c = if golden { Color::from_rgba(255, 220, 110, 255) } else { Color::new(1.0, 1.0, 1.0, 0.6) };
+    if known {
+        for k in 0..if golden { 4 } else { 2 } {
+            let t = (time * 0.8 + k as f32 * 0.37).fract();
+            let x = (time * 2.0 + k as f32 * 1.9).sin() * 0.06;
+            b.box_at(o, yaw, vec3(x, 0.26 + t * 0.3, 0.0) * s, vec3(0.04, 0.04, 0.04) * s, Color::new(steam_c.r, steam_c.g, steam_c.b, steam_c.a * (1.0 - t)));
+        }
+    }
+}
+
+pub(crate) fn render_dish_preview(target: &RenderTarget, d: usize, known: bool, time: f32) {
+    let (w, h) = (target.texture.width(), target.texture.height());
+    set_camera(&Camera2D {
+        render_target: Some(target.clone()),
+        zoom: vec2(2.0 / w, -2.0 / h),
+        target: vec2(w / 2.0, h / 2.0),
+        ..Default::default()
+    });
+    clear_background(Color::from_rgba(28, 24, 42, 255));
+    let center = vec3(0.0, 0.0, 0.0);
+    let eye = center + vec3(0.0, 1.15, 1.6);
+    set_camera(&Camera3D {
+        position: eye,
+        target: center + vec3(0.0, 0.12, 0.0),
+        up: Vec3::Y,
+        fovy: 0.5,
+        aspect: Some(w / h),
+        render_target: Some(target.clone()),
+        ..Default::default()
+    });
+    let light = Light { dusk: 0.35, fire: center + vec3(0.8, 1.6, 0.9), fire_strength: 0.8, tint: vec3(1.0, 0.7, 0.4), lamps: Vec::new() };
+    let mut b = Batch::new(eye, light);
+    b.cube(center + vec3(0.0, -0.03, 0.0), vec3(3.0, 0.06, 1.4), Color::from_rgba(120, 78, 52, 255));
+    b.cube(center + vec3(0.0, -0.005, 0.0), vec3(1.2, 0.01, 0.8), Color::from_rgba(220, 90, 110, 255));
+    draw_dish(&mut b, center, time * 0.6, d, 1.25, time, known);
     b.flush();
 }

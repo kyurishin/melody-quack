@@ -373,22 +373,29 @@ pub(crate) fn indoors(g: &mut Game, fr: &mut Frame) {
                             g.page_turn = 0.0;
                         }
                         home::Item::Table => {
-                            let piece = &mut g.house.pieces[i];
-                            let mut known: Vec<usize> = g.dishes.clone();
-                            known.sort();
-                            if known.is_empty() {
-                                g.toasts.push(("nothing to serve yet - cook by the fire first".to_string(), 2.5));
+                            let current = g.house.pieces[i].state as usize;
+                            if current > 0 {
+                                let d = (current - 1) % DISHES.len();
+                                g.house.pieces[i].state = 0;
+                                if let Some(m) = g.meals.get_mut(d) {
+                                    *m += 1;
+                                }
+                                crate::flavour::eat(g, d);
+                                for k in 0..3 {
+                                    g.hearts.push((vec3(g.players[1 - who].pos.x + k as f32 * 0.15 - 0.15, 1.0 + k as f32 * 0.12, g.players[1 - who].pos.y), 1.4));
+                                }
                             } else {
-                                let current = piece.state as usize;
-                                let next = known.iter().find(|d| **d + 1 > current).map(|d| *d + 1).unwrap_or(0);
-                                piece.state = next as u8;
-                                g.audio.play_ch(3, &g.plink, 0.4);
-                                if next == 0 {
-                                    g.toasts.push(("you clear the table".to_string(), 1.5));
-                                } else {
-                                    g.toasts.push((format!("you serve {} - a friend comes to eat", DISHES[next - 1]), 2.5));
-                                    for k in 0..3 {
-                                        g.hearts.push((vec3(g.players[1 - who].pos.x + k as f32 * 0.15 - 0.15, 1.0 + k as f32 * 0.12, g.players[1 - who].pos.y), 1.4));
+                                let food = steps::menus::bag_food(g);
+                                let last = g.venue.last_served;
+                                match food.iter().find(|d| Some(**d) > last).or(food.first()).copied() {
+                                    None => g.toasts.push(("nothing to serve - cook by the fire, and your dishes go in the bag".to_string(), 2.5)),
+                                    Some(d) => {
+                                        g.meals[d] -= 1;
+                                        g.house.pieces[i].state = (d + 1) as u8;
+                                        g.venue.last_served = Some(d);
+                                        g.audio.play_ch(3, &g.plink, 0.4);
+                                        g.toasts.push((format!("you serve the {} - E again to eat it", DISHES[d]), 2.5));
+                                        g.save_clock = 99.0;
                                     }
                                 }
                             }

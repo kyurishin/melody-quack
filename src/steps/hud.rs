@@ -270,7 +270,7 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
                     }
                 }
                 home::Item::Bookshelf => "E: read a book - X: move it".to_string(),
-                home::Item::Table => "E: serve a dish - X: move it".to_string(),
+                home::Item::Table => if g.house.pieces[i].state > 0 { "E: eat it - X: move it".to_string() } else { "E: serve a dish from your bag - X: move it".to_string() },
                 home::Item::SteelPillar => "E: knock on it - X: move it".to_string(),
                 home::Item::MirrorBall => format!("E: mirror ball {} - X: move it", if g.house.pieces[i].state == 0 { "off" } else { "on" }),
                 home::Item::Tv => format!("E: next channel ({}) - X: move it", if g.house.pieces[i].state == 0 { "off" } else { TV_CHANNELS[g.house.pieces[i].state as usize - 1] }),

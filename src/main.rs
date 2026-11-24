@@ -180,6 +180,7 @@ async fn main() {
     let view_h = low_h() as u32;
     let full_view = make_view(view_w, view_h);
     let catalogue_view = make_view(400, 150);
+    let recipe_view = make_view(400, 150);
     let pick_view = make_view(300, 130);
 
     let mut world = World::new();
@@ -446,6 +447,7 @@ async fn main() {
         view_h,
         full_view,
         catalogue_view,
+        recipe_view,
         pick_view,
         world,
         particles,

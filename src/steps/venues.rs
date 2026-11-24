@@ -2158,6 +2158,7 @@ pub(crate) fn frame(g: &mut Game, fr: &mut Frame) -> bool {
         Overlay::Notes => steps::notify::panel(g, fr, fresh),
         Overlay::Quests => steps::quests_panel::panel(g, fr, fresh),
         Overlay::Code => steps::code_desk::panel(g, fr, fresh),
+        Overlay::Recipes => steps::recipes::panel(g, fr, fresh),
         Overlay::None => {}
     }
     true

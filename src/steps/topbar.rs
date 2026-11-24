@@ -71,6 +71,7 @@ pub(crate) const BELL: u8 = 7;
 
 thread_local! {
     static HIDE: std::cell::Cell<u16> = const { std::cell::Cell::new(0) };
+    static RECIPE_PILL: std::cell::Cell<(f32, f32, f32)> = const { std::cell::Cell::new((0.0, 0.0, 0.0)) };
 }
 
 pub(crate) fn hidden(w: u8) -> bool {
@@ -203,6 +204,12 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
             g.mix_drag = None;
             g.save_clock = 99.0;
         }
+    }
+    let (rx, ry, rw) = RECIPE_PILL.with(|r| r.get());
+    if fr.click && !hidden(RECIPES) && rw > 0.0 && fr.ux > rx && fr.ux < rx + rw && fr.uy > ry && fr.uy < ry + 14.0 && g.venue.overlay == venues::Overlay::None {
+        steps::recipes::open(g);
+        fr.click = false;
+        return true;
     }
     if !fr.click || fr.uy < Y || fr.uy > Y + H {
         return false;
@@ -428,7 +435,9 @@ fn stats(g: &Game, fr: &mut Frame) {
     if !hidden(RECIPES) {
         x -= dish_w;
         let dx = x;
-        ui_round_frame(dx, y, dish_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
+        RECIPE_PILL.with(|r| r.set((dx, y, dish_w)));
+        let over = fr.ux > dx && fr.ux < dx + dish_w && fr.uy > y && fr.uy < y + 14.0;
+        ui_round_frame(dx, y, dish_w, 14.0, 5.0, if over { Color::new(0.32, 0.25, 0.52, 1.0) } else { skin::PANEL }, skin::EDGE);
         ui_circle(dx + 8.5, y + 8.0, 3.6, Color::from_rgba(255, 150, 180, 255));
         ui_round(dx + 4.0, y + 6.5, 9.0, 1.6, 0.8, Color::from_rgba(255, 200, 220, 255));
         ui_text_as(Face::Data, &dishes[0].1, dx + 15.0, y + 10.5, 9.0, skin::CREAM);

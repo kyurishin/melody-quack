@@ -159,6 +159,8 @@ Then 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, siz
 
 ![The pot: picking what to cook](web/shots/pot.webp)
 
+**The recipe book:** click the recipes count in the top bar to flip through all 21 dishes in 3D, with how to cook each one and what it does to your voice. Dishes you haven't cooked yet show as a dark silhouette.
+
 **Food changes your voice.** Every dish you cook lands in your bag (M). Eat one from the bag (W/S and E, or tap it) and your singing changes for 30 seconds: grilled fish gives you a deeper voice, golden lakeside pie goes chipmunk-high, truffle risotto sounds like an old game console, moonlit broth turns ghostly, and so on: each of the 21 dishes has its own sound. Drinks from the bars change it too: cola is fizzy and crunchy, club-mate fast and buzzy, sparkling water bright and airy, vanilla ice cream soft and muffled, a franzbroetchen warm with an echo. In the club, everyone hears your changed voice and sees the treat's sparkle around you.
 
 ### Your home and acorns
@@ -175,7 +177,7 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 - **bed**: sleep (the game saves); your friend hops in on the other side
 - **sofa**, **concrete bench**: sit
 - **plant**: water it once a day; it grows, blooms, and withers if forgotten
-- **table**: serve a dish you cooked
+- **table**: serve a dish from your bag (E), then E again to eat it
 - **bookshelf**: nine books (experience design, software development, electronic music, AI, UI/UX design, cook & quack, computer science, learning rust, learning german), ten short pages each, except two 30-page books: learning german, a course from first words (A1) to fluency (C1), and ui/ux design, from its history to principles, research, visual design and accessibility. A/D choose and turn pages, E opens, Esc goes back
 - **piano**, **drum kit**: sit and play with 1-6
 - **record player**: plays your friend's tunes or a diary jam

@@ -29,6 +29,7 @@ pub(crate) struct Game {
     pub(crate) view_h: u32,
     pub(crate) full_view: RenderTarget,
     pub(crate) catalogue_view: RenderTarget,
+    pub(crate) recipe_view: RenderTarget,
     pub(crate) pick_view: RenderTarget,
     pub(crate) world: World,
     pub(crate) particles: Vec<Particle>,

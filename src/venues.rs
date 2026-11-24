@@ -55,6 +55,7 @@ pub(crate) enum Overlay {
     Notes,
     Quests,
     Code,
+    Recipes,
 }
 
 pub(crate) const SOUNDS: [&str; 3] = ["acid techno", "gothic techno", "hard trance"];
@@ -159,6 +160,8 @@ pub(crate) struct VenueState {
     pub(crate) dj_page: bool,
     pub(crate) admin_tab: u8,
     pub(crate) quest_tab: usize,
+    pub(crate) recipe_sel: usize,
+    pub(crate) last_served: Option<usize>,
     pub(crate) settings_tab: usize,
     pub(crate) news_draft: String,
     pub(crate) admin_name: String,

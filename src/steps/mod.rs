@@ -24,6 +24,7 @@ pub(crate) mod visits;
 pub(crate) mod chat;
 pub(crate) mod notify;
 pub(crate) mod quests_panel;
+pub(crate) mod recipes;
 pub(crate) mod code_desk;
 pub(crate) mod popups;
 pub(crate) mod shop;
