@@ -1192,6 +1192,24 @@ fn key_box(g: &mut Game, fr: &mut Frame, fresh: bool, x: f32, y: f32, w: f32) {
     }
 }
 
+fn level_meter(x: f32, y: f32, w: f32, peak: f32) {
+    let segs = 24usize;
+    let gap = 1.5;
+    let sw = (w - 8.0 - gap * (segs as f32 - 1.0)) / segs as f32;
+    ui_round_frame(x, y, w, 11.0, 3.0, Color::new(0.0, 0.0, 0.0, 0.45), ui::skin::EDGE_STRONG);
+    let db = 20.0 * peak.max(1e-5).log10();
+    let lit = (((db + 48.0) / 48.0).clamp(0.0, 1.0) * segs as f32).round() as usize;
+    for k in 0..segs {
+        let f = k as f32 / segs as f32;
+        let on = k < lit;
+        let c = if f > 0.88 { Color::from_rgba(255, 90, 95, 255) } else if f > 0.7 { Color::from_rgba(255, 214, 110, 255) } else { Color::from_rgba(140, 222, 168, 255) };
+        let c = if on { c } else { Color::new(c.r, c.g, c.b, 0.16) };
+        ui_rect(x + 4.0 + k as f32 * (sw + gap), y + 3.0, sw, 5.0, c);
+    }
+    let label = if peak < 0.001 { "silent".to_string() } else { format!("{:.0} dB", db.max(-60.0)) };
+    ui_text(&label, x + w - ui_measure(&label, 7.0), y + 19.0, 7.0, ui::skin::MUTED);
+}
+
 fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     let (w, h) = (270.0f32.min(low_w() - 12.0), 150.0);
     let x = ((low_w() - w) / 2.0).round();
@@ -1237,9 +1255,7 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             if let Some(lv) = net::cast_level() {
                 let name = g.venue.inputs.get(g.venue.cast_input).cloned().unwrap_or_else(|| "your input".to_string());
                 ui_text(&format!("sending: {name}"), x + 10.0, y + 66.0, 8.0, Color::new(1.0, 0.97, 0.88, 0.75));
-                ui_rect(x + 10.0, y + 72.0, 160.0, 6.0, Color::from_rgba(20, 16, 40, 255));
-                let fill = (lv.min(1.0) * 160.0).round();
-                ui_rect(x + 10.0, y + 72.0, fill, 6.0, if lv > 0.95 { Color::from_rgba(255, 90, 95, 255) } else { Color::from_rgba(140, 222, 168, 255) });
+                level_meter(x + 10.0, y + 70.0, w - 20.0, lv);
                 if lv < 0.01 {
                     let tips = if cfg!(target_os = "macos") {
                         ["no sound coming in. in serato: setup > audio,", "turn on serato virtual audio and play a track.", "mac: system settings > privacy > microphone > melody quack."]
@@ -1247,9 +1263,13 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
                         ["no sound coming in. check that your dj software", "plays into this input, and that a track is playing.", ""]
                     };
                     for (i, t) in tips.iter().enumerate() {
-                        ui_text(t, x + 10.0, y + 88.0 + i as f32 * 9.0, 8.0, Color::from_rgba(255, 214, 110, 255));
+                        ui_text(t, x + 10.0, y + 97.0 + i as f32 * 9.0, 8.0, Color::from_rgba(255, 214, 110, 255));
                     }
                 }
+            } else {
+                let note = if net::casting() { "starting your input..." } else { "playing from your stream link: there's no input here to measure" };
+                ui_text_fit(note, x + 10.0, y + 66.0, 8.0, w - 20.0, Color::new(1.0, 0.97, 0.88, 0.75));
+                level_meter(x + 10.0, y + 70.0, w - 20.0, 0.0);
             }
         } else {
             if g.venue.practice {
