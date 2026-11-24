@@ -53,7 +53,7 @@ On a phone, the web version shows a stick on the left, six note buttons and a bi
 | sing / cast | 1 2 3 4 5 6 (notes D E F# A B C) | 7 8 9 0 - = |
 | act: sit, pick up, fish, cook, use furniture | E | O |
 | turn or move furniture indoors | X | U |
-| bag, quests, stored furniture | M | Backspace |
+| your items: furniture, food and what you gathered | M | Backspace |
 | pixel emoji | Z | . |
 | talk to your companion | Enter | |
 | close what's open, or pause | Esc | |
@@ -161,7 +161,7 @@ Then 1-4 (player 2: 7-0) become a kitchen drum kit: kick, pot lid, chopping, siz
 
 **The recipe book:** click the recipes count in the top bar to flip through all 21 dishes in 3D, with how to cook each one and what it does to your voice. Dishes you haven't cooked yet show as a dark silhouette.
 
-**Food changes your voice.** Every dish you cook lands in your bag (M). Eat one from the bag (W/S and E, or tap it) and your singing changes for 30 seconds: grilled fish gives you a deeper voice, golden lakeside pie goes chipmunk-high, truffle risotto sounds like an old game console, moonlit broth turns ghostly, and so on: each of the 21 dishes has its own sound. Drinks from the bars change it too: cola is fizzy and crunchy, club-mate fast and buzzy, sparkling water bright and airy, vanilla ice cream soft and muffled, a franzbroetchen warm with an echo. In the club, everyone hears your changed voice and sees the treat's sparkle around you.
+**Food changes your voice.** Every dish you cook lands in your bag (M). Eat one from the bag (pick it and press E, or tap eat) and your singing changes for 30 seconds: grilled fish gives you a deeper voice, golden lakeside pie goes chipmunk-high, truffle risotto sounds like an old game console, moonlit broth turns ghostly, and so on: each of the 21 dishes has its own sound. Drinks from the bars change it too: cola is fizzy and crunchy, club-mate fast and buzzy, sparkling water bright and airy, vanilla ice cream soft and muffled, a franzbroetchen warm with an echo. In the club, everyone hears your changed voice and sees the treat's sparkle around you.
 
 ### Your home and acorns
 
@@ -188,9 +188,9 @@ Walk to the cottage door to go inside. Earn **acorns** by shaking trees, jamming
 
 ![The bookshelf: nine books with their titles on the spines](web/shots/bookshelf.webp)
 
-**Putting things away:** while carrying a piece, M puts it in your bag. In the bag at home, W/S picks a stored piece, E takes it out, X twice packs everything. Room upgrades store pieces that are in the way.
+**The bag (M):** a grid of everything you carry, each with a little 3D icon and a count, in five sections: all, furniture, music (piano, drums, speakers, the record player, the dj booth...), food and gathered (fish, mushrooms, wood, stone and acorns). WASD or the arrows move round the grid, Tab changes section, and the panel on the right turns the chosen item in 3D with what it does. E uses it: **place** a piece of furniture at home, or **eat** a dish; X is the second button: **store all** (twice) puts every piece of furniture back in the bag, and **serve** puts a dish on an empty table. While carrying a piece, M puts it in your bag. Room upgrades store pieces that are in the way.
 
-**Daily quests:** three a day (fish, mushrooms, cooking, watering, sticks, notes, emojis, stars, dancing), in your bag with their acorn rewards.
+**Daily quests:** three a day (fish, mushrooms, cooking, watering, sticks, notes, emojis, stars, dancing), in the quests panel with their acorn rewards.
 
 ### Friends' homes
 

@@ -161,6 +161,7 @@ pub(crate) struct VenueState {
     pub(crate) admin_tab: u8,
     pub(crate) quest_tab: usize,
     pub(crate) recipe_sel: usize,
+    pub(crate) bag_tab: usize,
     pub(crate) last_served: Option<usize>,
     pub(crate) settings_tab: usize,
     pub(crate) news_draft: String,

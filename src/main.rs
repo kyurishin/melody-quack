@@ -181,6 +181,8 @@ async fn main() {
     let full_view = make_view(view_w, view_h);
     let catalogue_view = make_view(400, 150);
     let recipe_view = make_view(400, 150);
+    let bag_icons = make_view(320, 192);
+    let bag_detail = make_view(180, 128);
     let pick_view = make_view(300, 130);
 
     let mut world = World::new();
@@ -448,6 +450,8 @@ async fn main() {
         full_view,
         catalogue_view,
         recipe_view,
+        bag_icons,
+        bag_detail,
         pick_view,
         world,
         particles,

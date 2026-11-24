@@ -90,6 +90,10 @@ pub(crate) fn toggle_widget(w: u8) {
     HIDE.with(|h| h.set(h.get() ^ (1 << w)));
 }
 
+pub(crate) fn items_icon(x: f32, y: f32, c: Color) {
+    icon(Tab::Items, x, y, c);
+}
+
 pub(crate) fn widget_icon(w: u8, x: f32, y: f32) {
     let (cx, cy) = (x + 5.5, y + 5.5);
     match w {

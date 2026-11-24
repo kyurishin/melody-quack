@@ -986,3 +986,98 @@ pub(crate) fn render_dish_preview(target: &RenderTarget, d: usize, known: bool, 
     draw_dish(&mut b, center, time * 0.6, d, 1.25, time, known);
     b.flush();
 }
+
+fn thing_focus(t: crate::steps::bag::Thing) -> (Vec3, f32) {
+    use crate::steps::bag::Thing;
+    match t {
+        Thing::Furniture(item, _) => {
+            let piece = home::Piece { item, x: 0, z: 0, rot: 0, state: 1, day: 0 };
+            let c = piece.center();
+            let (w, d) = item.size();
+            let tall = matches!(item, home::Item::Lamp | home::Item::Bookshelf | home::Item::SteelPillar | home::Item::Speaker | home::Item::Subwoofer | home::Item::RedLight | home::Item::NeonLight | home::Item::Arcade | home::Item::Plant);
+            if item == home::Item::MirrorBall {
+                return (vec3(home::ORIGIN.x + c.x, home::FLOOR_Y + 1.6, home::ORIGIN.y + c.y), 1.4);
+            }
+            (vec3(home::ORIGIN.x + c.x, home::FLOOR_Y + if tall { 0.75 } else { 0.35 }, home::ORIGIN.y + c.y), 1.3 + 0.75 * (w.max(d) as f32) + if tall { 0.6 } else { 0.0 })
+        }
+        _ => (vec3(0.0, 0.12, 0.0), 1.05),
+    }
+}
+
+fn draw_thing(b: &mut Batch, t: crate::steps::bag::Thing, time: f32) {
+    use crate::steps::bag::Thing;
+    let o = vec3(0.0, 0.0, 0.0);
+    let rarity = |k: usize| [Color::from_rgba(150, 170, 200, 255), Color::from_rgba(120, 200, 140, 255), Color::from_rgba(255, 206, 90, 255)][k.min(2)];
+    match t {
+        Thing::Furniture(item, _) => {
+            let piece = home::Piece { item, x: 0, z: 0, rot: 0, state: 1, day: 0 };
+            draw_piece(b, &piece, time, 1.0, true, 0.4, 0.0);
+        }
+        Thing::Food(d, _) => draw_dish(b, o, 0.5, d, 1.6, time, true),
+        Thing::Fish(k, _) => {
+            let c = rarity(k);
+            let dark = Color::new(c.r * 0.75, c.g * 0.75, c.b * 0.75, 1.0);
+            b.box_at(o, 0.5, vec3(0.0, 0.16, 0.0), vec3(0.62, 0.24, 0.2), c);
+            b.box_at(o, 0.5, vec3(-0.38, 0.16, 0.0), vec3(0.16, 0.26, 0.06), dark);
+            b.box_at(o, 0.5, vec3(0.0, 0.3, 0.0), vec3(0.2, 0.06, 0.04), dark);
+            b.box_at(o, 0.5, vec3(0.22, 0.2, 0.105), vec3(0.05, 0.05, 0.02), Color::from_rgba(20, 20, 30, 255));
+        }
+        Thing::Mush(k, _) => {
+            let c = [Color::from_rgba(200, 80, 70, 255), Color::from_rgba(170, 110, 220, 255), Color::from_rgba(255, 206, 90, 255)][k.min(2)];
+            b.box_at(o, 0.5, vec3(0.0, 0.12, 0.0), vec3(0.14, 0.24, 0.14), Color::from_rgba(240, 230, 210, 255));
+            b.box_at(o, 0.5, vec3(0.0, 0.28, 0.0), vec3(0.42, 0.12, 0.42), c);
+            b.box_at(o, 0.5, vec3(0.0, 0.36, 0.0), vec3(0.26, 0.06, 0.26), c);
+            for (x, z) in [(-0.1, 0.12), (0.12, -0.06), (0.0, 0.0)] {
+                b.box_at(o, 0.5, vec3(x, 0.35, z), vec3(0.06, 0.04, 0.06), Color::from_rgba(255, 245, 230, 255));
+            }
+        }
+        Thing::Wood(_) => {
+            for (k, (y, z)) in [(0.07, -0.1), (0.07, 0.1), (0.2, 0.0)].iter().enumerate() {
+                b.box_at(o, 0.5 + k as f32 * 0.1, vec3(0.0, *y, *z), vec3(0.6, 0.13, 0.13), Color::from_rgba(140, 92, 56, 255));
+                b.box_at(o, 0.5 + k as f32 * 0.1, vec3(0.305, *y, *z), vec3(0.01, 0.1, 0.1), Color::from_rgba(220, 180, 120, 255));
+            }
+        }
+        Thing::Stone(_) => {
+            b.box_at(o, 0.4, vec3(0.0, 0.12, 0.0), vec3(0.4, 0.24, 0.34), Color::from_rgba(150, 150, 164, 255));
+            b.box_at(o, 0.9, vec3(0.12, 0.28, 0.02), vec3(0.2, 0.12, 0.2), Color::from_rgba(180, 180, 194, 255));
+        }
+        Thing::Acorns(_) => {
+            for (k, x) in [-0.14f32, 0.14].iter().enumerate() {
+                b.box_at(o, 0.3, vec3(*x, 0.14 + k as f32 * 0.02, 0.0), vec3(0.2, 0.24, 0.2), Color::from_rgba(200, 128, 66, 255));
+                b.box_at(o, 0.3, vec3(*x, 0.29 + k as f32 * 0.02, 0.0), vec3(0.24, 0.08, 0.24), Color::from_rgba(120, 80, 50, 255));
+                b.box_at(o, 0.3, vec3(*x, 0.36 + k as f32 * 0.02, 0.0), vec3(0.04, 0.06, 0.04), Color::from_rgba(90, 60, 36, 255));
+            }
+        }
+    }
+}
+
+fn thing_camera(target: &RenderTarget, t: crate::steps::bag::Thing, angle: f32, viewport: Option<(i32, i32, i32, i32)>, aspect: f32) -> Batch {
+    let (focus, dist) = thing_focus(t);
+    let eye = focus + vec3(angle.sin() * dist, dist * 0.75, angle.cos() * dist);
+    set_camera(&Camera3D { position: eye, target: focus, up: Vec3::Y, fovy: 0.62, aspect: Some(aspect), render_target: Some(target.clone()), viewport, ..Default::default() });
+    let light = Light { dusk: 0.3, fire: focus + vec3(0.9, 1.8, 1.1), fire_strength: 0.7, tint: vec3(1.0, 0.75, 0.45), lamps: Vec::new() };
+    Batch::new(eye, light)
+}
+
+pub(crate) fn render_bag_icons(target: &RenderTarget, things: &[crate::steps::bag::Thing], time: f32) {
+    let (w, h) = (target.texture.width(), target.texture.height());
+    set_camera(&Camera2D { render_target: Some(target.clone()), zoom: vec2(2.0 / w, -2.0 / h), target: vec2(w / 2.0, h / 2.0), ..Default::default() });
+    clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
+    let cell = crate::steps::bag::CELL_PX as i32;
+    let cols = (w as i32) / cell;
+    for (k, t) in things.iter().enumerate() {
+        let (c, r) = (k as i32 % cols, k as i32 / cols);
+        let mut b = thing_camera(target, *t, 0.7, Some((c * cell, r * cell, cell, cell)), 1.0);
+        draw_thing(&mut b, *t, time);
+        b.flush();
+    }
+}
+
+pub(crate) fn render_bag_detail(target: &RenderTarget, t: crate::steps::bag::Thing, time: f32) {
+    let (w, h) = (target.texture.width(), target.texture.height());
+    set_camera(&Camera2D { render_target: Some(target.clone()), zoom: vec2(2.0 / w, -2.0 / h), target: vec2(w / 2.0, h / 2.0), ..Default::default() });
+    clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
+    let mut b = thing_camera(target, t, 0.7 + time * 0.5, None, w / h);
+    draw_thing(&mut b, t, time);
+    b.flush();
+}

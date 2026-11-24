@@ -105,7 +105,7 @@ pub(crate) fn hotkeys(g: &mut Game, fr: &mut Frame) {
             g.players[1].place_at(start);
         }
     }
-    if is_key_pressed(KeyCode::Tab) {
+    if is_key_pressed(KeyCode::Tab) && !g.show_inventory {
         g.music_mode = !g.music_mode;
     }
     if is_key_pressed(KeyCode::R) && !(g.shop_open && g.shop_tab == 1) {
@@ -168,56 +168,7 @@ pub(crate) fn bag(g: &mut Game, fr: &mut Frame) {
         }
     }
     g.bag_clear_armed = (g.bag_clear_armed - fr.dt).max(0.0);
-    let food = bag_food(g);
-    let furn = if g.inside { g.stored.len() } else { 0 };
-    fr.bag_busy = g.show_inventory && (g.inside || !food.is_empty()) && !g.shop_open && !steps::visits::visiting(g);
-    if fr.bag_busy && g.holding.is_none() {
-        let owner = g.bag_owner;
-        let (up, down, act, clear) = if owner == 0 {
-            (is_key_pressed(KeyCode::W) || is_key_pressed(KeyCode::Up), is_key_pressed(KeyCode::S) || is_key_pressed(KeyCode::Down), is_key_pressed(KeyCode::E), is_key_pressed(KeyCode::X))
-        } else {
-            (is_key_pressed(KeyCode::I), is_key_pressed(KeyCode::K), is_key_pressed(KeyCode::O), is_key_pressed(KeyCode::U))
-        };
-        if up {
-            g.bag_sel = g.bag_sel.saturating_sub(1);
-        }
-        if down && g.bag_sel + 1 < furn + food.len() {
-            g.bag_sel += 1;
-        }
-        if act && g.bag_sel >= furn && g.bag_sel < furn + food.len() {
-            crate::flavour::eat(g, food[g.bag_sel - furn]);
-            let left = furn + bag_food(g).len();
-            g.bag_sel = g.bag_sel.min(left.saturating_sub(1));
-        } else if act && g.inside && g.bag_sel < g.stored.len() {
-            let item = g.stored.remove(g.bag_sel);
-            let ahead = ahead_local(&g.players[owner]);
-            g.holding = Some(home::Piece { item, x: ahead.0, z: ahead.1, rot: 0, state: 0, day: 0 });
-            g.holding_by = owner;
-            g.show_inventory = false;
-            g.bag_sel = g.bag_sel.min(g.stored.len().saturating_sub(1));
-            g.toasts.push((format!("took the {} out - {} to place it", item.name(), if owner == 0 { "E" } else { "O" }), 2.5));
-        }
-        if clear && g.inside && !g.house.pieces.is_empty() {
-            if g.bag_clear_armed > 0.0 {
-                let n = g.house.pieces.len();
-                for piece in g.house.pieces.drain(..) {
-                    g.stored.push(piece.item);
-                }
-                for k in 0..2 {
-                    g.seat[k] = None;
-                    g.players[k].seated = false;
-                    g.players[k].sleeping = false;
-                    g.dj[k] = false;
-                    g.ddr.on[k] = false;
-                }
-                g.bag_clear_armed = 0.0;
-                g.save_clock = 99.0;
-                g.toasts.push((format!("packed away all {} pieces into your bag", n), 2.5));
-            } else {
-                g.bag_clear_armed = 3.0;
-            }
-        }
-    }
+    steps::bag::keys(g, fr);
 }
 
 pub(crate) fn tape_and_fresh_start(g: &mut Game, fr: &mut Frame) {
