@@ -246,6 +246,7 @@ pub(crate) struct VenueState {
     pub(crate) flag: bool,
     pub(crate) rave_start: f64,
     pub(crate) entered_at: f64,
+    pub(crate) chat_warned: bool,
     pub(crate) last_step: i64,
     pub(crate) pulse: f32,
     pub(crate) crowd: Vec<Player>,

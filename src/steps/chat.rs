@@ -37,6 +37,7 @@ pub(crate) struct Chat {
     pub(crate) sent_watch: bool,
     pub(crate) sent_me: bool,
     pub(crate) unread: Vec<String>,
+    pub(crate) confirm: String,
 }
 
 const KEEP: usize = 200;
@@ -228,6 +229,50 @@ pub(crate) fn avatar(ch: usize, x: f32, y: f32, s: f32, tint: Color) {
 
 fn in_group(g: &Game) -> bool {
     steps::visits::visiting(g) || !g.venue.visits.peers.is_empty()
+}
+
+pub(crate) const SAFETY: &str = "keep it safe: never share your address, phone number, passwords or real name";
+
+pub(crate) fn privacy_risk(text: &str) -> Option<&'static str> {
+    let lower = text.to_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    if words.iter().any(|w| {
+        let w = w.trim_matches(|c: char| !c.is_alphanumeric() && c != '@' && c != '.');
+        w.split_once('@').map(|(a, b)| !a.is_empty() && b.contains('.') && !b.ends_with('.')).unwrap_or(false)
+    }) {
+        return Some("an email address");
+    }
+    let mut run = 0;
+    let mut best = 0;
+    for c in lower.chars() {
+        if c.is_ascii_digit() {
+            run += 1;
+            best = best.max(run);
+        } else if !(c == ' ' || c == '-' || c == '.' || c == '(' || c == ')' || c == '+') {
+            run = 0;
+        }
+    }
+    if best >= 8 {
+        return Some("a phone number");
+    }
+    let tlds = [".com", ".net", ".org", ".io", ".me", ".co", ".kr", ".de", ".uk", ".app", ".dev", ".gg"];
+    if lower.contains("http://") || lower.contains("https://") || lower.contains("www.") || words.iter().any(|w| tlds.iter().any(|t| w.trim_end_matches(|c: char| !c.is_alphanumeric()).ends_with(t) && w.len() > t.len())) {
+        return Some("a link");
+    }
+    if ["password", "passwort", "my address", "i live at", "비밀번호", "주소"].iter().any(|k| lower.contains(k)) {
+        return Some("private details");
+    }
+    None
+}
+
+pub(crate) fn needs_confirm(g: &mut Game, text: &str) -> Option<String> {
+    let risk = privacy_risk(text)?;
+    if g.venue.chat.confirm == text {
+        g.venue.chat.confirm.clear();
+        return None;
+    }
+    g.venue.chat.confirm = text.to_string();
+    Some(format!("that looks like {risk}. only share it with people you trust - enter again sends it anyway"))
 }
 
 fn send_room(g: &mut Game, text: &str) {
@@ -428,7 +473,7 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     let list_y = y + 50.0;
     let input_h = 18.0;
-    let note_h = if g.venue.chat.note.is_empty() { 0.0 } else { 11.0 };
+    let note_h = 11.0;
     let list_h = h - 50.0 - input_h - 12.0 - note_h;
     let tab = g.venue.chat.tab;
     let mut send = false;
@@ -444,6 +489,8 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     if !g.venue.chat.note.is_empty() {
         ui_text_fit(&g.venue.chat.note.clone(), x + 8.0, y + h - input_h - 12.0, 7.0, w - 16.0, ui::skin::GOLD);
+    } else if tab != 1 {
+        ui_text_fit(SAFETY, x + 8.0, y + h - input_h - 12.0, 6.0, w - 16.0, ui::skin::MUTED);
     }
     let can_type = tab == 0 || (tab == 2 && g.venue.chat.peer.is_some());
     if can_type {
@@ -480,11 +527,18 @@ pub(crate) fn panel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     if adding && enter {
         add_friend(g);
     } else if can_type && (enter || send) {
+        let draft = g.venue.chat.draft.trim().to_string();
+        let warn = needs_confirm(g, &draft);
+        if let Some(w) = warn {
+            g.venue.chat.note = w;
+        } else {
         let text = std::mem::take(&mut g.venue.chat.draft);
+        g.venue.chat.note.clear();
         if tab == 0 {
             send_room(g, &text);
         } else if let Some(code) = g.venue.chat.peer.clone() {
             send_dm(g, &code, &text);
+        }
         }
     }
     if close || is_key_pressed(KeyCode::Escape) || (fr.click && !hit(fr, x, y, w, h)) {
@@ -616,4 +670,22 @@ fn dm_tab(g: &mut Game, fr: &mut Frame, x: f32, y: f32, w: f32, h: f32, fresh: b
     let who = friends.iter().find(|f| f.code == peer).map(|f| f.name.clone()).unwrap_or_default();
     let empty = format!("say hello to {who}. messages only reach friends who are online and have added you too.");
     messages(g, fr, &list, x + 6.0, y + 17.0, w - 12.0, h - 17.0, fresh, &empty);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::privacy_risk;
+
+    #[test]
+    fn private_details_are_spotted_and_normal_chat_is_not() {
+        assert_eq!(privacy_risk("mail me at kim.lee@example.com"), Some("an email address"));
+        assert_eq!(privacy_risk("call 010-1234-5678"), Some("a phone number"));
+        assert_eq!(privacy_risk("+44 7700 900123"), Some("a phone number"));
+        assert_eq!(privacy_risk("see https://somewhere.test/x"), Some("a link"));
+        assert_eq!(privacy_risk("my insta is site.com"), Some("a link"));
+        assert_eq!(privacy_risk("my password is duck"), Some("private details"));
+        for ok in ["this drop is unreal", "132 bpm tonight!", "see you at 23:30", "code ACD-EFG-HJK", "@kim nice set", "1.5x faster", "that was 10/10"] {
+            assert_eq!(privacy_risk(ok), None, "{ok}");
+        }
+    }
 }

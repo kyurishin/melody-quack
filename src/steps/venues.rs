@@ -987,6 +987,13 @@ fn send_mix(g: &mut Game) {
     net::send(&format!("mix {} {} {} {}", m.0 as u8, m.1 as u8, m.2, m.3));
 }
 
+fn warn_once(g: &mut Game) {
+    if !g.venue.chat_warned {
+        g.venue.chat_warned = true;
+        g.venue.chat_log.push((3, String::new(), steps::chat::SAFETY.to_string(), get_time()));
+    }
+}
+
 fn say_to_room(g: &mut Game, text: &str, online: bool) {
     if text.is_empty() {
         return;
@@ -3552,8 +3559,13 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         }
         if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
             let text = g.venue.chat_draft.trim().to_string();
-            say_to_room(g, &text, can_chat);
-            chat_done = true;
+            if let Some(w) = steps::chat::needs_confirm(g, &text) {
+                g.venue.chat_log.push((3, String::new(), w, get_time()));
+                g.venue.chat_scroll = 0;
+            } else {
+                say_to_room(g, &text, can_chat);
+                chat_done = true;
+            }
         }
         let wheel = mouse_wheel().1;
         let s = g.venue.chat_scroll;
@@ -3580,6 +3592,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
             chat_done = true;
         }
     } else if !fresh && g.venue.overlay == Overlay::None && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) {
+        warn_once(g);
         g.venue.chat_open = true;
         g.venue.chat_draft.clear();
         g.venue.chat_scroll = 0;
@@ -4021,6 +4034,7 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
         } else if radio::touch_ui() && !over_decks {
             let chat_x = if mail_visible(g) { 34.0 } else { 6.0 };
             if button(fr, "chat", chat_x, base, 34.0, 13.0, false) {
+                warn_once(g);
                 g.venue.chat_open = true;
                 g.venue.chat_draft.clear();
                 g.venue.chat_scroll = 0;
