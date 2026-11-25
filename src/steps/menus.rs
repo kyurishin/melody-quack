@@ -60,6 +60,9 @@ pub(crate) fn help_and_escape(g: &mut Game, fr: &mut Frame) {
     if !g.paused && !g.picking && !fr.help_closed && steps::topbar::click(g, fr) {
         return;
     }
+    if !g.paused && !g.picking && !fr.help_closed && steps::camp_step::choice_click(g, fr) {
+        return;
+    }
     if !g.paused && !g.picking && !fr.help_closed && g.show_inventory && !g.shop_open && !g.show_help && fr.click {
         let (bx, by, bw, bh) = steps::bag::panel_rect(fr);
         if !steps::venues::hit(fr, bx, by, bw, bh) {

@@ -74,3 +74,75 @@ pub(crate) fn jam_and_fire(g: &mut Game, fr: &mut Frame) {
         spawn(&mut g.particles, vec3(x1 as f32 - 0.6, 2.7, z0 as f32 + 0.6), vec3(0.15, 0.5, 0.0), 2.6, Color::from_rgba(220, 220, 228, 255), 0.06, -0.02);
     }
 }
+
+thread_local! {
+    static CHOICE: std::cell::RefCell<Vec<(u8, (f32, f32, f32, f32))>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+fn choice_shown(g: &Game) -> bool {
+    !g.inside && !g.picking && !g.paused && !g.show_inventory && !g.shop_open && !g.show_help && !g.two_player && g.venue.overlay == crate::venues::Overlay::None && g.venue.at == crate::venues::Venue::None && g.players[0].seated && g.camp.lit && near_fire(&g.players[0]) && !g.cooking
+}
+
+pub(crate) fn draw_choice(g: &Game, hint_top: f32) {
+    let mut rects = Vec::new();
+    if choice_shown(g) {
+        let stones = g.camp.ring > 0;
+        let playing = g.camp.play[0];
+        let second = if !stones { format!("stones: build the ring first ({}/{})", g.camp.ring, RING_MAX) } else if playing { "my voice".to_string() } else { "play the stones".to_string() };
+        let labels = [("cook", true), (second.as_str(), stones)];
+        let widths: Vec<f32> = labels.iter().map(|(l, _)| ui_measure_as(ui::Face::Label, l, 9.0) + 22.0).collect();
+        let total = widths.iter().sum::<f32>() + 6.0;
+        let mut x = (low_w() - total) / 2.0;
+        let y = hint_top - 22.0;
+        for (k, ((label, on), w)) in labels.iter().zip(widths.iter()).enumerate() {
+            let active = k == 1 && playing;
+            let (fill, edge, ink) = if !on {
+                (Color::new(1.0, 1.0, 1.0, 0.08), ui::skin::EDGE, ui::skin::MUTED)
+            } else if k == 0 {
+                (Color::from_rgba(255, 214, 110, 255), Color::from_rgba(200, 150, 60, 255), ui::skin::INK)
+            } else if active {
+                (ui::skin::PINK, ui::skin::PINK_EDGE, ui::skin::INK)
+            } else {
+                (ui::skin::PANEL_SOLID, ui::skin::EDGE_STRONG, ui::skin::CREAM)
+            };
+            ui_round_frame(x, y, *w, 17.0, 6.0, fill, edge);
+            if k == 0 {
+                ui_round(x + 7.0, y + 7.5, 8.0, 5.0, 2.0, ink);
+                ui_rect(x + 6.0, y + 6.5, 10.0, 1.2, ink);
+            } else {
+                for j in 0..3 {
+                    ui_circle(x + 8.0 + j as f32 * 3.0, y + 9.5 - (j % 2) as f32 * 1.5, 1.4, ink);
+                }
+            }
+            ui_text_as(ui::Face::Label, label, x + 19.0, y + 12.0, 9.0, ink);
+            if *on {
+                rects.push((k as u8, (x, y, *w, 17.0)));
+            }
+            x += w + 6.0;
+        }
+    }
+    CHOICE.with(|c| *c.borrow_mut() = rects);
+}
+
+pub(crate) fn choice_click(g: &mut Game, fr: &mut Frame) -> bool {
+    if !fr.click || !choice_shown(g) {
+        return false;
+    }
+    let hit = CHOICE.with(|c| c.borrow().iter().find(|(_, (x, y, w, h))| fr.ux >= *x && fr.ux <= x + w && fr.uy >= *y && fr.uy <= y + h).map(|(k, _)| *k));
+    let Some(k) = hit else { return false };
+    fr.click = false;
+    if k == 0 {
+        g.camp.play[0] = false;
+        let pot = auto_pot(g.inv.fish, g.inv.mush);
+        g.venue.kitchen.pot = pot;
+        g.venue.kitchen.cook = 0;
+        g.venue.kitchen.row = 0;
+        g.venue.overlay = crate::venues::Overlay::Pot;
+        g.venue.opened_at = get_time();
+    } else {
+        g.camp.play[0] = !g.camp.play[0];
+        g.music_mode = true;
+        g.toasts.push((if g.camp.play[0] { "you tap the ring of stones - 1-6 play them".to_string() } else { "back to your own voice".to_string() }, 2.0));
+    }
+    true
+}

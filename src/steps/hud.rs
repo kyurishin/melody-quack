@@ -377,6 +377,8 @@ pub(crate) fn draw_hud(g: &mut Game, fr: &mut Frame) {
         ui_round_frame((low_w() - w) / 2.0 - 8.0, hy - 11.0, w + 16.0, 15.0, 6.0, ui::skin::PANEL, ui::skin::EDGE_STRONG);
         ui_text_as(ui::Face::Label, &fr.hint, (low_w() - w) / 2.0, hy, size, ui::skin::CREAM);
     }
+    let hint_top = (if fr.show_grid { fr.grid_y - 16.0 } else { fr.bar_y - 10.0 }) - 11.0;
+    steps::camp_step::draw_choice(g, hint_top);
     steps::partner::draw_card(g, fr);
     let toast_y = steps::venues::below_banners(g) + 10.0;
     for (k, (text, life)) in g.toasts.iter().enumerate() {
