@@ -350,6 +350,7 @@ async fn main() {
         crate::glow::set_enabled(saved.gfx.0);
         crate::render::set_pixel_look(saved.gfx.1);
         steps::topbar::set_hide_mask(saved.widgets);
+        steps::topbar::set_order_text(&saved.topbar);
         saved_session = saved.session.clone();
         saved_companion = !saved.companion_off;
         if saved.tiles.len() == world.tiles.len() {

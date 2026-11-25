@@ -47,6 +47,7 @@ pub(crate) fn autosave(g: &mut Game, fr: &mut Frame) {
             live_code: g.venue.code.text.clone(),
             gfx: (crate::glow::enabled(), crate::render::pixel_look()),
             widgets: steps::topbar::hide_mask(),
+            topbar: steps::topbar::order_text(),
             dex: g.dex_counts.clone(),
             mush: g.inv.mush,
             shroomdex: g.shroom_counts.clone(),

@@ -71,7 +71,6 @@ pub(crate) const BELL: u8 = 7;
 
 thread_local! {
     static HIDE: std::cell::Cell<u16> = const { std::cell::Cell::new(0) };
-    static RECIPE_PILL: std::cell::Cell<(f32, f32, f32)> = const { std::cell::Cell::new((0.0, 0.0, 0.0)) };
 }
 
 pub(crate) fn hidden(w: u8) -> bool {
@@ -209,10 +208,7 @@ pub(crate) fn click(g: &mut Game, fr: &mut Frame) -> bool {
             g.save_clock = 99.0;
         }
     }
-    let (rx, ry, rw) = RECIPE_PILL.with(|r| r.get());
-    if fr.click && !hidden(RECIPES) && rw > 0.0 && fr.ux > rx && fr.ux < rx + rw && fr.uy > ry && fr.uy < ry + 14.0 && g.venue.overlay == venues::Overlay::None {
-        steps::recipes::open(g);
-        fr.click = false;
+    if drag_step(g, fr) {
         return true;
     }
     if !fr.click || fr.uy < Y || fr.uy > Y + H {
@@ -403,98 +399,237 @@ fn pill_w(parts: &[(Option<Color>, String)]) -> f32 {
     parts.iter().map(|(c, t)| if c.is_some() { 8.0 } else { 0.0 } + ui_measure_as(Face::Data, t, 9.0) + 5.0).sum::<f32>() + 5.0
 }
 
-fn pill(x: f32, y: f32, parts: &[(Option<Color>, String)]) {
-    let w = pill_w(parts);
-    ui_round_frame(x, y, w, 14.0, 5.0, skin::PANEL, skin::EDGE);
-    let mut px = x + 5.0;
-    for (c, t) in parts {
-        if let Some(c) = c {
-            ui_round(px, y + 4.0, 6.0, 6.0, 1.5, *c);
-            px += 8.0;
+
+thread_local! {
+    static ORDER: std::cell::RefCell<[Vec<u8>; 2]> = std::cell::RefCell::new([vec![ACORNS, RECIPES, COUNTS], vec![FIRE, CLOCK]]);
+    static PILLS: std::cell::RefCell<Vec<(u8, (f32, f32, f32, f32))>> = const { std::cell::RefCell::new(Vec::new()) };
+    static DRAG: std::cell::Cell<Option<(u8, f32, f32, f32, f32, bool)>> = const { std::cell::Cell::new(None) };
+}
+
+const STATS: [u8; 5] = [COUNTS, RECIPES, ACORNS, CLOCK, FIRE];
+
+pub(crate) fn order_text() -> String {
+    ORDER.with(|o| {
+        let o = o.borrow();
+        o.iter().map(|r| r.iter().map(|w| w.to_string()).collect::<Vec<_>>().join(",")).collect::<Vec<_>>().join("|")
+    })
+}
+
+pub(crate) fn set_order_text(t: &str) {
+    if t.trim().is_empty() {
+        return;
+    }
+    let mut rows: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
+    for (r, part) in t.split('|').take(2).enumerate() {
+        for w in part.split(',').filter_map(|v| v.trim().parse::<u8>().ok()) {
+            if STATS.contains(&w) && !rows.iter().any(|row| row.contains(&w)) {
+                rows[r].push(w);
+            }
         }
-        ui_text_as(Face::Data, t, px, y + 10.5, 9.0, skin::CREAM);
-        px += ui_measure_as(Face::Data, t, 9.0) + 5.0;
+    }
+    for w in STATS {
+        if !rows.iter().any(|row| row.contains(&w)) {
+            rows[if w == CLOCK || w == FIRE { 1 } else { 0 }].push(w);
+        }
+    }
+    ORDER.with(|o| *o.borrow_mut() = rows);
+}
+
+fn stat_width(g: &Game, w: u8) -> f32 {
+    match w {
+        COUNTS => {
+            let fish: u32 = g.inv.fish.iter().sum();
+            pill_w(&[(Some(WHITE), format!("{}", g.inv.wood)), (Some(WHITE), format!("{}", g.inv.stone)), (Some(WHITE), format!("{}", fish))])
+        }
+        RECIPES => pill_w(&[(None, format!("{}/{}", g.dishes.len(), DISHES.len()))]) + 9.0,
+        ACORNS => pill_w(&[(None, format!("{}", g.inv.acorns))]) + 9.0,
+        CLOCK => ui_measure(&clock_line(), 9.0) + 20.0,
+        _ => 44.0,
     }
 }
 
-fn stats(g: &Game, fr: &mut Frame) {
-    let y = Y + H + 3.0;
-    let fish: u32 = g.inv.fish.iter().map(|n| *n as u32).sum();
-    let res = [(Some(Color::from_rgba(255, 128, 74, 255)), format!("{}", g.inv.wood)), (Some(Color::from_rgba(200, 200, 214, 255)), format!("{}", g.inv.stone)), (Some(Color::from_rgba(120, 200, 240, 255)), format!("{}", fish))];
-    let dishes = [(None, format!("{}/{}", g.dishes.len(), DISHES.len()))];
-    let acorns = [(None, format!("{}", g.inv.acorns))];
-    let dish_w = pill_w(&dishes) + 9.0;
-    let acorn_w = pill_w(&acorns) + 9.0;
-    let res_w = pill_w(&res);
-    let fire_w = 44.0;
-    let mut x = low_w() - 4.0;
-    if !hidden(ACORNS) {
-        x -= acorn_w;
-        let ax = x;
-        ui_round_frame(ax, y, acorn_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
-        ui_acorn(ax + 8.5, y + 7.4, 1.0);
-        ui_text_as(Face::Data, &acorns[0].1, ax + 15.0, y + 10.5, 9.0, skin::CREAM);
-        x -= 3.0;
-    }
-    if !hidden(RECIPES) {
-        x -= dish_w;
-        let dx = x;
-        RECIPE_PILL.with(|r| r.set((dx, y, dish_w)));
-        let over = fr.ux > dx && fr.ux < dx + dish_w && fr.uy > y && fr.uy < y + 14.0;
-        ui_round_frame(dx, y, dish_w, 14.0, 5.0, if over { Color::new(0.32, 0.25, 0.52, 1.0) } else { skin::PANEL }, skin::EDGE);
-        ui_circle(dx + 8.5, y + 8.0, 3.6, Color::from_rgba(255, 150, 180, 255));
-        ui_round(dx + 4.0, y + 6.5, 9.0, 1.6, 0.8, Color::from_rgba(255, 200, 220, 255));
-        ui_text_as(Face::Data, &dishes[0].1, dx + 15.0, y + 10.5, 9.0, skin::CREAM);
-        x -= 3.0;
-    }
-    if !hidden(COUNTS) {
-        x -= res_w;
-        pill(x, y, &res);
-        x -= 3.0;
-    }
-    let row1 = !(hidden(ACORNS) && hidden(RECIPES) && hidden(COUNTS));
-    let row2_left = x + 3.0;
-    let y3 = if row1 { y + 17.0 } else { y };
+fn clock_line() -> String {
     let sk = sky();
     let temp = sk.temp.map(|t| format!("  {:.0}C", t)).unwrap_or_default();
-    let line = format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp);
-    let tw = ui_measure(&line, 9.0) + 20.0;
-    let row2 = !(hidden(CLOCK) && hidden(FIRE));
-    let fx = low_w() - 4.0 - fire_w;
-    let tx = if hidden(FIRE) { low_w() - 4.0 - tw } else { fx - 3.0 - tw };
-    DROP.with(|d| d.set(match (row1, row2) { (true, true) => 17.0, (false, false) => -17.0, _ => 0.0 }));
-    if !hidden(FIRE) {
-        ui_round_frame(fx, y3, fire_w, 14.0, 5.0, skin::PANEL, skin::EDGE);
-        let lit = g.camp.lit;
-        let flame = if lit { Color::from_rgba(255, 140, 50, 255) } else { Color::from_rgba(140, 120, 130, 255) };
-        ui_tri(vec2(fx + 6.5, y3 + 2.5), vec2(fx + 10.0, y3 + 10.5), vec2(fx + 3.0, y3 + 10.5), flame);
-        ui_circle(fx + 6.5, y3 + 9.0, 3.2, flame);
-        if lit {
-            ui_circle(fx + 6.5, y3 + 9.6, 1.6, Color::from_rgba(255, 220, 110, 255));
+    format!("{:02}:{:02}  {}  {}{}", sk.hour as u32, ((sk.hour.fract()) * 60.0) as u32, SEASONS[sk.season], WEATHERS[sk.weather], temp)
+}
+
+fn draw_stat(g: &Game, w: u8, x: f32, y: f32, width: f32, hover: bool) {
+    let fill = if hover { Color::new(0.32, 0.25, 0.52, 1.0) } else { skin::PANEL };
+    match w {
+        COUNTS => {
+            let fish: u32 = g.inv.fish.iter().sum();
+            let res = [(Some(Color::from_rgba(255, 128, 74, 255)), format!("{}", g.inv.wood)), (Some(Color::from_rgba(200, 200, 214, 255)), format!("{}", g.inv.stone)), (Some(Color::from_rgba(120, 200, 240, 255)), format!("{}", fish))];
+            ui_round_frame(x, y, width, 14.0, 5.0, fill, skin::EDGE);
+            let mut px = x + 5.0;
+            for (c, t) in &res {
+                if let Some(c) = c {
+                    ui_round(px, y + 4.0, 6.0, 6.0, 1.5, *c);
+                    px += 8.0;
+                }
+                ui_text_as(Face::Data, t, px, y + 10.5, 9.0, skin::CREAM);
+                px += ui_measure_as(Face::Data, t, 9.0) + 5.0;
+            }
         }
-        let fill = (g.camp.fuel / 180.0).clamp(0.0, 1.0);
-        ui_round(fx + 13.0, y3 + 5.5, 26.0, 3.0, 1.5, Color::new(0.0, 0.0, 0.0, 0.35));
-        if fill > 0.0 {
-            ui_round(fx + 13.0, y3 + 5.5, 26.0 * fill, 3.0, 1.5, flame);
+        RECIPES => {
+            ui_round_frame(x, y, width, 14.0, 5.0, fill, skin::EDGE);
+            ui_circle(x + 8.5, y + 8.0, 3.6, Color::from_rgba(255, 150, 180, 255));
+            ui_round(x + 4.0, y + 6.5, 9.0, 1.6, 0.8, Color::from_rgba(255, 200, 220, 255));
+            ui_text_as(Face::Data, &format!("{}/{}", g.dishes.len(), DISHES.len()), x + 15.0, y + 10.5, 9.0, skin::CREAM);
+        }
+        ACORNS => {
+            ui_round_frame(x, y, width, 14.0, 5.0, fill, skin::EDGE);
+            ui_acorn(x + 8.5, y + 7.4, 1.0);
+            ui_text_as(Face::Data, &format!("{}", g.inv.acorns), x + 15.0, y + 10.5, 9.0, skin::CREAM);
+        }
+        CLOCK => {
+            let sk = sky();
+            ui_round_frame(x, y, width, 14.0, 5.0, fill, skin::EDGE);
+            let night = sk.hour < 6.0 || sk.hour >= 19.0;
+            if night {
+                ui_circle(x + 8.0, y + 7.0, 4.0, skin::GOLD);
+                ui_circle(x + 10.0, y + 5.6, 3.6, skin::PANEL_SOLID);
+            } else {
+                for k in 0..8 {
+                    let a = k as f32 * std::f32::consts::PI / 4.0;
+                    ui_line(vec2(x + 8.0 + a.cos() * 3.4, y + 7.0 + a.sin() * 3.4), vec2(x + 8.0 + a.cos() * 5.0, y + 7.0 + a.sin() * 5.0), 0.5, skin::GOLD);
+                }
+                ui_circle(x + 8.0, y + 7.0, 2.8, skin::GOLD);
+            }
+            ui_text(&clock_line(), x + 15.0, y + 10.5, 9.0, skin::CREAM);
+        }
+        _ => {
+            ui_round_frame(x, y, width, 14.0, 5.0, fill, skin::EDGE);
+            let lit = g.camp.lit;
+            let flame = if lit { Color::from_rgba(255, 140, 50, 255) } else { Color::from_rgba(140, 120, 130, 255) };
+            ui_tri(vec2(x + 6.5, y + 2.5), vec2(x + 10.0, y + 10.5), vec2(x + 3.0, y + 10.5), flame);
+            ui_circle(x + 6.5, y + 9.0, 3.2, flame);
+            if lit {
+                ui_circle(x + 6.5, y + 9.6, 1.6, Color::from_rgba(255, 220, 110, 255));
+            }
+            let fill = (g.camp.fuel / 180.0).clamp(0.0, 1.0);
+            ui_round(x + 13.0, y + 5.5, 26.0, 3.0, 1.5, Color::new(0.0, 0.0, 0.0, 0.35));
+            if fill > 0.0 {
+                ui_round(x + 13.0, y + 5.5, 26.0 * fill, 3.0, 1.5, flame);
+            }
         }
     }
-    if !hidden(CLOCK) {
-    let ty = y3;
-    ui_round_frame(tx, ty, tw, 14.0, 5.0, skin::PANEL, skin::EDGE);
-    let night = sk.hour < 6.0 || sk.hour >= 19.0;
-    if night {
-        ui_circle(tx + 8.0, ty + 7.0, 4.0, skin::GOLD);
-        ui_circle(tx + 10.0, ty + 5.6, 3.6, skin::PANEL_SOLID);
-    } else {
-        for k in 0..8 {
-            let a = k as f32 * std::f32::consts::PI / 4.0;
-            ui_line(vec2(tx + 8.0 + a.cos() * 3.4, ty + 7.0 + a.sin() * 3.4), vec2(tx + 8.0 + a.cos() * 5.0, ty + 7.0 + a.sin() * 5.0), 0.5, skin::GOLD);
+}
+
+fn row_layout(g: &Game, rows: &[Vec<u8>; 2], skip: Option<u8>) -> Vec<(usize, Vec<(u8, f32, f32)>)> {
+    let mut out = Vec::new();
+    for (r, row) in rows.iter().enumerate() {
+        let mut x = low_w() - 4.0;
+        let mut items = Vec::new();
+        for w in row {
+            if hidden(*w) || Some(*w) == skip {
+                continue;
+            }
+            let width = stat_width(g, *w);
+            x -= width;
+            items.push((*w, x, width));
+            x -= 3.0;
         }
-        ui_circle(tx + 8.0, ty + 7.0, 2.8, skin::GOLD);
+        out.push((r, items));
     }
-    ui_text(&line, tx + 15.0, ty + 10.5, 9.0, skin::CREAM);
+    out
+}
+
+fn drop_slot(g: &Game, rows: &[Vec<u8>; 2], w: u8, ux: f32, uy: f32) -> (usize, usize) {
+    let base = Y + H + 3.0;
+    let r = if uy > base + 15.5 { 1 } else { 0 };
+    let layout = row_layout(g, rows, Some(w));
+    let items = &layout[r].1;
+    let at_vis = items.iter().position(|(_, x, width)| ux > x + width / 2.0).unwrap_or(items.len());
+    let full: Vec<u8> = rows[r].iter().copied().filter(|x| *x != w).collect();
+    let vis: Vec<usize> = full.iter().enumerate().filter(|(_, x)| !hidden(**x)).map(|(i, _)| i).collect();
+    (r, vis.get(at_vis).copied().unwrap_or(full.len()))
+}
+
+pub(crate) fn drag_step(g: &mut Game, fr: &mut Frame) -> bool {
+    let free = g.venue.overlay == venues::Overlay::None && !g.show_inventory && !g.shop_open && !g.show_help;
+    if let Some((w, gx, gy, sx, sy, moved)) = DRAG.with(|d| d.get()) {
+        if is_mouse_button_down(MouseButton::Left) {
+            let moved = moved || (fr.ux - sx).abs() + (fr.uy - sy).abs() > 4.0;
+            DRAG.with(|d| d.set(Some((w, gx, gy, sx, sy, moved))));
+            fr.click = false;
+            return true;
+        }
+        DRAG.with(|d| d.set(None));
+        if moved {
+            ORDER.with(|o| {
+                let mut rows = o.borrow().clone();
+                let (r, at) = drop_slot(g, &rows, w, fr.ux, fr.uy);
+                for row in rows.iter_mut() {
+                    row.retain(|x| *x != w);
+                }
+                let at = at.min(rows[r].len());
+                rows[r].insert(at, w);
+                *o.borrow_mut() = rows;
+            });
+            g.save_clock = 99.0;
+        } else if w == RECIPES && free {
+            steps::recipes::open(g);
+        }
+        fr.click = false;
+        return true;
     }
-    fr.ix = if row2 { row2_left.min(if hidden(CLOCK) { fx } else { tx }) } else { row2_left };
+    if fr.click && free {
+        let hit = PILLS.with(|p| p.borrow().iter().find(|(_, (x, y, w, h))| fr.ux >= *x && fr.ux <= x + w && fr.uy >= *y && fr.uy <= y + h).map(|(id, (x, y, _, _))| (*id, fr.ux - x, fr.uy - y)));
+        if let Some((w, gx, gy)) = hit {
+            DRAG.with(|d| d.set(Some((w, gx, gy, fr.ux, fr.uy, false))));
+            fr.click = false;
+            return true;
+        }
+    }
+    false
+}
+
+fn stats(g: &Game, fr: &mut Frame) {
+    let base = Y + H + 3.0;
+    let drag = DRAG.with(|d| d.get()).filter(|d| d.5);
+    let rows = ORDER.with(|o| o.borrow().clone());
+    let mut shown_rows = rows.clone();
+    if let Some((w, ..)) = drag {
+        let (r, at) = drop_slot(g, &rows, w, fr.ux, fr.uy);
+        for row in shown_rows.iter_mut() {
+            row.retain(|x| *x != w);
+        }
+        let at = at.min(shown_rows[r].len());
+        shown_rows[r].insert(at, w);
+    }
+    let layout = row_layout(g, &shown_rows, None);
+    let used: Vec<usize> = layout.iter().filter(|(_, items)| !items.is_empty()).map(|(r, _)| *r).collect();
+    let row_y = |r: usize| if drag.is_some() { base + r as f32 * 17.0 } else { base + used.iter().position(|u| *u == r).unwrap_or(0) as f32 * 17.0 };
+    let mut pills = Vec::new();
+    let mut left = low_w();
+    if let Some(_) = drag {
+        for r in 0..2 {
+            ui_round(low_w() - 4.0 - 150.0, row_y(r) - 1.0, 150.0, 16.0, 6.0, Color::new(1.0, 1.0, 1.0, 0.06));
+        }
+    }
+    for (r, items) in &layout {
+        for (w, x, width) in items {
+            let y = row_y(*r);
+            if drag.map(|d| d.0) == Some(*w) {
+                ui_round_frame(*x, y, *width, 14.0, 5.0, Color::new(1.0, 0.84, 0.43, 0.18), skin::GOLD);
+                continue;
+            }
+            let hover = drag.is_none() && fr.ux > *x && fr.ux < x + width && fr.uy > y && fr.uy < y + 14.0;
+            draw_stat(g, *w, *x, y, *width, hover && *w == RECIPES);
+            pills.push((*w, (*x, y, *width, 14.0)));
+            left = left.min(*x);
+        }
+    }
+    if let Some((w, gx, gy, ..)) = drag {
+        let width = stat_width(g, w);
+        ui_round(fr.ux - gx + 2.0, fr.uy - gy + 3.0, width, 14.0, 5.0, Color::new(0.0, 0.0, 0.0, 0.3));
+        draw_stat(g, w, fr.ux - gx, fr.uy - gy, width, true);
+    }
+    PILLS.with(|p| *p.borrow_mut() = pills);
+    let n = used.len();
+    DROP.with(|d| d.set(match n { 2 => 17.0, 1 => 0.0, _ => -17.0 }));
+    fr.ix = left;
 }
 
 pub(crate) fn drop(g: &Game) -> f32 {
