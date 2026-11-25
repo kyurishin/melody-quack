@@ -3745,6 +3745,12 @@ fn chapel(g: &mut Game, fr: &mut Frame, fresh: bool) {
     }
     let (pulse, bar, drop) = rave_tick(g, dt);
     g.venue.pulse = pulse;
+    {
+        let t = time;
+        let band = |k: usize| (0.22 + pulse * (0.78 - k as f32 * 0.14) + 0.14 * (t * (1.7 + k as f32 * 0.9) + k as f32).sin().abs()).clamp(0.0, 1.0);
+        let seq = (t * 2.0) as usize;
+        crate::visuals::VIS.with(|v| v.set(crate::visuals::Vis { bands: [band(0), band(1), band(2), band(3)], pulse, pads: [pulse * 0.6; 4], seq }));
+    }
     let rave = g.venue.now.clone();
     let look = if g.venue.on_air.is_some() { g.venue.look % 4 } else { 0 };
     let (view, tags) = if lounge {
