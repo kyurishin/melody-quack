@@ -1221,10 +1221,15 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     ui_text_as(ui::Face::Display, "the decks", x + 21.0, y + 17.5, 11.0, ui::skin::GOLD);
     let code = g.venue.now.as_ref().map(|r| r.code.clone()).unwrap_or_default();
 
-    let say = |lines: &[&str]| {
-        for (i, l) in lines.iter().enumerate() {
-            ui_text(l, x + 10.0, y + 36.0 + i as f32 * 12.0, 9.0, cream());
+    let say = |lines: &[&str]| -> f32 {
+        let mut ly = y + 36.0;
+        for l in lines {
+            for part in ui_wrap(l, 9.0, w - 20.0) {
+                ui_text(&part, x + 10.0, ly, 9.0, cream());
+                ly += 11.0;
+            }
         }
+        ly
     };
     if let Some(e) = net::cast_error() {
         if g.venue.cast_note != e {
@@ -1247,7 +1252,20 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
             fr.click = false;
         }
     } else if g.venue.dj_name.is_none() && !g.venue.practice && !g.venue.admin {
-        say(&["the decks are for djs.", "got a key? esc, account, then type it in.", "it's 5 euros a month, and you get 1 euro back", "every time the admin lets you play here."]);
+        let below = say(&["the decks are for djs: 5 euros a month on patreon, and 1 euro back every time the admin lets you play here.", "got a dj key? type it in here."]);
+        if button(fr, "type my dj key", x + 10.0, below + 4.0, 92.0, 16.0, true) && !fresh {
+            g.venue.overlay = Overlay::Account;
+            g.venue.key_draft.clear();
+            g.venue.acct_key = true;
+            g.venue.opened_at = get_time();
+            while get_char_pressed().is_some() {}
+            fr.click = false;
+            return;
+        }
+        if !g.venue.patreon.is_empty() && button(fr, "join on patreon", x + 108.0, below + 4.0, 92.0, 16.0, false) && !fresh {
+            net::open_url(&g.venue.patreon.clone());
+            fr.click = false;
+        }
     } else if my_set(g) {
         let audio = g.venue.on_air.as_ref().map(|o| o.audio).unwrap_or(false);
         if audio {
@@ -1398,9 +1416,10 @@ fn decks(g: &mut Game, fr: &mut Frame, fresh: bool) {
     } else if g.venue.asked {
         say(&["asked. the admin will answer by post.", "you can keep dancing."]);
     } else {
-        say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin. then you choose:", "the in-game decks, your own sound (serato, a", "mixer, a mic) or a stream link."]);
-        if button(fr, "ask to play this rave", x + 10.0, y + 64.0, 120.0, 16.0, false) {
+        let below = say(&[&format!("hello, dj {}. credit: {} euro.", g.venue.dj_name.clone().unwrap_or_default(), g.venue.credit), "each set needs a yes from the admin. then you choose: the in-game decks, your own sound (serato, a mixer, a mic) or a stream link."]);
+        if button(fr, "ask to play this rave", x + 10.0, below + 4.0, 120.0, 16.0, true) && !fresh {
             net::send("ask");
+            fr.click = false;
         }
     }
     for (k, (text, _)) in g.toasts.iter().rev().take(1).enumerate() {
